@@ -1,15 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: template (unversioned) -> 1.0.0
+- Version change: 2.1.0 -> 3.0.0
 - Modified principles:
-  - Placeholder Principle 1 -> I. Apple Silicon 与通用二进制优先
-  - Placeholder Principle 2 -> II. 核心引擎纯 Swift 与零重型依赖
-  - Placeholder Principle 3 -> III. InputMethodKit 合规与严格签名
-  - Placeholder Principle 4 -> IV. 故障安全与优雅降级
-  - Placeholder Principle 5 -> V. 本地数据隐私
-- Added sections:
-  - 工程与性能约束
-  - 开发流程与质量门禁
+  - III. InputMethodKit 合规与严格签名（改为 Developer ID、Hardened Runtime 与公证分发）
+  - V. 本地数据隐私（由沙盒强制隔离改为明确路径、权限与代码边界）
+- Added sections: none
 - Removed sections: none
 - Follow-up TODOs: none
 -->
@@ -17,14 +12,14 @@ Sync Impact Report
 
 ## Core Principles
 
-### I. Apple Silicon 与通用二进制优先
-项目必须使用 Xcode 和纯 Swift 原生编译，并产出同时包含 `arm64` 与 `x86_64`
-架构的 Universal Binary。运行时不得依赖 Rosetta 2。发布候选产物必须通过架构检查，
-并在 Apple Silicon 设备上验证原生加载。正常输入路径的常驻内存必须小于 15 MB，
-首字响应时间必须小于 2 ms；性能结论必须由可重复的基准测试支持。
+### I. Apple Silicon 原生优先
+项目必须使用 Xcode 和纯 Swift 为 Apple Silicon 原生编译，并产出 `arm64` 架构的发布
+候选。产品不支持 Intel Mac，运行时不得依赖 Rosetta 2。发布候选产物必须通过架构检查，
+并在 Apple Silicon 设备上验证原生加载。正常输入路径的常驻内存必须小于 15 MB，首字
+响应时间必须小于 2 ms；性能结论必须由可重复的基准测试支持。
 
-理由：原生双架构交付可兼顾当前 Apple Silicon 性能与仍受支持的 Intel Mac，明确的资源
-预算则防止输入法这一常驻系统组件侵占用户资源。
+理由：明确聚焦 Apple Silicon 可减少不再需要的架构、签名和硬件验证成本，同时保持原生
+性能与可复现构建；资源预算可防止输入法这一常驻系统组件侵占用户资源。
 
 ### II. 核心引擎纯 Swift 与零重型依赖
 编码解析、候选生成、词库检索和输入状态管理等核心引擎必须以纯 Swift 实现。核心引擎
@@ -32,13 +27,15 @@ Sync Impact Report
 由 Swift 标准库或 Apple 系统框架合理替代，并在变更评审中记录体积、性能、安全与维护
 成本；任何进入核心引擎的外部重型依赖均视为违反本原则。
 
-理由：减少二进制、ABI 和供应链风险，确保两种目标架构均可由 Xcode 原生、可复现地构建。
+理由：减少二进制、ABI 和供应链风险，确保目标架构可由 Xcode 原生、可复现地构建。
 
 ### III. InputMethodKit 合规与严格签名
-输入法实现必须遵循 macOS InputMethodKit 及 `IMKServer` 协议约定，并满足 App Sandbox
-边界。所有可安装或可测试的输入法产物必须经过明确、可重复的本地代码签名流程；开发
-环境可使用已记录的 Local Code Signing 或 ad-hoc 签名方式。质量门禁必须验证签名完整性、
-entitlements、bundle 标识及系统可加载性。不得通过关闭系统安全机制来使输入法加载。
+输入法实现必须遵循 macOS InputMethodKit 及 `IMKServer` 协议约定。产品不采用 App
+Sandbox，也不以 Mac App Store 为分发渠道；正式发行必须使用 Developer ID Application
+签名、Hardened Runtime、安全时间戳和 Apple 公证，并验证 stapled ticket 与 Gatekeeper
+评估。开发环境可使用 Apple Development 签名；ad-hoc 仅限不进入系统输入源门禁的纯构建
+检查。不得申请网络、Apple Events、Mach 注册/查找临时例外或 Hardened Runtime 弱化例外，
+除非先修订宪章。不得关闭 Gatekeeper、SIP 或其他系统安全机制来使输入法加载。
 
 理由：macOS 会拒绝身份、权限或签名不一致的输入法组件，合规流程是可靠安装与运行的
 前提。
@@ -52,8 +49,9 @@ entitlements、bundle 标识及系统可加载性。不得通过关闭系统安�
 会话故障。
 
 ### V. 本地数据隐私
-用户按键、组合文本、候选选择、用户词频及其他可推断输入内容的数据必须仅在本机 App
-Sandbox 容器内处理和保存。项目不得上传、遥测、同步或向其他进程披露此类数据，也不得
+用户按键、组合文本、候选选择、用户词频及其他可推断输入内容的数据必须仅在本机处理；
+持久化只能位于 `~/Library/Application Support/org.macwubi.inputmethod/`，目录权限必须为
+`0700`，数据文件权限必须为 `0600`。项目不得上传、遥测、同步或向其他进程披露此类数据，也不得
 在日志、崩溃信息或调试产物中写入原始输入内容。持久化数据必须限定为实现输入法功能
 所必需的最小集合，并遵循明确的删除与重置路径。
 
@@ -61,25 +59,26 @@ Sandbox 容器内处理和保存。项目不得上传、遥测、同步或向其
 
 ## 工程与性能约束
 
-- 支持的构建入口必须是受版本控制的 Xcode 工程或工作区，Swift 编译设置必须同时包含
-  `arm64` 与 `x86_64`。
+- 支持的构建入口必须是受版本控制的 Xcode 工程或工作区，发布 Swift 编译设置必须仅包含
+  原生 `arm64` 架构。
 - 核心运行路径只能使用 Swift 标准库与 Apple 原生系统框架；不得依赖 Rosetta 2 或
   C/C++ 动态库。
 - 性能基准必须定义测试机型、macOS 版本、构建配置、词库规模、样本量及统计口径。
   内存小于 15 MB 和首字响应小于 2 ms 的门禁必须在发布候选构建上测量。
-- 沙盒 entitlements 必须遵循最小权限原则。任何权限扩展必须在变更说明中陈述必要性、
-  数据边界与验证方式。
+- 产品签名 entitlements 必须为空或仅包含经宪章批准的 Hardened Runtime 能力；禁止 App
+  Sandbox、网络、Apple Events、Mach 临时例外和 `get-task-allow` 出现在分发构建中。
 - 日志必须采用不包含用户原始输入的结构化事件；生产构建不得启用可泄露输入内容的
   调试日志。
 
 ## 开发流程与质量门禁
 
-- 每项变更必须说明其对双架构构建、核心依赖、InputMethodKit 合规、故障恢复、隐私和
+- 每项变更必须说明其对 Apple Silicon 原生构建、核心依赖、InputMethodKit 合规、故障恢复、隐私和
   性能预算的影响；不适用项也必须明确标记。
 - 合并前必须运行与变更相关的单元测试和集成测试。涉及词库或解析的变更必须覆盖无效
   编码、损坏词库、检索失败与缓冲区复位场景。
-- 发布候选必须验证 Universal Binary 架构、代码签名、entitlements、沙盒边界以及在
-  Apple Silicon 上的原生加载；同时必须执行内存和首字响应基准。
+- 发布候选必须验证主可执行文件仅包含 `arm64` 架构、Developer ID 签名、Hardened
+  Runtime、最小 entitlements、公证票据、Gatekeeper 评估以及在 Apple Silicon 上的原生加载；
+  同时必须执行内存和首字响应基准。
 - 评审发现违反任一 Iron Rule 时不得合并。确需改变规则时，必须先通过宪章修订流程，
   不得以临时例外、隐藏开关或未记录豁免绕过。
 - 验证证据必须可复现，并随变更记录测试命令、关键结果和已知风险。
@@ -96,6 +95,6 @@ PATCH。每次修订必须同步更新顶部 Sync Impact Report、版本和 Last
 
 所有规格与变更评审必须逐项检查五项核心原则及质量门禁。复杂性、权限扩展、依赖引入和
 性能预算偏差必须有明确依据；若无法证明合规，变更必须停止。维护者应在每个发布候选上
-复核构建架构、签名、沙盒、故障恢复、隐私和性能证据。
+复核构建架构、签名、公证、Hardened Runtime、故障恢复、隐私和性能证据。
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-08-01
+**Version**: 3.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-08-01

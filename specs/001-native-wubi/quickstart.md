@@ -6,8 +6,8 @@
 ## Prerequisites
 
 - 安装支持项目 SDK 的 Xcode 15 或更新版本，并接受许可。
-- 一台 Apple Silicon Mac；发布验收另需一台受支持的 Intel Mac。
-- 用户级 `~/Library/Input Methods/` 可写。
+- 一台受支持的 Apple Silicon Mac；发布验收不包含 Intel Mac。
+- 具备通过 macOS 标准授权将 bundle 安装到系统级 `/Library/Input Methods/` 的管理员权限。
 - 准备标准五笔 86 语料、七类应用、VoiceOver、损坏快照和 10,000 条导入样本。
 - 仓库根目录为当前工作目录。
 
@@ -26,14 +26,21 @@ xcodebuild test \
 预期：核心状态、模式、排序、简繁、词库、设置、用户词条、学习、导入导出、迁移、损坏
 恢复、适配器、无障碍和性能测试全部通过；测试日志不打印输入或候选正文。
 
-## 2. Build and verify a signed universal release
+## 2. Build and verify a signed arm64 release
 
 ```bash
 Scripts/build-release.sh
 Scripts/verify-release.sh /absolute/path/to/MacWubi.app
 ```
 
-构建必须使用 Release、`ARCHS="arm64 x86_64"` 和 `ONLY_ACTIVE_ARCH=NO`，不得下载依赖。
+本地纯构建默认使用 ad-hoc 签名。执行 InputMethodKit 系统发现门禁时，必须指定钥匙串中
+有效的 Apple Development 身份；正式分发必须指定 Developer ID Application，例如：
+
+```bash
+MACWUBI_CODE_SIGN_IDENTITY="Apple Development: Name (TEAMID)" Scripts/build-release.sh
+```
+
+构建必须使用 Release、`ARCHS="arm64"` 和 `ONLY_ACTIVE_ARCH=NO`，不得下载依赖。
 验证脚本必须至少执行等价检查：
 
 ```bash
@@ -43,20 +50,26 @@ codesign --display --entitlements :- /absolute/path/to/MacWubi.app
 plutil -lint /absolute/path/to/MacWubi.app/Contents/Info.plist
 ```
 
-预期：主可执行文件恰好包含 `arm64` 和 `x86_64`；两个 slice 及 bundle 签名有效；
-entitlements 只包含 App Sandbox 和用户选择文件所需权限，不含网络、Apple Events 或 App
-Group；InputMethodKit 元数据一致。`codesign --deep` 只用于验证，不用于签名。
+预期：主可执行文件恰好包含 `arm64` 且不包含 `x86_64`；bundle 签名有效并启用 Hardened
+Runtime；不包含 App Sandbox、网络、Apple Events、App Group、Mach 临时例外或运行时弱化
+entitlement。Developer ID 分发构建还必须通过公证票据与 Gatekeeper 检查。InputMethodKit
+元数据一致。`codesign --deep` 只用于验证，不用于签名。
 
-## 3. Pass the sandboxed InputMethodKit blocking gate
+## 3. Pass the local InputMethodKit development gate
 
-将已验证 bundle 安装到用户级 Input Methods 目录，通过系统设置添加输入源；必要时按文档
-注销并重新登录。不得关闭 Gatekeeper、SIP、App Sandbox 或其他系统安全功能。
+通过 macOS 标准管理员授权，将已验证的非沙箱 bundle 安装到
+`/Library/Input Methods/MacWubi.app`，再通过系统设置添加输入源；必要时按文档注销并重新
+登录。不得关闭 Gatekeeper、SIP 或其他系统安全功能。用户级 `~/Library/Input Methods/`
+不属于受支持的默认安装路径，且运行时可变数据不得因此移出用户 Application Support 目录。
 
-在 macOS 13 和当前支持版本分别验证：发现、启用、输入源切换、`IMKServer` 连接、组合
-文本、候选显示、设置打开，以及原生文本应用和浏览器中的提交。
+在当前开发系统使用 Apple Development 签名验证：发现、启用、输入源切换、`IMKServer`
+启动，以及原生文本客户端与输入法进程建立连接。完整组合、候选、设置和跨应用提交由后续
+用户故事实现和验证。
 
-预期：无签名、entitlement 或沙盒拒绝。此门禁失败时立即停止后续产品实现并回到宪章/
-范围决策；不得通过宽泛临时例外或非沙盒辅助进程绕过。
+预期：无签名、Hardened Runtime 或阻断性的 InputMethodKit 拒绝。此门禁失败时立即停止
+后续产品实现并回到宪章/范围决策；不得添加运行时弱化例外或关闭系统安全机制绕过。
+macOS 13 与当前支持版本的完整矩阵，以及 Developer ID、公证、staple 和 Gatekeeper 评估，
+是最终发布门禁，不阻断本地功能实现。
 
 ## 4. Validate complete daily input
 
@@ -112,17 +125,21 @@ Group；InputMethodKit 元数据一致。`codesign --deep` 只用于验证，不
 预期：当前组合与候选安全清除，无崩溃、错误提交、死循环或跨会话污染；仅损坏域隔离，
 下一次有效输入恢复。生产诊断只包含固定错误类别。
 
-## 9. Performance and privacy release gates
+## 9. Performance, privacy, and distribution release gates
 
 在 Release bundle 和发布数据上先预热，再覆盖一至四位编码、基础/用户/学习合并、简繁和
 首中末范围查询。报告 p50、p95、p99、最大值和 RSS；执行八小时连续输入与应用切换压力。
 
-同时观察输入法及其组件的网络活动，扫描签名 entitlements、容器、生产日志、崩溃产物和
+同时观察输入法及其组件的网络活动，扫描签名 entitlements、Application Support 数据目录、生产日志、崩溃产物和
 导出文件。
+
+使用最终 Developer ID Application 身份、安全时间戳和公证构建发布候选，staple 公证票据
+并通过 Gatekeeper 评估；在 Apple Silicon macOS 13 与当前支持版本执行完整安装、发现、
+启用、七类应用输入和卸载矩阵。
 
 预期：所有可识别编码在 2 ms 内提供首批候选，正常输入 RSS 始终低于 15 MB，八小时无
 持续增长；零网络连接、零网络 entitlement，且不存在原始输入历史、应用上下文或可重建
 输入时间线。
 
-任何架构、签名、沙盒加载、输入正确性、隐私、恢复、迁移、无障碍或性能门禁失败都阻止
+任何架构、签名、公证、Hardened Runtime、输入正确性、隐私、恢复、迁移、无障碍或性能门禁失败都阻止
 发布，不得以关闭安全约束或跳过失败测试解决。

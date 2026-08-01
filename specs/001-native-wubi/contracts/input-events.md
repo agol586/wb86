@@ -10,7 +10,13 @@
 - `backspace`：删除末位编码。
 - `cancel`：Escape、会话失活、失焦或输入源切换。
 - `switchLanguage`、`switchPunctuation`、`switchWidth`、`switchScript`：切换对应输入模式。
-- `passThrough`：其他字符、系统命令或含 Command/Control/Option 的快捷键。
+  默认物理键分别为 `Control-Shift-1`、`Control-Shift-2`、`Control-Shift-3` 和
+  `Control-Shift-4`；只拦截这四个精确组合，系统输入源快捷键 `Control-Space` 和其他含
+  修饰键的快捷键继续透传。后续设置可重新绑定或关闭这些组合。
+- `text(value)`：不属于五笔编码或候选控制键的单个普通可打印字符；核心仅在当前标点或
+  全角模式要求转换时消费并返回转换后的文本，否则透传。
+- `passThrough`：系统命令、功能事件、非法或多字符输入，以及含 Command/Control/Option
+  的快捷键。适配层必须先识别这些快捷键，不得把其字符部分转换为 `text(value)`。
 
 ## Processing result
 
@@ -39,6 +45,9 @@
 8. DirectEnglish 模式中的字母和普通符号直接传递，不查询、不显示候选、不学习。
 9. 模式切换必须先按设置原子提交或取消当前组合，再变更模式；不得同时产生两次提交。
 10. 安全输入状态下所有结果的学习增量必须为空。
+11. 默认模式切换在存在组合时采用取消策略：原子清除 marked text 和候选后再切换会话模式，
+    不提交编码或候选；会话模式不得覆盖持久化默认设置。
+12. 普通文本转换只接受单个可打印字符；未命中有界转换表时返回未处理，由客户端保留原事件。
 
 ## Ordering
 

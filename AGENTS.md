@@ -57,10 +57,11 @@ branding, proprietary implementation, private data format, advertising, telemetr
 
 ## 4. Non-Negotiable Engineering Rules
 
-### 4.1 Native and Universal
+### 4.1 Native Apple Silicon
 
 - Use an Xcode project as the only supported product build entry.
-- Product code MUST be Swift and compile into a Universal Binary containing `arm64` and `x86_64`.
+- Product code MUST be Swift and compile into an `arm64` binary for Apple Silicon only.
+- Intel Mac and `x86_64` are outside the supported product and release-validation scope.
 - Do not require Rosetta 2 for normal execution.
 - Target macOS 13.0 or later unless the specification is formally amended.
 
@@ -97,7 +98,8 @@ branding, proprietary implementation, private data format, advertising, telemetr
   monitors or bypass Secure Event Input.
 - Raw keys, marked text, candidate text, committed text, application identity, document context, file
   paths, and reconstructable input timelines MUST NOT appear in production logs or crash diagnostics.
-- Mutable product data belongs in the input method's App Sandbox Application Support container.
+- Mutable product data belongs only in `~/Library/Application Support/org.macwubi.inputmethod/`,
+  with `0700` directory and `0600` file permissions.
 - External files are accessible only through an explicit user-driven open/save panel and only for the
   duration of that import/export operation. Do not retain security-scoped bookmarks by default.
 - Private mode and disabled learning MUST produce no learning writes and MUST exclude existing learning
@@ -135,15 +137,17 @@ repeatable failing measurement exists.
 
 - Build and sign every runnable input-method bundle; local development may use ad-hoc or Apple
   Development signing.
-- Verify Info.plist keys, entitlements, both architecture slices, and code signatures separately.
-- Do not disable Gatekeeper, SIP, App Sandbox, or other macOS security controls to make the product load.
-- `T019` in `tasks.md` is a hard stop: prove sandboxed InputMethodKit discovery, enablement, connection,
+- Verify Info.plist keys, entitlements, the arm64 architecture, Hardened Runtime, code signatures,
+  notarization, and Gatekeeper assessment separately.
+- Do not disable Gatekeeper, SIP, or other macOS security controls to make the product load. The
+  product intentionally does not use App Sandbox and is not distributed through the Mac App Store.
+- `T019` in `tasks.md` is a hard stop: prove Developer-ID-route InputMethodKit discovery, enablement, connection,
   and cross-app input on macOS 13 and the current supported macOS before broader implementation.
 - `T020` decides whether the system candidate window meets keyboard, VoiceOver, focus, and display
   requirements. Use the recorded verdict; do not assume undocumented behavior.
 
 If either platform assumption fails, stop and report the evidence. The next action is a specification
-or constitution decision, not an undocumented entitlement or non-sandboxed workaround.
+or constitution decision, not an undocumented entitlement or security-control workaround.
 
 ## 9. Repository Layout
 
@@ -212,7 +216,7 @@ Until those scripts are implemented, run the smallest available checks and state
 After implementation, a release requires:
 
 - Unit, contract, integration, migration, recovery, privacy, accessibility, and performance tests.
-- A signed Universal Binary on Apple Silicon and Intel validation hardware.
+- A signed `arm64` binary on supported Apple Silicon validation hardware.
 - The complete `specs/001-native-wubi/quickstart.md` procedure.
 - Traceability for FR-001 through FR-031 and SC-001 through SC-013.
 
@@ -239,7 +243,7 @@ Every coding completion report must include:
 - Files changed.
 - User-visible behavior delivered.
 - Exact validation commands and concise results.
-- Constitution gate impact: architecture, dependencies, InputMethodKit/sandbox/signing, recovery, privacy,
+- Constitution gate impact: architecture, dependencies, InputMethodKit/distribution signing, recovery, privacy,
   and performance.
 - Remaining risks or validation gaps.
 

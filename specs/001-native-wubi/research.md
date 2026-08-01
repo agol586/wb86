@@ -29,62 +29,86 @@
 
 ## Bundle 元数据与生命周期
 
-**Decision**: 输入法作为 `LSBackgroundOnly` 应用 bundle。`Info.plist` 至少声明唯一的
-`InputMethodConnectionName`、`InputMethodServerControllerClass`、图标和中文字符集信息；
-入口持有 `IMKServer` 并运行应用事件循环。开发安装目标为用户级 `~/Library/Input Methods/`。
+**Decision**: 输入法作为 `LSBackgroundOnly` 应用 bundle。bundle identifier 固定为
+`org.macwubi.inputmethod.MacWubi`，必须包含 IMK/TIS 实际识别所需的完整
+`.inputmethod.` 段。`Info.plist` 至少声明唯一的
+`InputMethodConnectionName`、`InputMethodServerControllerClass`、稳定 `TISInputSourceID`、
+BCP 47 目标语言、图标和中文字符集信息；首个版本只注册一个直接可选择的系统输入源，
+不声明 `ComponentInputModeDict`。产品内部的中文/英文、标点、宽度和字形切换仍由每个
+输入会话的纯 Swift 状态机管理，不映射为多个 TIS input mode；
+入口持有 `IMKServer` 并运行应用事件循环。连接名固定为 Apple Swift IMK 样例采用的
+`org.macwubi.inputmethod.MacWubi_Connection`。默认安装目标为系统级
+`/Library/Input Methods/MacWubi.app`，复制或升级时使用 macOS 标准管理员授权。
 
 **Rationale**: `IMKServer` 的 bundle 初始化器会读取这些键，加载控制器类并按连接名注册
-客户端通信。用户级安装缩小产品权限与影响面，不需要系统级复制权限。Apple 对第三方
-输入法安装路径的专门说明已归档，因此它只作为路径基线，当前系统行为必须实机验证。
+客户端通信。Text Input Sources 将带 `ComponentInputModeDict` 的输入法建模为不可直接
+选择的 mode-enabled 父项；输入模式只有在父输入法已经启用时才能选择。2026-08-01 的实机
+证据显示，单一五笔模式配置形成了“子模式默认启用、父项仍禁用”的不可添加状态，而 Apple
+的 Swift IMK 样例使用单一无子模式输入法。当前产品只有一个系统级入口，采用直接可选模型
+避免没有用户价值的父子启用依赖。旧标识
+`org.macwubi.inputmethod` 虽包含单词但以 `.inputmethod` 结尾，实机表现为注册返回
+`noErr` 而 TIS 枚举为零；改用带完整 `.inputmethod.` 段的标识是 T019 的最小修正。2026-08-01
+实机还显示，用户级 bundle 虽可被 TIS 枚举，却不出现在系统设置的可添加列表；同一签名
+bundle 安装到系统级目录后可启用、选择并由 TextEdit 连接。因此系统级目录是当前确定性
+安装路径，管理员授权只用于 bundle 生命周期，不扩大运行时数据权限。Apple 对第三方输入法
+安装路径的专门说明已归档，因此当前系统行为仍必须逐个受支持系统实机验证。当前系统日志
+会在 XPC endpoint 建立前报告一次旧式连接名拒绝；把连接名改为不含句点的值后警告仍存在，
+随后 endpoint 注册和 `Activate Server` 均成功，故不能把该警告归因于连接名字符集。
 
 **Alternatives considered**:
 
-- 系统级 `/Library/Input Methods/`：适合多用户部署，但需要管理员权限，不作为默认路径。
+- 用户级 `~/Library/Input Methods/`：不需要管理员权限，但在当前 macOS 实机上无法通过系统
+  设置完成添加和启用，不作为受支持安装路径。
 - 额外设置应用：当前没有必须独立配置的功能，增加 target 和签名面没有用户价值。
 
 **Sources**: [IMKServer bundle initializer and Info.plist keys](https://developer.apple.com/documentation/inputmethodkit/imkserver/init%28name%3Abundleidentifier%3A%29),
 [QA1810: third-party input method management](https://developer.apple.com/library/archive/qa/qa1810/_index.html),
-[inputMethodsDirectory](https://developer.apple.com/documentation/foundation/filemanager/searchpathdirectory/inputmethodsdirectory)
+[inputMethodsDirectory](https://developer.apple.com/documentation/foundation/filemanager/searchpathdirectory/inputmethodsdirectory),
+[Text Input Source Services reference](https://leopard-adc.pepas.com/documentation/TextFonts/Reference/TextInputSourcesReference/TextInputSourcesReference.pdf),
+[Swift InputMethodKit sample](https://github.com/ensan-hcl/macOS_IMKitSample_2021)
 
-## 沙盒与权限策略
+## 系统集成与分发安全策略
 
-**Decision**: 输入法 target 启用 `com.apple.security.app-sandbox`，不申请网络、Apple
-Events 或硬件权限；仅为用户显式导入导出申请 User Selected Files Read/Write。基础词库
-从 bundle 读取，个性化数据写入容器 Application Support。将沙盒下的 `IMKServer` 注册与
-跨应用输入作为首个系统集成阻断测试；通过前不把沙盒兼容性或分发资格标记为已证明。
+**Decision**: 输入法 target 不启用 `com.apple.security.app-sandbox`，不申请网络、Apple
+Events、Mach 或 Hardened Runtime 弱化权限。正式发行使用 Developer ID Application、
+Hardened Runtime、安全时间戳和 Apple 公证；本机系统集成验证可使用 Apple Development。
+基础词库从 bundle 读取，个性化数据只写入固定 Application Support 目录。
 
-**Rationale**: App Sandbox 按 target 启用，并通过 entitlement 仅恢复必需能力。本设计的
-固定 bundle 资源不要求额外文件权限。Apple 文档说明 `IMKServer` 使用命名连接，但没有
-发布 InputMethodKit 专用沙盒 entitlement、例外或端到端兼容性声明，因此文档证据不足以
-证明沙盒化系统输入法可运行；实机纵切是继续实现的硬门禁。
+**Rationale**: Apple 将 App Sandbox 明确列为 Mac App Store 分发要求，而站外分发使用
+Developer ID 与公证。2026-08-01 实机证明沙箱化输入法在补齐 Mach 注册例外、TIS 元数据、
+登录刷新和 Apple Development 签名后仍不进入 TIS 枚举；继续扩展沙箱例外没有官方契约
+依据。Hardened Runtime、公证、无网络实现与严格本地路径权限共同形成新的安全边界。
 
 **Alternatives considered**:
 
-- 禁用沙盒：直接违反宪章，拒绝。
-- 预先添加临时例外或非沙盒 XPC：没有已证实需求，会扩大权限和复杂性，拒绝。
+- 继续增加沙箱临时例外：没有端到端发现证据，且扩大不可维护权限面，拒绝。
+- 关闭 Gatekeeper/SIP：破坏系统安全，拒绝。
 - App Group 或固定外部词库目录：单一进程设置窗口和一次性用户选择文件已满足需求，拒绝。
 
 **Sources**: [Protecting user data with App Sandbox](https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox),
 [Configuring the macOS App Sandbox](https://developer.apple.com/documentation/xcode/configuring-the-macos-app-sandbox),
-[Enabling App Sandbox](https://developer.apple.com/library/archive/documentation/Miscellaneous/Reference/EntitlementKeyReference/Chapters/EnablingAppSandbox.html)
+[App Sandbox](https://developer.apple.com/documentation/security/app-sandbox),
+[Developer ID](https://developer.apple.com/support/developer-id/),
+[Notarizing macOS software before distribution](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution),
+[Hardened Runtime](https://developer.apple.com/documentation/security/hardened-runtime)
 
-## Universal Binary 与签名
+## Apple Silicon 架构与签名
 
-**Decision**: Release 配置使用 Xcode Standard Architectures，显式验证产物同时包含
-`arm64` 和 `x86_64`。本地开发采用 ad-hoc 或 Apple Development 签名；发布渠道确定后再
-使用 Developer ID。每次发布候选都执行严格签名验证并分别检查两种架构的签名信息。
+**Decision**: Release 配置显式限定为 Apple Silicon `arm64`，并验证产物不存在 `x86_64`
+slice 或 Universal Binary 兼容性声明。本地开发采用 ad-hoc 或 Apple Development 签名；
+发布渠道确定后再使用 Developer ID。每次发布候选都分别执行架构和严格签名验证。
 
-**Rationale**: Apple 说明 Xcode 的标准 macOS 架构会为 Release 构建生成 Universal Binary，
-并且每个架构 slice 独立签名。架构存在性与签名完整性是不同门禁，必须分别验证。
+**Rationale**: 产品范围与宪章 2.0.0 已明确排除 Intel Mac。显式固定 `arm64` 可避免构建设置
+随 Xcode 默认值变化而意外恢复 `x86_64`；架构与签名完整性仍是不同门禁，必须分别验证。
 
 **Alternatives considered**:
 
-- 单独构建后手工 `lipo` 合并：适用于自定义构建系统，但本项目以 Xcode 为唯一入口。
+- Universal Binary：扩大构建、签名与硬件验收矩阵，已被产品范围明确排除。
+- 单独构建后手工 `lipo` 合并：不符合仅交付 `arm64` 和以 Xcode 为唯一入口的范围。
 - 仅 ad-hoc 分发：适合本地开发，不足以替代未来面向用户的 Developer ID 与公证流程。
 
 **Sources**: [Building a universal macOS binary](https://developer.apple.com/documentation/apple-silicon/building-a-universal-macos-binary),
-[Creating distribution-signed code for macOS](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/),
-[TN3126: signatures in universal binaries](https://developer.apple.com/documentation/technotes/tn3126-inside-code-signing-hashes)
+[Creating distribution-signed code for macOS](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)
 
 ## 词库布局与查询
 
@@ -114,7 +138,7 @@ Events 或硬件权限；仅为用户显式导入导出申请 User Selected File
 **Alternatives considered**:
 
 - 只做端到端测试：故障注入困难、反馈慢且难定位性能回归。
-- 只做单元测试：无法证明系统加载、签名、候选 UI、沙盒或真实进程内存。
+- 只做单元测试：无法证明系统加载、签名、候选 UI、分发安全或真实进程内存。
 
 **Sources**: [XCTest performance tests](https://developer.apple.com/documentation/xctest/performance-tests),
 [XCTClockMetric](https://developer.apple.com/documentation/xctest/xctclockmetric),
@@ -123,26 +147,28 @@ Events 或硬件权限；仅为用户显式导入导出申请 User Selected File
 
 ## 支持范围
 
-**Decision**: 产品首个支持基线为 macOS 13.0，并在一台 Apple Silicon Mac 与一台
-Intel Mac 上做发布验收；还需覆盖开发时最新支持的 macOS 版本。Swift 使用版本 5 语言
-模式，避免依赖只在更新系统存在的运行时能力。
+**Decision**: 产品首个支持基线为 macOS 13.0，仅在 Apple Silicon Mac 上做发布验收；
+矩阵必须覆盖 macOS 13 和开发时最新支持的 macOS 版本。Swift 使用版本 5 语言模式，避免
+依赖只在更新系统存在的运行时能力。
 
-**Rationale**: macOS 13 提供足够广的现代系统基线，并保留可实际获得的 Intel 测试范围。
-明确的最低版本使安装、沙盒和 InputMethodKit 验收可复现。
+**Rationale**: macOS 13 提供足够广的 Apple Silicon 系统基线。明确的最低版本、目标架构
+和最新支持版本使安装、签名与 InputMethodKit 验收可复现。
 
 **Alternatives considered**:
 
-- 仅支持最新 macOS：测试矩阵最小，但无必要地排除仍可原生运行的 Intel 设备。
+- Intel Mac 与 Universal Binary：超出宪章 2.0.0 和当前产品范围。
+- 仅支持最新 macOS：测试矩阵最小，但会无必要地排除较早的 Apple Silicon 系统。
 - 支持 macOS 12 或更早：扩大兼容验证和签名差异，当前暂无用户证据支持该成本。
 
 ## 个性化数据与原子迁移
 
-**Decision**: Settings、UserLexicon 和 Learning 分别存放在沙盒容器 Application Support
-中的版本化快照。每次更新先在目标卷构建并验证完整替代文件，再用 Foundation 文件替换
+**Decision**: Settings、UserLexicon 和 Learning 分别存放在
+`~/Library/Application Support/org.macwubi.inputmethod/` 中的版本化快照；目录权限为
+`0700`，数据文件权限为 `0600`。每次更新先在目标卷构建并验证完整替代文件，再用 Foundation 文件替换
 保留一个 previous；未知未来版本保持原样并加载该域安全默认。三个域独立提交和恢复。
 
-**Rationale**: Foundation 的标准目录解析会把沙盒应用定位到自己的容器；文件替换 API
-支持避免数据丢失并保留备份。按域原子性与规格的故障隔离一致，也避免伪造跨多个文件的
+**Rationale**: Foundation 的 Application Support 目录解析提供稳定的用户级路径；实现必须
+创建专用子目录并强制最小 POSIX 权限。文件替换 API 支持避免数据丢失并保留备份。按域原子性与规格的故障隔离一致，也避免伪造跨多个文件的
 系统级事务保证。UserDefaults 只适合非敏感小型配置且未加密，不满足词库、学习和回退要求。
 
 **Alternatives considered**:
@@ -151,20 +177,19 @@ Intel Mac 上做发布验收；还需覆盖开发时最新支持的 macOS 版本
 - 一个产品级复合大文件：可提供跨域单事务，但任一域变化都重写全部数据，扩大损坏面。
 - 数据库：引入不必要的查询与迁移层，并增加内存核算复杂度。
 
-**Sources**: [App Sandbox container](https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox),
-[Application Support directory](https://developer.apple.com/documentation/foundation/url/applicationsupportdirectory),
+**Sources**: [Application Support directory](https://developer.apple.com/documentation/foundation/url/applicationsupportdirectory),
 [FileManager directory lookup](https://developer.apple.com/documentation/foundation/filemanager/url%28for%3Ain%3Aappropriatefor%3Acreate%3A%29),
 [FileManager replacement](https://developer.apple.com/documentation/foundation/filemanager/replaceitem%28at%3Awithitemat%3Abackupitemname%3Aoptions%3Aresultingitemurl%3A%29),
 [UserDefaults](https://developer.apple.com/documentation/foundation/userdefaults)
 
 ## 本地导入导出
 
-**Decision**: 只从设置窗口通过系统打开/保存面板执行一次性导入导出，启用 User Selected
-Files Read/Write；操作后立即释放授权，不保存安全作用域书签。导入先形成完整新快照，
+**Decision**: 只从设置窗口通过系统打开/保存面板执行一次性导入导出；操作后立即释放
+文件引用，不保存安全作用域书签。导入先形成完整新快照，
 验证成功后才替换 UserLexicon；导出使用版本化产品格式或文档化 UTF-8 文本。
 
-**Rationale**: App Sandbox 会为用户在标准面板中选择的 URL 扩展权限。产品不需要重启后
-继续访问外部文件，因此不保留书签，既满足迁移也最小化长期外部文件权限。
+**Rationale**: 标准面板表达明确用户意图。即使非沙箱进程具有更宽文件系统能力，产品也
+只访问当次面板返回的 URL；不保留书签、不扫描目录可避免读取不相关内容。
 
 **Alternatives considered**:
 
@@ -172,8 +197,8 @@ Files Read/Write；操作后立即释放授权，不保存安全作用域书签�
 - 持久化文件书签：无后台同步或自动更新需求，拒绝。
 - 网络导入：违反零网络产品边界，拒绝。
 
-**Sources**: [Accessing files from the macOS App Sandbox](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox),
-[Configuring the macOS App Sandbox](https://developer.apple.com/documentation/xcode/configuring-the-macos-app-sandbox)
+**Sources**: [NSOpenPanel](https://developer.apple.com/documentation/appkit/nsopenpanel),
+[NSSavePanel](https://developer.apple.com/documentation/appkit/nssavepanel)
 
 ## 安全输入与私密模式
 
@@ -188,7 +213,7 @@ Files Read/Write；操作后立即释放授权，不保存安全作用域书签�
 **Alternatives considered**:
 
 - 用全局安全事件状态判断当前客户端：Apple 未记录这种归因，证据不足。
-- 监听系统级按键判断密码框：违反隐私与沙盒原则，拒绝。
+- 监听系统级按键判断密码框：违反隐私与输入边界，拒绝。
 - 移除本地学习：牺牲长期替代能力；以明确开关和私密模式控制更合适。
 
 **Sources**: [InputMethodKit](https://developer.apple.com/documentation/inputmethodkit),
@@ -196,17 +221,21 @@ Files Read/Write；操作后立即释放授权，不保存安全作用域书签�
 
 ## 候选与设置无障碍
 
-**Decision**: 设置窗口使用标准 AppKit 控件。候选展示先验证 `IMKCandidates` 的键盘、
-VoiceOver 和 Accessibility Inspector 行为；若不能满足规格，则通过候选展示抽象切换到自定义
-可访问视图，为候选、序号、选中状态、页码和操作提供明确语义。
+**Decision**: 设置窗口使用标准 AppKit 控件。T020 选择自定义非激活 `NSPanel` 候选展示，
+以标准可访问 AppKit 元素明确表达候选、序号、选中状态、页码和操作；不采用
+`IMKCandidates` 作为发布候选窗。
 
-**Rationale**: Apple 记录了标准 AppKit 控件的内建无障碍能力及自定义视图应实现的辅助
-协议，但没有承诺 `IMKCandidates` 的 VoiceOver 行为。实机门禁必须先于候选 UI 定型。
+**Rationale**: 当前 SDK 的 `IMKCandidates` 能配置选择键、三种固定 panel、候选字体、
+可见性和位置提示，但公开接口不暴露每个候选的辅助标签、值、选中状态、顺序、动作或焦点
+策略；字体设置还明确不影响选择键字体。运行时类只继承 `NSResponder` 的通用辅助方法，
+没有公开候选元素映射。无法证明 VoiceOver、Accessibility Inspector、完整字号缩放和焦点
+契约时，规格要求选择可验证的自定义实现。
 
 **Alternatives considered**:
 
 - 假定系统候选窗口天然符合规格：缺少文档证据，拒绝。
-- 一开始自绘全部候选 UI：增加窗口定位、焦点和无障碍风险，先验证系统能力更简单。
+- 继续使用 `IMKCandidates`：键盘选择和基础定位可用，但关键无障碍语义无法通过公开 API
+  保证，拒绝作为发布实现。
 
 **Sources**: [Accessibility for AppKit](https://developer.apple.com/documentation/appkit/accessibility-for-appkit),
 [Integrating accessibility](https://developer.apple.com/documentation/accessibility/integrating-accessibility-into-your-app),
@@ -217,8 +246,8 @@ VoiceOver 和 Accessibility Inspector 行为；若不能满足规格，则通过
 **Decision**: 所有发布 target 都不包含网络 client/server entitlement。产品和基础词库更新
 只能通过签名应用发布包或用户主动选择的本地导入文件完成，不实现应用内检查或下载。
 
-**Rationale**: 缺少网络 entitlement 使沙盒进程不能建立受限网络连接，直接支持可审计的
-零网络承诺；最终仍需检查签名 entitlements 并做运行时网络观察。
+**Rationale**: 非沙箱进程不能依赖 entitlement 阻止联网，因此零网络承诺必须由禁止网络
+框架/符号的静态检查、运行时网络观察和发布审计共同证明。
 
 **Alternatives considered**:
 

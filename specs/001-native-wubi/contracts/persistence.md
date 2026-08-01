@@ -2,7 +2,8 @@
 
 ## Data boundary
 
-运行时只允许读写输入法自身 App Sandbox 容器中的三个独立域：
+运行时只允许读写 `~/Library/Application Support/org.macwubi.inputmethod/` 中的三个独立域；
+根目录权限必须为 `0700`，快照、临时文件和 previous 文件权限必须为 `0600`：
 
 ```text
 Settings/current
@@ -30,7 +31,7 @@ Learning/current
 
 一次提交必须遵循：
 
-1. 在同一容器和数据域内创建临时快照；
+1. 在同一 Application Support 数据根目录和数据域内创建临时快照；
 2. 完整写入并重新读取验证 envelope、payload 和 checksum；
 3. 将当前完整快照保留为 `previous`；
 4. 原子替换 `current`；

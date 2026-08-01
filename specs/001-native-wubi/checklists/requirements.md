@@ -33,5 +33,7 @@
 
 - Revised full-product specification validation passed on 2026-08-01 after review against the
   project constitution.
+- Apple-Silicon-only scope validation passed on 2026-08-01: installation scenarios, FR-027,
+  SC-013, edge cases, and assumptions consistently exclude Intel Mac support.
 - Platform and architecture constraints are retained as product compatibility outcomes mandated by
-  the constitution; the specification does not prescribe code structure or implementation design.
+  Constitution 2.0.0; the specification does not prescribe code structure or implementation design.

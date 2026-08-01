@@ -1,0 +1,22 @@
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+
+# Xcode and Swift build products
+.build/
+DerivedData/
+*.swiftpm/
+Packages/
+build/
+xcuserdata/
+*.xcuserstate
+
+# Local signing and test evidence artifacts
+*.cer
+*.p12
+*.ipa
+*.dSYM/
+TestResults/

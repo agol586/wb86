@@ -1,0 +1,15 @@
+{
+  "format" : "MWSC",
+  "imageChecksumFNV1a64" : "87f109dfee9b7849",
+  "licenseIdentifier" : "Apache-2.0",
+  "maxSourceLength" : 16,
+  "normalization" : [
+    "Unicode source and target normalized to NFC",
+    "first listed OpenCC target selected deterministically",
+    "phrase mappings override character mappings",
+    "records sorted by source UTF-8 bytes"
+  ],
+  "recordCount" : 53256,
+  "schemaVersion" : 1,
+  "sourceRevision" : "2f569603954f1cddfdef7b648e71e1aa0d1f47a3"
+}
