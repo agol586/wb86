@@ -5,6 +5,64 @@ import XCTest
 
 @MainActor
 final class SettingsIntegrationTests: XCTestCase {
+    func testMultipleClientsFinishAndReactivateTheirSettingsGenerationsIndependently() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiIndependentSessions-\(UUID().uuidString)")
+        let coordinator = SettingsCoordinator(
+            store: try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        )
+        let first = InputControllerSession(
+            engine: InputEngine { code, page in
+                try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+            },
+            presenter: SettingsAppearancePresenter()
+        )
+        let second = InputControllerSession(
+            engine: InputEngine { code, page in
+                try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+            },
+            presenter: SettingsAppearancePresenter()
+        )
+        let firstClient = SettingsInputClient()
+        let secondClient = SettingsInputClient()
+        coordinator.register(first)
+        coordinator.register(second)
+
+        _ = first.handle(.switchWidth, client: firstClient)
+        _ = second.handle(.switchScript, client: secondClient)
+        _ = first.handle(.letter("a"), client: firstClient)
+        _ = second.handle(.letter("b"), client: secondClient)
+
+        var changed = InputSettings.default
+        changed.defaultMode = InputMode(language: .directEnglish, punctuation: .english,
+                                        width: .half, script: .traditional)
+        changed.candidatePageSize = 9
+        try coordinator.save(changed)
+
+        first.deactivate(client: firstClient)
+        XCTAssertEqual(first.activeSnapshot.generation, 1)
+        XCTAssertEqual(second.activeSnapshot.generation, 0)
+        XCTAssertEqual(second.pendingSnapshot?.generation, 1)
+        XCTAssertEqual(firstClient.clearCount, 1)
+        XCTAssertEqual(secondClient.clearCount, 0)
+
+        first.reactivate()
+        XCTAssertEqual(first.mode, changed.defaultMode)
+        XCTAssertEqual(second.mode.language, .chinese)
+        XCTAssertEqual(second.mode.script, .traditional)
+
+        _ = second.handle(.cancel, client: secondClient)
+        XCTAssertEqual(second.activeSnapshot.generation, 1)
+        XCTAssertNil(second.pendingSnapshot)
+        XCTAssertEqual(secondClient.clearCount, 1)
+        XCTAssertEqual(second.mode.language, .chinese)
+        XCTAssertEqual(second.mode.script, .traditional)
+
+        second.reactivate()
+        XCTAssertEqual(second.mode, changed.defaultMode)
+        XCTAssertEqual(first.activeSnapshot.generation, 1)
+    }
+
     func testAppearanceAppliesImmediatelyWhileSemanticSnapshotWaitsAndModeStaysTemporary() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiAppearanceDelay-\(UUID().uuidString)")
@@ -151,9 +209,10 @@ private final class SettingsAppearancePresenter: CandidateAppearanceApplying {
 }
 
 private final class SettingsInputClient: InputClientProxy {
+    private(set) var clearCount = 0
     func setMarkedText(_ text: String) throws {}
     func commitText(_ text: String) throws {}
-    func clearMarkedText() throws {}
+    func clearMarkedText() throws { clearCount += 1 }
     func candidateAnchorTopLeft() -> NSPoint? { nil }
 }
 

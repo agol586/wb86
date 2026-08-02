@@ -67,7 +67,7 @@
 - [X] T013 [US1] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“常用”页 saved/draft、默认值和键盘焦点，再在 `Sources/InputMethod/SettingsWindowController.swift` 构建初始状态、四码/五码、调频、混输、提示和快捷选择控件
 - [X] T014 [US1] 先在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift` 覆盖 Save/Cancel 成功失败反馈、label/value/help 与焦点保持，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现完整 draft 校验、显式保存和取消零写入
 - [X] T015 [US1] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖外观立即刷新、语义设置安全延迟和持久默认不覆盖会话临时状态，并在 `Sources/InputMethod/SettingsCoordinator.swift`、`Sources/InputMethod/CandidateAppearanceController.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 完成区分应用
-- [ ] T016 [US1] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 增加两个以上客户端分别组合、独立结束和重新激活的端到端测试，并在 `Sources/InputMethod/InputController.swift` 修正会话注册/失活/空闲通知次序
+- [X] T016 [US1] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 增加两个以上客户端分别组合、独立结束和重新激活的端到端测试，并在 `Sources/InputMethod/InputController.swift` 修正会话注册/失活/空闲通知次序
 - [ ] T017 [US1] 运行 US1 目标 XCTest 与 `Scripts/test.sh`，将默认值、空闲/组合保存和多会话结果记录到 `specs/002-settings-experience/evidence/us1-common-settings.md`
 
 **Checkpoint**: User Story 1 可独立演示和验证，是首个可交付 MVP。

@@ -26,10 +26,22 @@ final class InputController: IMKInputController {
             presenter: candidatePresenter,
             policyLearningHandler: PersonalizationCoordinator.shared.record
         )
-        PrivacyModeController.shared.register(inputSession)
-        SettingsCoordinator.shared?.register(inputSession)
         if let inputClient {
             clientProxy = IMKClientProxy(inputClient)
+        }
+        PrivacyModeController.shared.register(inputSession)
+        SettingsCoordinator.shared?.register(inputSession)
+    }
+
+    override func activateServer(_ sender: Any!) {
+        guard proxy(for: sender) != nil else {
+            resetSession()
+            return
+        }
+        inputSession.reactivate()
+        SettingsCoordinator.shared?.applyPendingAtIdle()
+        InputModeController.shared.activate(mode: inputSession.mode) { [weak self] modeEvent in
+            self?.handleModeEvent(modeEvent)
         }
     }
 
@@ -52,42 +64,45 @@ final class InputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
-        if let client = proxy(for: sender) {
-            inputSession.deactivate(client: client)
-        } else {
-            resetSession()
-        }
+        finishSession(sender: sender)
     }
 
     override func commitComposition(_ sender: Any!) {
         // A client-requested end is a privacy-safe cancellation. Calling super here would
         // restore originalString and could insert the raw Wubi code into the document.
-        if let client = proxy(for: sender) {
-            inputSession.deactivate(client: client)
-        } else {
-            resetSession()
-        }
+        finishSession(sender: sender)
     }
 
     override func inputControllerWillClose() {
-        if let clientProxy {
-            inputSession.deactivate(client: clientProxy)
-        } else {
-            resetSession()
-        }
+        finishSession(sender: nil)
         super.inputControllerWillClose()
     }
 
     func resetSession() {
         inputSession?.resetWithoutClient()
         candidatePresenter?.hide()
+        clientProxy = nil
+        SettingsCoordinator.shared?.applyPendingAtIdle()
     }
 
     private func proxy(for sender: Any?) -> IMKClientProxy? {
-        if let sender, let proxy = IMKClientProxy(sender) {
+        if let sender {
+            guard let proxy = IMKClientProxy(sender) else { return nil }
             clientProxy = proxy
+            return proxy
         }
         return clientProxy
+    }
+
+    private func finishSession(sender: Any?) {
+        if let client = proxy(for: sender) {
+            inputSession.deactivate(client: client)
+        } else {
+            inputSession.resetWithoutClient()
+            candidatePresenter.hide()
+        }
+        clientProxy = nil
+        SettingsCoordinator.shared?.applyPendingAtIdle()
     }
 
     private static func makeDictionaryQuery() -> InputEngine.PolicyQuery {
