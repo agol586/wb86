@@ -5,6 +5,66 @@ import XCTest
 
 @MainActor
 final class SettingsIntegrationTests: XCTestCase {
+    func testSettingsSurviveInputMethodAndSystemRestartAndV1UpgradeIsIdempotent() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiSettingsRestart-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        let legacyPayload = Data(#"{"autoCommitAtFour":true,"candidateFontScale":1.25,"candidateLayout":"horizontal","candidatePageSize":7,"defaultMode":{"language":"chinese","punctuation":"english","script":"traditional","width":"full"},"keyBindings":{"modeSwitch":{"disabled":{}},"pageKeys":"commaPeriod"},"learningEnabled":false}"#.utf8)
+        try writer.commit(try DataSnapshot(domain: .settings, schemaVersion: 1,
+                                            generation: 6, payload: legacyPayload))
+
+        let upgraded = try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        XCTAssertEqual(upgraded.generation, 7)
+        XCTAssertEqual(upgraded.settings.candidatePageSize, 7)
+        XCTAssertEqual(upgraded.settings.candidateLayout, .horizontal)
+        XCTAssertEqual(upgraded.settings.candidateFontScale, 1.25)
+        XCTAssertEqual(upgraded.settings.defaultMode,
+                       InputMode(language: .chinese, punctuation: .english,
+                                 width: .full, script: .traditional))
+        XCTAssertTrue(upgraded.settings.autoCommitAtFour)
+        XCTAssertFalse(upgraded.settings.automaticFrequency)
+        XCTAssertFalse(upgraded.settings.mixedPinyinEnabled)
+
+        let afterInputMethodRestart = try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        XCTAssertEqual(afterInputMethodRestart.snapshot, upgraded.snapshot)
+        let bytesAfterFirstUpgrade = try Data(contentsOf: writer.currentURL(for: .settings))
+
+        // A fresh writer/store pair models reopening after a system restart.
+        let afterSystemRestart = try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        XCTAssertEqual(afterSystemRestart.snapshot, upgraded.snapshot)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)),
+                       bytesAfterFirstUpgrade)
+    }
+
+    func testMigrationFailureUsesReadOnlySafeDefaultsAndIsolatesOtherDomains() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiMigrationIsolation-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        let legacyPayload = Data(#"{"autoCommitAtFour":false,"candidateFontScale":1,"candidateLayout":"vertical","candidatePageSize":5,"defaultMode":{"language":"chinese","punctuation":"chinese","script":"simplified","width":"half"},"keyBindings":{"modeSwitch":{"disabled":{}},"pageKeys":"minusEquals"},"learningEnabled":true}"#.utf8)
+        let legacy = try DataSnapshot(domain: .settings, schemaVersion: 1,
+                                      generation: 20, payload: legacyPayload)
+        try writer.commit(legacy)
+        try writer.commit(try DataSnapshot(domain: .userLexicon, schemaVersion: 1,
+                                           generation: 8, payload: Data("user".utf8)))
+        try writer.commit(try DataSnapshot(domain: .learning, schemaVersion: 2,
+                                           generation: 9, payload: Data("learning".utf8)))
+        let settingsBefore = try Data(contentsOf: writer.currentURL(for: .settings))
+        let userBefore = try Data(contentsOf: writer.currentURL(for: .userLexicon))
+        let learningBefore = try Data(contentsOf: writer.currentURL(for: .learning))
+        writer.failureInjector = { stage in
+            if stage == .afterTemporaryValidation { throw SettingsIntegrationError.interrupted }
+        }
+
+        let safe = try SettingsStore(writer: writer)
+        XCTAssertEqual(safe.snapshot, SettingsSnapshot(generation: 0, settings: .default))
+        XCTAssertEqual(safe.access, .readOnlyRecoveryFailure)
+        XCTAssertThrowsError(try safe.save(.default))
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), settingsBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .userLexicon)), userBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
+        XCTAssertEqual(try writer.load(.settings), legacy)
+    }
+
     func testMultipleClientsFinishAndReactivateTheirSettingsGenerationsIndependently() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiIndependentSessions-\(UUID().uuidString)")

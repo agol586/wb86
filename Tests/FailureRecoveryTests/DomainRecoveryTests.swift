@@ -63,9 +63,49 @@ final class DomainRecoveryTests: XCTestCase {
         XCTAssertEqual(engine.process(.letter("a")).state.kind, .composing)
     }
 
+    func testSettingsStartupRecoversValidPreviousAndBothCorruptUseSafeDefault() throws {
+        let recoverableRoot = temporaryRoot()
+        let recoverableWriter = try SnapshotWriter(rootURL: recoverableRoot)
+        var previousSettings = InputSettings.default
+        previousSettings.candidatePageSize = 7
+        let previous = try settingsSnapshot(previousSettings, generation: 1)
+        try recoverableWriter.commit(previous)
+        var currentSettings = previousSettings
+        currentSettings.candidatePageSize = 9
+        try recoverableWriter.commit(try settingsSnapshot(currentSettings, generation: 2))
+        try Data("corrupt current".utf8)
+            .write(to: recoverableWriter.currentURL(for: .settings))
+
+        let recovered = try SettingsStore(writer: SnapshotWriter(rootURL: recoverableRoot))
+        XCTAssertEqual(recovered.snapshot,
+                       SettingsSnapshot(generation: 1, settings: previousSettings))
+        XCTAssertEqual(try SnapshotWriter(rootURL: recoverableRoot).load(.settings), previous)
+
+        let isolatedRoot = temporaryRoot()
+        let isolatedWriter = try SnapshotWriter(rootURL: isolatedRoot)
+        try isolatedWriter.commit(try settingsSnapshot(.default, generation: 1))
+        try isolatedWriter.commit(try settingsSnapshot(currentSettings, generation: 2))
+        try isolatedWriter.commit(try snapshot(.userLexicon, generation: 3, text: "user"))
+        let userBefore = try Data(contentsOf: isolatedWriter.currentURL(for: .userLexicon))
+        try Data("bad current".utf8).write(to: isolatedWriter.currentURL(for: .settings))
+        try Data("bad previous".utf8).write(to: isolatedWriter.previousURL(for: .settings))
+
+        let safe = try SettingsStore(writer: SnapshotWriter(rootURL: isolatedRoot))
+        XCTAssertEqual(safe.snapshot, SettingsSnapshot(generation: 0, settings: .default))
+        XCTAssertEqual(safe.access, .readOnlyRecoveryFailure)
+        XCTAssertThrowsError(try safe.restoreDefaults())
+        XCTAssertEqual(try Data(contentsOf: isolatedWriter.currentURL(for: .userLexicon)),
+                       userBefore)
+    }
+
     private func snapshot(_ domain: DataDomain, generation: UInt64, text: String) throws -> DataSnapshot {
         try DataSnapshot(domain: domain, schemaVersion: 1, generation: generation,
                          payload: Data(text.utf8))
+    }
+    private func settingsSnapshot(_ settings: InputSettings,
+                                  generation: UInt64) throws -> DataSnapshot {
+        try DataSnapshot(domain: .settings, schemaVersion: InputSettings.schemaVersion,
+                         generation: generation, payload: JSONEncoder.sorted.encode(settings))
     }
     private func temporaryRoot() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("MacWubiRecovery-\(UUID().uuidString)")

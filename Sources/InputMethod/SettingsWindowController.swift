@@ -31,8 +31,14 @@ final class SettingsWindowController: NSWindowController {
     let access: SettingsStoreAccess
     var isReadOnly: Bool { access != .writable }
     var readOnlyMessage: String? {
-        guard case let .readOnlyFuture(schemaVersion) = access else { return nil }
-        return "设置由更高版本（版本 \(schemaVersion)）创建。当前版本以安全默认值只读运行，不会覆盖原设置。"
+        switch access {
+        case .writable:
+            return nil
+        case let .readOnlyFuture(schemaVersion):
+            return "设置由更高版本（版本 \(schemaVersion)）创建。当前版本以安全默认值只读运行，不会覆盖原设置。"
+        case .readOnlyRecoveryFailure:
+            return "设置迁移或恢复失败。当前版本以安全默认值只读运行，原设置文件保持不变。"
+        }
     }
     private let saveHandler: (InputSettings) throws -> Void
     private let keyBindingValidator: KeyBindingValidator

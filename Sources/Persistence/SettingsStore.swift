@@ -28,6 +28,7 @@ struct SettingsSnapshot: Equatable, Sendable {
 enum SettingsStoreAccess: Equatable, Sendable {
     case writable
     case readOnlyFuture(schemaVersion: UInt32)
+    case readOnlyRecoveryFailure
 }
 
 struct InputSettings: Equatable, Codable, Sendable {
@@ -162,9 +163,25 @@ final class SettingsStore {
             access = .readOnlyFuture(schemaVersion: version)
             return
         }
+
+        do {
+            _ = try writer.recover(
+                .settings,
+                supportedSchemaVersions: [1, InputSettings.schemaVersion],
+                validatePayload: Self.isValidSupportedPayload
+            )
+            if try writer.load(.settings)?.schemaVersion == 1 {
+                _ = try DataMigrator(writer: writer).migrate(.settings)
+            }
+        } catch {
+            access = .readOnlyRecoveryFailure
+            return
+        }
+
         if let recovered = try writer.recover(
             .settings,
-            supportedSchemaVersions: [InputSettings.schemaVersion]
+            supportedSchemaVersions: [InputSettings.schemaVersion],
+            validatePayload: Self.isValidV2Payload
         ) {
             guard let decoded = try? JSONDecoder().decode(InputSettings.self,
                                                           from: recovered.payload) else {
@@ -172,6 +189,11 @@ final class SettingsStore {
             }
             snapshot = SettingsSnapshot(generation: recovered.generation,
                                         settings: try decoded.validated())
+        } else if FileManager.default.fileExists(atPath: writer.currentURL(for: .settings).path)
+                    || FileManager.default.fileExists(
+                        atPath: writer.previousURL(for: .settings).path
+                    ) {
+            access = .readOnlyRecoveryFailure
         }
     }
 
@@ -207,6 +229,14 @@ final class SettingsStore {
         }
         let settings = try legacy.v2Settings().validated()
         return try JSONEncoder.sorted.encode(settings)
+    }
+
+    private static func isValidV2Payload(_ data: Data) -> Bool {
+        (try? JSONDecoder().decode(InputSettings.self, from: data).validated()) != nil
+    }
+
+    private static func isValidSupportedPayload(_ data: Data) -> Bool {
+        isValidV2Payload(data) || (try? migrateV1Payload(data)) != nil
     }
 }
 

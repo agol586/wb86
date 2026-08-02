@@ -148,17 +148,20 @@ final class SnapshotWriter {
     }
 
     func recover(_ domain: DataDomain,
-                 supportedSchemaVersions: Set<UInt32>) throws -> DataSnapshot? {
+                 supportedSchemaVersions: Set<UInt32>,
+                 validatePayload: (Data) -> Bool = { _ in true }) throws -> DataSnapshot? {
         lock.lock()
         defer { lock.unlock() }
         try ensureDomainDirectory(domain)
         try? fileManager.removeItem(at: temporaryURL(for: domain))
         if let current = validSnapshot(at: currentURL(for: domain), domain: domain,
-                                       schemas: supportedSchemaVersions) {
+                                       schemas: supportedSchemaVersions,
+                                       validatePayload: validatePayload) {
             return current
         }
         guard let previous = validSnapshot(at: previousURL(for: domain), domain: domain,
-                                           schemas: supportedSchemaVersions) else {
+                                           schemas: supportedSchemaVersions,
+                                           validatePayload: validatePayload) else {
             return nil
         }
         let currentURL = currentURL(for: domain)
@@ -180,9 +183,11 @@ final class SnapshotWriter {
     }
 
     private func validSnapshot(at url: URL, domain: DataDomain,
-                               schemas: Set<UInt32>) -> DataSnapshot? {
+                               schemas: Set<UInt32>,
+                               validatePayload: (Data) -> Bool) -> DataSnapshot? {
         guard let snapshot = try? loadUnlocked(url), snapshot.domain == domain,
-              schemas.contains(snapshot.schemaVersion) else { return nil }
+              schemas.contains(snapshot.schemaVersion),
+              validatePayload(snapshot.payload) else { return nil }
         return snapshot
     }
 }
