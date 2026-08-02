@@ -13,7 +13,9 @@ final class ReleaseContractTests: XCTestCase {
     func testBundleHasRequiredInputMethodMetadata() throws {
         let info = try XCTUnwrap(Bundle.main.infoDictionary)
         XCTAssertEqual(info["CFBundleIdentifier"] as? String, "org.macwubi.inputmethod.MacWubi")
-        XCTAssertEqual(info["LSBackgroundOnly"] as? Bool, true)
+        XCTAssertEqual(info["LSUIElement"] as? Bool, true)
+        XCTAssertNil(info["LSBackgroundOnly"],
+                     "an input method that owns a settings window cannot be background-only")
         XCTAssertEqual(
             info["InputMethodConnectionName"] as? String,
             "org.macwubi.inputmethod.MacWubi_Connection"

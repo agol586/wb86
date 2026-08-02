@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class InputModeControllerTests: XCTestCase {
     func testModeItemsContainNoHardCodedOrUnavailableShortcutHints() {
-        let menu = InputModeController.shared.menu(mode: .default) { _ in }
+        let menu = InputModeController.shared.menu(mode: .default)
         let modeItems = Array(menu.items.prefix(4))
 
         XCTAssertEqual(modeItems.map(\.title), [
@@ -17,7 +17,7 @@ final class InputModeControllerTests: XCTestCase {
         })
     }
 
-    func testControllerCreatesNoStandaloneStatusItemAndMenuActionsStillWork() throws {
+    func testControllerCreatesNoStandaloneStatusItemAndUsesIMKCommandSelectors() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let sourceURL = repositoryRoot
@@ -26,12 +26,19 @@ final class InputModeControllerTests: XCTestCase {
         XCTAssertFalse(source.contains("NSStatusBar.system.statusItem"))
         XCTAssertFalse(source.contains("NSStatusItem"))
 
-        var selected = [InputEvent]()
-        let menu = InputModeController.shared.menu(mode: .default) { selected.append($0) }
-        menu.performActionForItem(at: 0)
-        menu.performActionForItem(at: 1)
-
-        XCTAssertEqual(selected, [.switchLanguage, .switchPunctuation])
+        let menu = InputModeController.shared.menu(mode: .default)
+        XCTAssertEqual(Array(menu.items.prefix(4)).map(\.action),
+                       Array(repeating: NSSelectorFromString("selectInputMode:"), count: 4))
+        XCTAssertTrue(Array(menu.items.prefix(4)).allSatisfy { $0.target == nil })
+        let events: [InputEvent] = Array(menu.items.prefix(4)).compactMap {
+            InputModeController.event(forCommandTag: $0.tag)
+        }
+        XCTAssertEqual(events, [.switchLanguage, .switchPunctuation,
+                                .switchWidth, .switchScript])
         XCTAssertEqual(menu.items.last?.title, "设置…")
+        XCTAssertEqual(menu.items.last?.action, NSSelectorFromString("showSettings:"))
+        XCTAssertNil(menu.items.last?.target)
+        XCTAssertTrue(InputController.instancesRespond(to: NSSelectorFromString("selectInputMode:")))
+        XCTAssertTrue(InputController.instancesRespond(to: NSSelectorFromString("showSettings:")))
     }
 }

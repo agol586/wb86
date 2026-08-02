@@ -62,6 +62,25 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
         return apply(result, client: client)
     }
 
+    /// System input-menu actions can arrive after AppKit has temporarily removed the
+    /// active text client. Mode changes are client-independent while idle, so keep them
+    /// functional without retaining a stale client proxy. A live composition is refused:
+    /// clearing its marked text still requires the owning client.
+    @discardableResult
+    func handleMenuModeEvent(_ event: InputEvent) -> Bool {
+        guard state == .idle else { return false }
+        switch event {
+        case .switchLanguage, .switchPunctuation, .switchWidth, .switchScript:
+            let result = engine.process(event)
+            presenter.hide()
+            applyPendingSettingsIfIdle()
+            return result.consumed
+        case .letter, .select, .selectFirst, .pagePrevious, .pageNext, .backspace,
+             .cancel, .text, .passThrough:
+            return false
+        }
+    }
+
     @discardableResult
     func apply(_ result: InputProcessingResult, client: InputClientProxy) -> Bool {
         activeClient = client

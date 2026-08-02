@@ -3,19 +3,17 @@ import AppKit
 final class InputModeController: NSObject {
     static let shared = InputModeController()
 
-    private var handler: ((InputEvent) -> Void)?
     private var currentMode = InputMode.default
 
     private override init() { super.init() }
 
-    func activate(mode: InputMode, handler: @escaping (InputEvent) -> Void) {
+    func activate(mode: InputMode) {
         precondition(Thread.isMainThread)
-        self.handler = handler
         update(mode: mode)
     }
 
-    func menu(mode: InputMode, handler: @escaping (InputEvent) -> Void) -> NSMenu {
-        activate(mode: mode, handler: handler)
+    func menu(mode: InputMode) -> NSMenu {
+        activate(mode: mode)
         return makeMenu()
     }
 
@@ -36,29 +34,44 @@ final class InputModeController: NSObject {
         menu.addItem(item(title: "繁体输出", event: .switchScript,
                           checked: currentMode.script == .traditional))
         menu.addItem(.separator())
-        let settings = NSMenuItem(title: "设置…", action: #selector(showSettings),
+        let settings = NSMenuItem(title: "设置…",
+                                  action: NSSelectorFromString("showSettings:"),
                                   keyEquivalent: ",")
-        settings.target = self
         menu.addItem(settings)
         return menu
     }
 
     private func item(title: String, event: InputEvent, checked: Bool) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: #selector(selectMode(_:)),
+        let item = NSMenuItem(title: title,
+                              action: NSSelectorFromString("selectInputMode:"),
                               keyEquivalent: "")
-        item.target = self
-        item.representedObject = EventBox(event)
+        item.tag = Self.commandTag(for: event)
         item.state = checked ? .on : .off
         item.isEnabled = true
         return item
     }
 
-    @objc private func selectMode(_ sender: NSMenuItem) {
-        guard let event = (sender.representedObject as? EventBox)?.event else { return }
-        handler?(event)
+    static func event(forCommandTag tag: Int) -> InputEvent? {
+        switch tag {
+        case 1: return .switchLanguage
+        case 2: return .switchPunctuation
+        case 3: return .switchWidth
+        case 4: return .switchScript
+        default: return nil
+        }
     }
 
-    @objc private func showSettings() { SettingsWindowController.shared.show() }
+    private static func commandTag(for event: InputEvent) -> Int {
+        switch event {
+        case .switchLanguage: return 1
+        case .switchPunctuation: return 2
+        case .switchWidth: return 3
+        case .switchScript: return 4
+        case .letter, .select, .selectFirst, .pagePrevious, .pageNext, .backspace,
+             .cancel, .text, .passThrough:
+            preconditionFailure("only mode events belong in the input menu")
+        }
+    }
 
     static func label(for mode: InputMode) -> String {
         let language = mode.language == .chinese ? "中" : "英"
@@ -68,9 +81,4 @@ final class InputModeController: NSObject {
         return "五·\(language)·\(punctuation)·\(width)·\(script)"
     }
 
-}
-
-private final class EventBox: NSObject {
-    let event: InputEvent
-    init(_ event: InputEvent) { self.event = event }
 }

@@ -95,6 +95,37 @@ timestamp 判定。Caps Lock 按系统 toggle 型 flagsChanged 语义去重，�
 **Alternatives considered**: keyDown-only（无法识别独立修饰键）；轮询 modifier flags（无法证明配对）；
 global monitor/event tap（违反会话与隐私边界）；消费 release（可能让客户端认为 Shift 卡住）。
 
+### R12 — 输入法进程需要 agent 应用语义才能显示设置窗口
+
+**Decision**: 输入法 bundle 使用 `LSUIElement=true`，不得使用 `LSBackgroundOnly=true`。前者保持
+输入法不出现在 Dock，同时允许同一 InputMethodKit 进程按用户点击“设置…”显示标准 AppKit 窗口；
+后者声明进程只能在后台运行，与产品必须提供设置窗口的合同冲突。显示设置时显式采用 accessory
+activation policy、置前并激活应用，不增加独立常驻进程。
+
+**Rationale**: Apple 将 `LSBackgroundOnly` 定义为只在后台运行，将 `LSUIElement` 定义为不显示在
+Dock 的 agent 应用。设置入口是用户主动操作，因此 agent 窗口符合现有隐私和进程边界。
+
+**Validation evidence (2026-08-02)**: 签名 arm64 build 6 覆盖安装到
+`/Library/Input Methods/MacWubi.app` 后，用户从系统输入菜单点击“设置…”确认同进程设置窗口成功显示。
+自动化测试同时验证程序化窗口实际创建、标题正确并进入可见状态；实现必须检查 `window == nil`，不能
+依赖 `NSWindowController(window: nil)` 的 `isWindowLoaded`，后者可能在窗口仍为空时返回 true。
+
+**Alternatives rejected**: 保留 background-only 并尝试强制 order-front（进程类型与窗口需求冲突）；
+增加设置 helper（扩大签名、进程和 IPC 范围）。
+
+### R13 — 系统输入菜单命令必须由当前 IMKInputController 接收
+
+**Decision**: `menu()` 返回项只携带 action selector 和稳定整数 tag，不把普通 AppKit target/closure
+当作执行路径。selector 必须由 `InputController` 实现，并从 InputMethodKit 传入的命令字典
+`kIMKCommandMenuItemName` 取回菜单项后路由模式切换或设置窗口。
+
+**Rationale**: InputMethodKit 在用户选择文本输入菜单命令时调用 `doCommand(by:command:)`；默认实现
+检查当前 input controller 是否响应 selector，并将命令字典作为参数调用。把 action 只实现到另一个
+`NSObject` target 会在系统输入菜单中被静默忽略，虽然同一进程的自建 `NSStatusItem` 菜单可以工作。
+
+**Alternatives rejected**: 依赖 `NSMenuItem.target` 或闭包（不符合 IMK 命令转发合同）；恢复独立
+状态栏项目（重复系统状态且违反 FR-033/FR-034）。
+
 **Platform caveat**: Apple SDK 说明，默认“点击组合区外”处理只在默认 recognizedEvents 恰为 keyDown
 时有保证。扩展 mask 后必须在真机回归点击外部、失活和鼠标选择；若失效，显式实现/转发
 `IMKMouseHandling` 或安全取消，不得只凭单元测试假设。

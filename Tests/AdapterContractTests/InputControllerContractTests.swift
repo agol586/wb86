@@ -88,6 +88,35 @@ final class InputControllerContractTests: XCTestCase {
         }
     }
 
+    func testIdleMenuModeChangesDoNotRequireAnActiveClientProxy() {
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter)
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default))
+
+        XCTAssertTrue(session.handleMenuModeEvent(.switchLanguage))
+        XCTAssertEqual(session.mode.language, .directEnglish)
+        XCTAssertTrue(session.handleMenuModeEvent(.switchPunctuation))
+        XCTAssertEqual(session.mode.punctuation, .chinese)
+        XCTAssertTrue(session.handleMenuModeEvent(.switchWidth))
+        XCTAssertEqual(session.mode.width, .full)
+        XCTAssertTrue(session.handleMenuModeEvent(.switchScript))
+        XCTAssertEqual(session.mode.script, .traditional)
+        XCTAssertFalse(presenter.isVisible)
+    }
+
+    func testMenuModeChangeWithoutClientRefusesToAbandonComposition() {
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: RecordingCandidatePresenter())
+        let client = RecordingInputClient()
+        XCTAssertTrue(session.handle(.letter("w"), client: client))
+
+        XCTAssertFalse(session.handleMenuModeEvent(.switchLanguage))
+        XCTAssertEqual(session.mode.language, .chinese)
+        XCTAssertEqual(session.state.kind, .composing)
+        XCTAssertEqual(client.actions, [.marked("w")])
+    }
+
     func testEventMatrixProducesOneCoreEventAndOneFrozenLayoutSnapshotPerKeyDown() throws {
         let provider = ContractKeyboardSnapshotProvider()
         let router = InputControllerEventRouter(

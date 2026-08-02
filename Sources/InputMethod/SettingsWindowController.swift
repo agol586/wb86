@@ -197,9 +197,20 @@ final class SettingsWindowController: NSWindowController {
     }
 
     func show() {
-        showWindow(nil)
+        // The input method is an LSUIElement agent: it stays out of the Dock but may own
+        // this user-requested settings window. Ensure a stale background activation policy
+        // inherited by an already-running process cannot leave the window ordered behind apps.
+        _ = NSApp.setActivationPolicy(.accessory)
+        // NSWindowController(window: nil) may report `isWindowLoaded == true` even
+        // though no window exists. Check the actual window so the programmatic UI
+        // is always constructed on its first presentation.
+        if window == nil { loadWindow() }
+        guard let window else { return }
+        window.isReleasedWhenClosed = false
         refreshRuntimePolicyControls()
-        window?.center()
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 

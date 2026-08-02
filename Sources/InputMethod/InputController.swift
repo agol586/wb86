@@ -100,9 +100,7 @@ final class InputController: IMKInputController {
         eventRouter.reset()
         inputSession.reactivate()
         SettingsCoordinator.shared?.applyPendingAtIdle()
-        InputModeController.shared.activate(mode: inputSession.mode) { [weak self] modeEvent in
-            self?.handleModeEvent(modeEvent)
-        }
+        InputModeController.shared.activate(mode: inputSession.mode)
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
@@ -118,9 +116,7 @@ final class InputController: IMKInputController {
         guard let mappedEvent = route.coreEvent else { return false }
         let consumed = inputSession.handle(mappedEvent, client: client)
         SettingsCoordinator.shared?.applyPendingAtIdle()
-        InputModeController.shared.activate(mode: inputSession.mode) { [weak self] modeEvent in
-            self?.handleModeEvent(modeEvent)
-        }
+        InputModeController.shared.activate(mode: inputSession.mode)
         return route.mustPassThrough ? false : consumed
     }
 
@@ -195,14 +191,43 @@ final class InputController: IMKInputController {
     }
 
     override func menu() -> NSMenu! {
-        InputModeController.shared.menu(mode: inputSession.mode) { [weak self] modeEvent in
-            self?.handleModeEvent(modeEvent)
+        InputModeController.shared.menu(mode: inputSession.mode)
+    }
+
+    override func doCommand(by aSelector: Selector!,
+                            command infoDictionary: [AnyHashable: Any]!) {
+        switch aSelector.map(NSStringFromSelector) {
+        case "selectInputMode:":
+            selectInputMode((infoDictionary ?? [:]) as NSDictionary)
+        case "showSettings:":
+            showSettings((infoDictionary ?? [:]) as NSDictionary)
+        default:
+            super.doCommand(by: aSelector, command: infoDictionary)
+        }
+    }
+
+    /// InputMethodKit calls doCommand(by:command:) for system input-menu items and the
+    /// superclass dispatches the selector to this controller with an NSDictionary sender.
+    @objc func selectInputMode(_ command: NSDictionary) {
+        guard let item = command[kIMKCommandMenuItemName] as? NSMenuItem,
+              let event = InputModeController.event(forCommandTag: item.tag) else { return }
+        handleModeEvent(event)
+    }
+
+    @objc func showSettings(_ command: NSDictionary) {
+        // InputMethodKit invokes commands while the system input menu is still tracking.
+        // Defer presentation until that menu has closed or AppKit may discard the order-front.
+        DispatchQueue.main.async {
+            SettingsWindowController.shared.show()
         }
     }
 
     private func handleModeEvent(_ event: InputEvent) {
-        guard let clientProxy else { return }
-        _ = inputSession.handle(event, client: clientProxy)
+        if let clientProxy {
+            _ = inputSession.handle(event, client: clientProxy)
+        } else {
+            _ = inputSession.handleMenuModeEvent(event)
+        }
         InputModeController.shared.update(mode: inputSession.mode)
     }
 }

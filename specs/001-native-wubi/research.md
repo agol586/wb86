@@ -33,7 +33,8 @@
 
 ## Bundle 元数据与生命周期
 
-**Decision**: 输入法作为 `LSBackgroundOnly` 应用 bundle。bundle identifier 固定为
+**Decision**: 输入法作为 `LSUIElement` agent 应用 bundle，在不显示 Dock 图标的同时允许用户从
+系统输入菜单打开同进程设置窗口；不得声明与设置窗口合同冲突的 `LSBackgroundOnly`。bundle identifier 固定为
 `org.macwubi.inputmethod.MacWubi`，必须包含 IMK/TIS 实际识别所需的完整
 `.inputmethod.` 段。`Info.plist` 至少声明唯一的
 `InputMethodConnectionName`、`InputMethodServerControllerClass`、稳定 `TISInputSourceID`、

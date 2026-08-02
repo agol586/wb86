@@ -309,3 +309,18 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
 - [X] T071 [US2] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖高级页“私密模式”和“本地学习”的显示、即时切换、重新打开回显及设置取消互不干扰，再在 `Sources/InputMethod/SettingsWindowController.swift` 接通 `PrivacyModeController` 并移除无效占位控件 per FR-034/US2-AC7/SC-015 (partial)
 
 **Checkpoint**: 私密模式和本地学习只通过高级设置页查看与控制，运行期间不创建额外状态栏项目。
+
+---
+
+## Phase 12: Post-install interaction fixes
+
+- [x] T072 [US1] 先在 `Tests/ReleaseContractTests/ReleaseContractTests.swift` 覆盖设置窗口所需的
+  `LSUIElement=true` 且禁止 `LSBackgroundOnly`，再更新 `Sources/Supporting/Info.plist` 和
+  `Sources/InputMethod/SettingsWindowController.swift`，确保系统输入菜单的“设置…”能显示并置前
+  同进程设置窗口，不新增 helper、Dock 图标或权限
+- [ ] T073 [US2] 先在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖系统输入
+  菜单打开导致活动 client proxy 暂时不可用时的空闲模式切换，再更新
+  `Sources/InputMethod/InputControllerSession.swift`、`InputModeController.swift` 与 `InputController.swift`，
+  按 `doCommand(by:command:)` 合同由当前 controller 接收 selector 和命令字典，使四个菜单 toggle
+  仍更新当前会话且不提交文本；在 iTerm、文本编辑、Codex 与 VS Code 记录 `flagsChanged` 实机交付差异，
+  不得以 global monitor/event tap 绕过不交付修饰键事件的客户端

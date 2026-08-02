@@ -34,7 +34,14 @@ bundle_identifier="$(plutil -extract CFBundleIdentifier raw -o - "$info_plist")"
 [[ "$(plutil -extract InputMethodConnectionName raw -o - "$info_plist")" == \
   "org.macwubi.inputmethod.MacWubi_Connection" ]]
 [[ -n "$(plutil -extract InputMethodServerControllerClass raw -o - "$info_plist")" ]]
-[[ "$(plutil -extract LSBackgroundOnly raw -o - "$info_plist")" == "true" ]]
+[[ "$(plutil -extract LSUIElement raw -o - "$info_plist")" == "true" ]] || {
+  echo "input method must be an LSUIElement agent so its settings window can appear" >&2
+  exit 65
+}
+if plutil -extract LSBackgroundOnly raw -o - "$info_plist" >/dev/null 2>&1; then
+  echo "LSBackgroundOnly is incompatible with the in-process settings window" >&2
+  exit 65
+fi
 
 codesign --verify --deep --strict --verbose=2 "$app_path"
 codesign_details="$(codesign --display --verbose=4 "$app_path" 2>&1)"

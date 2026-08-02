@@ -4,6 +4,17 @@ import XCTest
 
 @MainActor
 final class SettingsWindowTests: XCTestCase {
+    func testShowLoadsAndOrdersTheSettingsWindow() {
+        let controller = SettingsWindowController.makeForTesting()
+
+        controller.show()
+
+        XCTAssertTrue(controller.isWindowLoaded)
+        XCTAssertTrue(controller.window?.isVisible == true)
+        XCTAssertEqual(controller.window?.title, "Mac Wubi 设置")
+        controller.close()
+    }
+
     func testAllGroupsAndKeyboardControlsExist() {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()

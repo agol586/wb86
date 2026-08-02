@@ -379,7 +379,7 @@ final class InputModeTests: XCTestCase {
         let traditional = InputMode(language: .chinese, punctuation: .english,
                                     width: .full, script: .traditional)
         XCTAssertEqual(InputModeController.label(for: traditional), "五·中·英标·全·繁")
-        let menu = InputModeController.shared.menu(mode: traditional) { _ in }
+        let menu = InputModeController.shared.menu(mode: traditional)
         XCTAssertEqual(menu.items.count, 6)
         XCTAssertEqual(Array(menu.items.prefix(4)).map(\.state), [.on, .off, .on, .on])
         XCTAssertEqual(menu.items.last?.title, "设置…")
