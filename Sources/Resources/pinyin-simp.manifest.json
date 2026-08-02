@@ -1,0 +1,24 @@
+{
+  "candidateCount" : 60742,
+  "format" : "MWPY",
+  "imageChecksumFNV1a64" : "264a8936723d416b",
+  "keyCount" : 38999,
+  "licenseIdentifier" : "Apache-2.0",
+  "maximumCandidatesPerKey" : 64,
+  "normalization" : [
+    "Unicode text normalized to NFC",
+    "traditional variants normalized to product simplified text before dedupe",
+    "ASCII Pinyin lowercased and syllable spaces removed",
+    "duplicate key-text pairs retain greatest weight",
+    "keys sorted by ASCII bytes; candidates by weight descending then UTF-8 bytes",
+    "each key retains at most 64 candidates",
+    "WB86 hints prefer full four-code, then longer code, lower rank, packed code"
+  ],
+  "restartInterval" : 32,
+  "reusedWB86TextCount" : 40619,
+  "schemaVersion" : 1,
+  "sourceChecksumFNV1a64" : "76ac1bdac254b2e3",
+  "sourceRevision" : "0c6861ef7420ee780270ca6d993d18d4101049d0",
+  "upstreamSourceSHA256" : "e341598343a0f0f2035bb1aafc34a7f3bb7887deeecb3f60796262aaa2983e6b",
+  "wb86BuildIdentifier" : "affd6ad3e043bec9"
+}
