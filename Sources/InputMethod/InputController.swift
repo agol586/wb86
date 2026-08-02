@@ -21,10 +21,10 @@ final class InputController: IMKInputController {
         inputSession = InputControllerSession(
             engine: InputEngine(
                 scriptConverter: Self.makeScriptConverter(),
-                query: Self.makeDictionaryQuery()
+                policyQuery: Self.makeDictionaryQuery()
             ),
             presenter: candidatePresenter,
-            learningHandler: PersonalizationCoordinator.shared.record
+            policyLearningHandler: PersonalizationCoordinator.shared.record
         )
         PrivacyModeController.shared.register(inputSession)
         SettingsCoordinator.shared?.register(inputSession)
@@ -90,9 +90,10 @@ final class InputController: IMKInputController {
         return clientProxy
     }
 
-    private static func makeDictionaryQuery() -> InputEngine.Query {
-        return { code, pageIndex in
-            try PersonalizationCoordinator.shared.page(for: code, pageIndex: pageIndex)
+    private static func makeDictionaryQuery() -> InputEngine.PolicyQuery {
+        return { code, pageIndex, policy in
+            try PersonalizationCoordinator.shared.page(for: code, pageIndex: pageIndex,
+                                                        policy: policy)
         }
     }
 

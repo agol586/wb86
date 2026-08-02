@@ -17,6 +17,12 @@ enum SettingsValidationError: Error, Equatable {
 struct SettingsSnapshot: Equatable, Sendable {
     let generation: UInt64
     let settings: InputSettings
+
+    var candidateRankingPolicy: CandidateRankingPolicy {
+        CandidateRankingPolicy(settingsGeneration: generation,
+                               pageSize: settings.candidatePageSize,
+                               automaticFrequency: settings.automaticFrequency)
+    }
 }
 
 struct InputSettings: Equatable, Codable, Sendable {

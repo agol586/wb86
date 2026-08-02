@@ -17,9 +17,7 @@ final class SettingsCoordinator {
             .appendingPathComponent("org.macwubi.inputmethod", isDirectory: true),
               let writer = try? SnapshotWriter(rootURL: root),
               let store = try? SettingsStore(writer: writer) else { return nil }
-        return SettingsCoordinator(store: store) {
-            PersonalizationCoordinator.shared.apply(settings: $0)
-        }
+        return SettingsCoordinator(store: store)
     }()
 
     private let store: SettingsStore

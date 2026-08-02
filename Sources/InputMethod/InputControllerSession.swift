@@ -11,7 +11,7 @@ protocol InputClientProxy: AnyObject {
 final class InputControllerSession: PrivacySessionControlling, SettingsSessionControlling {
     private let engine: InputEngine
     private let presenter: CandidatePresenting
-    private let learningHandler: (LearningDelta) -> Void
+    private let learningHandler: (LearningDelta, CandidateRankingPolicy) -> Void
     private weak var activeClient: InputClientProxy?
     private(set) var activeSnapshot = SettingsSnapshot(generation: 0, settings: .default)
     private(set) var pendingSnapshot: SettingsSnapshot?
@@ -34,7 +34,18 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
          learningHandler: @escaping (LearningDelta) -> Void = { _ in }) {
         self.engine = engine
         self.presenter = presenter
-        self.learningHandler = learningHandler
+        self.learningHandler = { delta, _ in learningHandler(delta) }
+        presenter.setSelectionHandler { [weak self] ordinal in
+            guard let self, let client = self.activeClient else { return }
+            _ = self.handle(.select(ordinal), client: client)
+        }
+    }
+
+    init(engine: InputEngine, presenter: CandidatePresenting,
+         policyLearningHandler: @escaping (LearningDelta, CandidateRankingPolicy) -> Void) {
+        self.engine = engine
+        self.presenter = presenter
+        learningHandler = policyLearningHandler
         presenter.setSelectionHandler { [weak self] ordinal in
             guard let self, let client = self.activeClient else { return }
             _ = self.handle(.select(ordinal), client: client)
@@ -61,7 +72,9 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             return true
         }
         apply(result.candidateAction, client: client)
-        if let learningDelta = result.learningDelta { learningHandler(learningDelta) }
+        if let learningDelta = result.learningDelta {
+            learningHandler(learningDelta, activeSnapshot.candidateRankingPolicy)
+        }
         applyPendingSettingsIfIdle()
         return result.consumed
     }
@@ -116,7 +129,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     private func applySnapshot(_ snapshot: SettingsSnapshot) {
         activeSnapshot = snapshot
         hasAppliedSettingsSnapshot = true
-        engine.apply(settings: snapshot.settings)
+        engine.apply(settings: snapshot.settings, generation: snapshot.generation)
         (presenter as? AccessibleCandidatePresenter)?.apply(settings: snapshot.settings)
     }
 

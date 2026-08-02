@@ -3,6 +3,38 @@ import XCTest
 @testable import MacWubi
 
 final class PersonalizationIntegrationTests: XCTestCase {
+    func testQueryPagingRankingAndLearningUseOneExplicitFrozenPolicy() throws {
+        let root = temporaryDirectory()
+        let writer = try SnapshotWriter(rootURL: root)
+        let users = try UserLexiconStore(writer: writer)
+        let learning = try LearningStore(writer: writer)
+        let code = try XCTUnwrap(InputCode("a"))
+        for index in 0..<7 {
+            _ = try users.upsert(code: code, text: "词\(index)", fixedRank: nil,
+                                 createdBy: .manual)
+        }
+        try learning.recordSelection(code: code, candidateText: "词6", amount: 4)
+        let coordinator = PersonalizationCoordinator(index: nil, userStore: users,
+                                                     learningStore: learning)
+        let frozen = CandidateRankingPolicy(settingsGeneration: 8, pageSize: 5,
+                                            automaticFrequency: true)
+
+        let first = try coordinator.page(for: code, pageIndex: 0, policy: frozen)
+        let second = try coordinator.page(for: code, pageIndex: 1, policy: frozen)
+        XCTAssertEqual(first.pageSize, 5)
+        XCTAssertEqual(first.items.first?.text, "词6")
+        XCTAssertEqual(second.pageSize, 5)
+
+        let generation = learning.snapshot.generation
+        coordinator.record(LearningDelta(code: code, candidateText: "词0", amount: 1),
+                           policy: CandidateRankingPolicy(settingsGeneration: 9, pageSize: 9,
+                                                          automaticFrequency: false))
+        XCTAssertEqual(learning.snapshot.generation, generation)
+        coordinator.record(LearningDelta(code: code, candidateText: "词0", amount: 1),
+                           policy: frozen)
+        XCTAssertEqual(learning.snapshot.generation, generation + 1)
+    }
+
     func testRestartConcurrentGenerationAndDomainIsolation() throws {
         let root = temporaryDirectory()
         let writer = try SnapshotWriter(rootURL: root)

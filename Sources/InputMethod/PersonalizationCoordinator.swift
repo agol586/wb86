@@ -3,7 +3,6 @@ import Foundation
 final class PersonalizationCoordinator {
     static let shared = PersonalizationCoordinator()
 
-    private var candidatePageSize = 5
     private let index: DictionaryIndex?
     private let userStore: UserLexiconStore?
     private let learningStore: LearningStore?
@@ -23,35 +22,54 @@ final class PersonalizationCoordinator {
         userStore.map { LexiconExporter(userStore: $0, learningStore: learningStore) }
     }
 
-    private init(bundle: Bundle = .main, fileManager: FileManager = .default) {
+    private convenience init(bundle: Bundle = .main, fileManager: FileManager = .default) {
+        let loadedIndex: DictionaryIndex?
         if let url = bundle.url(forResource: "wb86", withExtension: "bin"),
            let image = try? DictionaryLoader.load(from: url) {
-            index = DictionaryIndex(image: image)
+            loadedIndex = DictionaryIndex(image: image)
         } else {
-            index = nil
+            loadedIndex = nil
         }
         let root: URL? = fileManager.urls(for: .applicationSupportDirectory,
                                           in: .userDomainMask).first?.appendingPathComponent(
                                             "org.macwubi.inputmethod", isDirectory: true
                                           )
         if let root, let writer = try? SnapshotWriter(rootURL: root) {
-            userStore = try? UserLexiconStore(writer: writer)
-            learningStore = try? LearningStore(writer: writer)
+            self.init(index: loadedIndex,
+                      userStore: try? UserLexiconStore(writer: writer),
+                      learningStore: try? LearningStore(writer: writer))
         } else {
-            userStore = nil
-            learningStore = nil
+            self.init(index: loadedIndex, userStore: nil, learningStore: nil)
         }
+    }
+
+    init(index: DictionaryIndex?, userStore: UserLexiconStore?,
+         learningStore: LearningStore?) {
+        self.index = index
+        self.userStore = userStore
+        self.learningStore = learningStore
     }
 
     func page(for code: InputCode, pageIndex: Int) throws -> CandidatePage {
         lock.lock()
-        let includeLearning = learningEnabled && !privateMode
+        let legacyPolicy = CandidateRankingPolicy(settingsGeneration: 0, pageSize: 5,
+                                                  automaticFrequency: learningEnabled)
+        lock.unlock()
+        return try page(for: code, pageIndex: pageIndex, policy: legacyPolicy)
+    }
+
+    func page(for code: InputCode, pageIndex: Int,
+              policy: CandidateRankingPolicy) throws -> CandidatePage {
+        lock.lock()
+        let includeLearning = policy.automaticFrequency && learningEnabled && !privateMode
         lock.unlock()
         let records = index?.lookup(code) ?? []
-        lock.lock()
-        let pageSize = candidatePageSize
-        lock.unlock()
-        return try CandidateRanker(pageSize: pageSize).page(
+        let effectivePolicy = CandidateRankingPolicy(
+            settingsGeneration: policy.settingsGeneration,
+            pageSize: policy.pageSize,
+            automaticFrequency: includeLearning
+        )
+        return try CandidateRanker(policy: effectivePolicy).page(
             for: code,
             records: records,
             userEntries: userStore?.snapshot.entries.map {
@@ -61,14 +79,21 @@ final class PersonalizationCoordinator {
                 LearnedCandidateRanking(code: $0.code, candidateText: $0.candidateText,
                                         score: $0.score)
             } ?? [],
-            learningEnabled: includeLearning,
             pageIndex: pageIndex
         )
     }
 
     func record(_ delta: LearningDelta) {
         lock.lock()
-        let shouldLearn = learningEnabled && !privateMode
+        let legacyPolicy = CandidateRankingPolicy(settingsGeneration: 0, pageSize: 5,
+                                                  automaticFrequency: learningEnabled)
+        lock.unlock()
+        record(delta, policy: legacyPolicy)
+    }
+
+    func record(_ delta: LearningDelta, policy: CandidateRankingPolicy) {
+        lock.lock()
+        let shouldLearn = policy.automaticFrequency && learningEnabled && !privateMode
         lock.unlock()
         guard shouldLearn else { return }
         learningStore?.isEnabled = true
@@ -86,11 +111,7 @@ final class PersonalizationCoordinator {
     }
 
     func apply(settings: InputSettings) {
-        lock.lock()
-        candidatePageSize = settings.candidatePageSize
-        learningEnabled = settings.learningEnabled
-        let shouldLearn = settings.learningEnabled && !privateMode
-        lock.unlock()
-        learningStore?.isEnabled = shouldLearn
+        // Semantic settings are supplied explicitly by each session's frozen policy.
+        // Runtime privacy/learning controls remain independent and are managed by setPolicy.
     }
 }

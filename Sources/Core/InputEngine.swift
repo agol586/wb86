@@ -62,8 +62,10 @@ struct InputProcessingResult: Equatable, Sendable {
 
 final class InputEngine {
     typealias Query = (_ code: InputCode, _ pageIndex: Int) throws -> CandidatePage
+    typealias PolicyQuery = (_ code: InputCode, _ pageIndex: Int,
+                             _ policy: CandidateRankingPolicy) throws -> CandidatePage
 
-    private let query: Query
+    private let policyQuery: PolicyQuery
     private let scriptConverter: ScriptConverter?
     private(set) var state = CompositionState.idle
     private(set) var mode: InputMode
@@ -72,12 +74,22 @@ final class InputEngine {
     var privateMode = false
     var learningEnabled = true
     private var autoCommitAtFour = false
+    private(set) var rankingPolicy = CandidateRankingPolicy(
+        settingsGeneration: 0, pageSize: 5, automaticFrequency: true
+    )
 
     init(mode: InputMode = .default, scriptConverter: ScriptConverter? = nil,
          query: @escaping Query) {
         self.mode = mode
         self.scriptConverter = scriptConverter
-        self.query = query
+        policyQuery = { code, pageIndex, _ in try query(code, pageIndex) }
+    }
+
+    init(mode: InputMode = .default, scriptConverter: ScriptConverter? = nil,
+         policyQuery: @escaping PolicyQuery) {
+        self.mode = mode
+        self.scriptConverter = scriptConverter
+        self.policyQuery = policyQuery
     }
 
     @discardableResult
@@ -129,10 +141,19 @@ final class InputEngine {
     }
 
     func apply(settings: InputSettings) {
+        apply(settings: settings, generation: rankingPolicy.settingsGeneration)
+    }
+
+    func apply(settings: InputSettings, generation: UInt64) {
         guard state == .idle else { return }
         mode = settings.defaultMode
         learningEnabled = settings.learningEnabled
         autoCommitAtFour = settings.autoCommitAtFour
+        rankingPolicy = CandidateRankingPolicy(
+            settingsGeneration: generation,
+            pageSize: settings.candidatePageSize,
+            automaticFrequency: settings.automaticFrequency
+        )
     }
 
     private func processLetter(_ rawLetter: String) -> InputProcessingResult {
@@ -225,7 +246,7 @@ final class InputEngine {
 
     private func queryAndCompose(code: InputCode, pageIndex: Int) -> InputProcessingResult {
         do {
-            let queriedPage = try query(code, pageIndex)
+            let queriedPage = try policyQuery(code, pageIndex, rankingPolicy)
             let page = try scriptConverter?.convert(queriedPage, to: mode.script) ?? queriedPage
             let next = try CompositionState.composing(
                 code: code,

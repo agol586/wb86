@@ -5,6 +5,19 @@ enum CandidateQueryError: Error, Equatable {
     case invalidRank
 }
 
+struct CandidateRankingPolicy: Equatable, Sendable {
+    let settingsGeneration: UInt64
+    let pageSize: Int
+    let automaticFrequency: Bool
+
+    init(settingsGeneration: UInt64, pageSize: Int, automaticFrequency: Bool) {
+        precondition((5...9).contains(pageSize))
+        self.settingsGeneration = settingsGeneration
+        self.pageSize = pageSize
+        self.automaticFrequency = automaticFrequency
+    }
+}
+
 struct UserCandidateRanking: Equatable, Sendable {
     let code: InputCode
     let text: String
@@ -18,10 +31,16 @@ struct LearnedCandidateRanking: Equatable, Sendable {
 }
 
 struct CandidateRanker: Sendable {
-    let pageSize: Int
+    let policy: CandidateRankingPolicy
+    var pageSize: Int { policy.pageSize }
 
     init(pageSize: Int) {
-        self.pageSize = pageSize
+        policy = CandidateRankingPolicy(settingsGeneration: 0, pageSize: pageSize,
+                                        automaticFrequency: true)
+    }
+
+    init(policy: CandidateRankingPolicy) {
+        self.policy = policy
     }
 
     func page(for code: InputCode, records: [DictionaryEntryRecord],
@@ -102,6 +121,14 @@ struct CandidateRanker: Sendable {
             pageSize: pageSize,
             totalCount: ordered.count
         )
+    }
+
+    func page(for code: InputCode, records: [DictionaryEntryRecord],
+              userEntries: [UserCandidateRanking], learningRecords: [LearnedCandidateRanking],
+              pageIndex: Int) throws -> CandidatePage {
+        try page(for: code, records: records, userEntries: userEntries,
+                 learningRecords: learningRecords,
+                 learningEnabled: policy.automaticFrequency, pageIndex: pageIndex)
     }
 
     static func rank(candidates: [Candidate], learningEnabled: Bool) -> [Candidate] {

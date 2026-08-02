@@ -2,6 +2,37 @@ import XCTest
 @testable import MacWubi
 
 final class CandidateQueryTests: XCTestCase {
+    func testRankingPolicyFreezesGenerationPagingAndLearning() throws {
+        let code = try XCTUnwrap(InputCode("a"))
+        let records = try (0..<7).map {
+            try DictionaryEntryRecord(code: code, rank: UInt32($0), text: "词\($0)")
+        }
+        let learning = LearnedCandidateRanking(code: code, candidateText: "词6", score: 10)
+        let frozen = CandidateRankingPolicy(settingsGeneration: 4, pageSize: 5,
+                                            automaticFrequency: true)
+        let changed = CandidateRankingPolicy(settingsGeneration: 5, pageSize: 9,
+                                             automaticFrequency: false)
+
+        let first = try CandidateRanker(policy: frozen).page(
+            for: code, records: records, userEntries: [], learningRecords: [learning],
+            pageIndex: 0
+        )
+        let second = try CandidateRanker(policy: frozen).page(
+            for: code, records: records, userEntries: [], learningRecords: [learning],
+            pageIndex: 1
+        )
+        XCTAssertEqual(first.pageSize, 5)
+        XCTAssertEqual(first.items.first?.text, "词6")
+        XCTAssertEqual(second.items.count, 2)
+
+        let changedPage = try CandidateRanker(policy: changed).page(
+            for: code, records: records, userEntries: [], learningRecords: [learning],
+            pageIndex: 0
+        )
+        XCTAssertEqual(changedPage.pageSize, 9)
+        XCTAssertEqual(changedPage.items.first?.text, "词0")
+    }
+
     func testBaseCandidatesOrderByRankThenUTF8Bytes() throws {
         let code = try XCTUnwrap(InputCode("wqvb"))
         let records = try [
