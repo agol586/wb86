@@ -37,17 +37,13 @@ final class InputModeController: NSObject {
         let menu = NSMenu(title: "Mac Wubi 输入模式")
         menu.autoenablesItems = false
         menu.addItem(item(title: "中文输入", event: .switchLanguage,
-                          checked: currentMode.language == .chinese,
-                          shortcut: "⌃⇧1"))
+                          checked: currentMode.language == .chinese))
         menu.addItem(item(title: "中文标点", event: .switchPunctuation,
-                          checked: currentMode.punctuation == .chinese,
-                          shortcut: "⌃⇧2"))
+                          checked: currentMode.punctuation == .chinese))
         menu.addItem(item(title: "全角字符", event: .switchWidth,
-                          checked: currentMode.width == .full,
-                          shortcut: "⌃⇧3"))
+                          checked: currentMode.width == .full))
         menu.addItem(item(title: "繁体输出", event: .switchScript,
-                          checked: currentMode.script == .traditional,
-                          shortcut: "⌃⇧4"))
+                          checked: currentMode.script == .traditional))
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "设置…", action: #selector(showSettings),
                                   keyEquivalent: ",")
@@ -56,10 +52,9 @@ final class InputModeController: NSObject {
         return menu
     }
 
-    private func item(title: String, event: InputEvent, checked: Bool,
-                      shortcut: String) -> NSMenuItem {
-        let item = NSMenuItem(title: "\(title)  \(shortcut)",
-                              action: #selector(selectMode(_:)), keyEquivalent: "")
+    private func item(title: String, event: InputEvent, checked: Bool) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(selectMode(_:)),
+                              keyEquivalent: "")
         item.target = self
         item.representedObject = EventBox(event)
         item.state = checked ? .on : .off
