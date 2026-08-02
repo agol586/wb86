@@ -130,7 +130,7 @@
 - [X] T040 [US4] 先在 `Tests/CoreTests/CandidateQueryTests.swift` 覆盖 1...32 位 prefix-exists、exact lookup、分页与每键上限，再在 `Sources/Core/PinyinDictionaryIndex.swift` 实现范围缩小、checkpoint 二分和按页解码
 - [X] T041 [US4] 在 `Tests/CoreTests/CandidateQueryTests.swift` 覆盖 user/base Wubi 优先、pinyin 随后、脚本转换后稳定去重及 tier 内学习，再在 `Sources/Core/CandidateRanker.swift` 实现有界混输合并器
 - [X] T042 [US4] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖 `shang` 等有效拼音前缀不触发五码截断、混输关闭兼容和损坏资源复位，再在 `Sources/Core/InputEngine.swift` 接入 prefix/exact 路由与五笔优先规则
-- [ ] T043 [US4] 先在 `Tests/AccessibilityTests/CandidateAccessibilityTests.swift` 覆盖提示开关、截断、字号/布局和辅助技术正文优先，再在 `Sources/InputMethod/CandidatePresenter.swift`、`Sources/InputMethod/AccessibilityAdapter.swift` 和 `Sources/InputMethod/CandidateLayoutController.swift` 展示可选五笔编码提示
+- [X] T043 [US4] 先在 `Tests/AccessibilityTests/CandidateAccessibilityTests.swift` 覆盖提示开关、截断、字号/布局和辅助技术正文优先，再在 `Sources/InputMethod/CandidatePresenter.swift`、`Sources/InputMethod/AccessibilityAdapter.swift` 和 `Sources/InputMethod/CandidateLayoutController.swift` 展示可选五笔编码提示
 - [ ] T044 [US4] 在 `Tests/IntegrationTests/DailyInputIntegrationTests.swift` 覆盖共享只读拼音索引、每会话策略和选择学习，再在 `Sources/InputMethod/InputController.swift` 与 `Sources/InputMethod/PersonalizationCoordinator.swift` 装配 MWPY loader/query 且失败时保持五笔可用
 - [ ] T045 [US4] 运行离线混输、重复正文、简繁、提示、长串和资源损坏集成测试，将词典 provenance、资源大小和降级结果记录到 `specs/002-settings-experience/evidence/us4-pinyin-mixed-input.md`
 

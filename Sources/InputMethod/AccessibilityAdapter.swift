@@ -4,6 +4,7 @@ struct CandidateAccessibilityItem: Equatable, Sendable {
     let ordinal: Int
     let label: String
     let value: String
+    let wubiHint: String?
     let isSelected: Bool
 }
 
@@ -17,7 +18,8 @@ struct CandidateAccessibilitySnapshot: Equatable, Sendable {
 }
 
 enum AccessibilityAdapter {
-    static func snapshot(page: CandidatePage) -> CandidateAccessibilitySnapshot {
+    static func snapshot(page: CandidatePage,
+                         showsCodeHints: Bool = false) -> CandidateAccessibilitySnapshot {
         let pageNumber = page.pageIndex + 1
         let pageCount = max(1, (page.totalCount + page.pageSize - 1) / page.pageSize)
         var paging = "第 \(pageNumber) 页，共 \(pageCount) 页"
@@ -28,11 +30,16 @@ enum AccessibilityAdapter {
             CandidateAccessibilityItem(ordinal: candidate.ordinal,
                                        label: "候选 \(candidate.ordinal)",
                                        value: candidate.text,
+                                       wubiHint: showsCodeHints
+                                        ? candidate.wubiHint?.letters : nil,
                                        isSelected: index == 0)
         }
         let code = page.items.first?.queryKey.normalizedCode ?? ""
         let candidateAnnouncement = candidates.map { candidate in
-            "候选 \(candidate.ordinal)，\(candidate.value)\(candidate.isSelected ? "，已选中" : "")。"
+            var value = "候选 \(candidate.ordinal)，\(candidate.value)"
+            if let hint = candidate.wubiHint { value += "，五笔编码 \(hint)" }
+            if candidate.isSelected { value += "，已选中" }
+            return value + "。"
         }.joined()
         let announcement = "五笔候选窗口。编码 \(code)。\(paging)。\(candidateAnnouncement)"
         return CandidateAccessibilitySnapshot(

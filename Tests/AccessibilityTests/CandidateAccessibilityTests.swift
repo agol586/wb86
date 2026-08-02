@@ -45,4 +45,83 @@ final class CandidateAccessibilityTests: XCTestCase {
         XCTAssertTrue(result.usesHighContrastBorder)
         XCTAssertEqual(result.backingScale, 2)
     }
+
+    func testCodeHintToggleKeepsAccessibleBodyBeforeOptionalHint() throws {
+        let queryKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "shurufa"))
+        let candidate = try Candidate(
+            text: "输入法", queryKey: queryKey, source: .localPinyin,
+            baseRank: 0, learnedScore: 0, ordinal: 1,
+            wubiHint: XCTUnwrap(InputCode("lwy"))
+        )
+        let page = try CandidatePage(items: [candidate], pageIndex: 0,
+                                     pageSize: 5, totalCount: 1)
+
+        let hidden = AccessibilityAdapter.snapshot(page: page, showsCodeHints: false)
+        let shown = AccessibilityAdapter.snapshot(page: page, showsCodeHints: true)
+
+        XCTAssertNil(hidden.candidates.first?.wubiHint)
+        XCTAssertEqual(hidden.candidates.first?.value, "输入法")
+        XCTAssertEqual(shown.candidates.first?.value, "输入法")
+        XCTAssertEqual(shown.candidates.first?.wubiHint, "lwy")
+        XCTAssertTrue(shown.announcement.contains("候选 1，输入法，五笔编码 lwy"))
+        XCTAssertFalse(shown.announcement.contains("候选 1，lwy，输入法"))
+    }
+
+    func testRowLayoutDropsHintBeforeTruncatingCandidateBody() throws {
+        let candidate = try Candidate(
+            text: "这是必须优先保留的候选正文",
+            queryKey: XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "ceshi")),
+            source: .localPinyin, baseRank: 0, learnedScore: 0, ordinal: 1,
+            wubiHint: XCTUnwrap(InputCode("abcd"))
+        )
+        let controller = CandidateLayoutController()
+        let roomy = controller.rowPresentation(
+            for: candidate, showsCodeHint: true, maximumWidth: 520,
+            font: .systemFont(ofSize: NSFont.systemFontSize)
+        )
+        let narrow = controller.rowPresentation(
+            for: candidate, showsCodeHint: true, maximumWidth: 80,
+            font: .systemFont(ofSize: NSFont.systemFontSize)
+        )
+
+        XCTAssertEqual(roomy.visibleHint, "abcd")
+        XCTAssertTrue(roomy.title.hasSuffix("abcd"))
+        XCTAssertNil(narrow.visibleHint)
+        XCTAssertFalse(narrow.title.contains("abcd"))
+        XCTAssertTrue(narrow.title.contains(candidate.text))
+        XCTAssertEqual(narrow.accessibilityValue, candidate.text)
+        XCTAssertEqual(narrow.accessibilityHint, "abcd")
+    }
+
+    func testPresenterAppliesHintFontAndOrientationToNewRows() throws {
+        let presenter = AccessibleCandidatePresenter()
+        var settings = InputSettings.default
+        settings.codeHintEnabled = true
+        settings.candidateLayout = .horizontal
+        settings.candidateFontScale = 1.5
+        presenter.apply(settings: settings)
+        let candidate = try Candidate(
+            text: "输入法",
+            queryKey: XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "shurufa")),
+            source: .localPinyin, baseRank: 0, learnedScore: 0, ordinal: 1,
+            wubiHint: XCTUnwrap(InputCode("lwy"))
+        )
+        presenter.update(with: try CandidatePage(items: [candidate], pageIndex: 0,
+                                                 pageSize: 5, totalCount: 1))
+
+        XCTAssertTrue(presenter.usesHorizontalLayout)
+        XCTAssertEqual(presenter.displayedCandidateTitles, ["1  输入法  lwy"])
+        XCTAssertEqual(presenter.displayedCandidateFontSizes,
+                       [NSFont.systemFontSize * 1.5])
+        XCTAssertEqual(presenter.accessibilitySnapshot?.candidates.first?.value, "输入法")
+        XCTAssertEqual(presenter.accessibilitySnapshot?.candidates.first?.wubiHint, "lwy")
+
+        settings.codeHintEnabled = false
+        settings.candidateLayout = .vertical
+        settings.candidateFontScale = 1
+        presenter.apply(settings: settings)
+        XCTAssertFalse(presenter.usesHorizontalLayout)
+        XCTAssertEqual(presenter.displayedCandidateTitles, ["1  输入法"])
+        XCTAssertNil(presenter.accessibilitySnapshot?.candidates.first?.wubiHint)
+    }
 }

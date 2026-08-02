@@ -11,11 +11,20 @@ final class AccessibleCandidatePresenter: NSObject, CandidateAppearanceApplying 
     private var anchorTopLeft: NSPoint?
     private var candidateButtons = [Int: NSButton]()
     private var lastAnnouncedSnapshot: CandidateAccessibilitySnapshot?
+    private var appearanceSettings = InputSettings.migrationCompatibilityDefault
+    private var currentPage: CandidatePage?
     private(set) var accessibilitySnapshot: CandidateAccessibilitySnapshot?
     private let layoutController = CandidateLayoutController()
 
     var isVisible: Bool { panel.isVisible }
     var canTakeKeyboardFocus: Bool { panel.canBecomeKey || panel.canBecomeMain }
+    var usesHorizontalLayout: Bool { candidateStack.orientation == .horizontal }
+    var displayedCandidateTitles: [String] {
+        candidateButtons.values.sorted { $0.tag < $1.tag }.map(\.title)
+    }
+    var displayedCandidateFontSizes: [CGFloat] {
+        candidateButtons.values.sorted { $0.tag < $1.tag }.compactMap { $0.font?.pointSize }
+    }
     var accessibilityTopLevelCandidateOrdinals: [Int] {
         (panel.accessibilityChildren() ?? [])
             .compactMap { ($0 as? NSButton)?.tag }
@@ -39,16 +48,30 @@ final class AccessibleCandidatePresenter: NSObject, CandidateAppearanceApplying 
 
     func update(with page: CandidatePage) {
         precondition(Thread.isMainThread)
+        currentPage = page
         candidateStack.arrangedSubviews.forEach { view in
             candidateStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
         candidateButtons.removeAll()
-        accessibilitySnapshot = AccessibilityAdapter.snapshot(page: page)
+        accessibilitySnapshot = AccessibilityAdapter.snapshot(
+            page: page,
+            showsCodeHints: appearanceSettings.codeHintEnabled
+        )
+
+        let font = NSFont.systemFont(
+            ofSize: NSFont.systemFontSize * appearanceSettings.candidateFontScale
+        )
 
         for (index, candidate) in page.items.enumerated() {
+            let row = layoutController.rowPresentation(
+                for: candidate,
+                showsCodeHint: appearanceSettings.codeHintEnabled,
+                maximumWidth: 504,
+                font: font
+            )
             let button = AccessibilityCandidateButton(
-                title: "\(candidate.ordinal)  \(candidate.text)",
+                title: row.title,
                 target: self,
                 action: #selector(selectCandidate(_:))
             )
@@ -57,13 +80,16 @@ final class AccessibleCandidatePresenter: NSObject, CandidateAppearanceApplying 
             button.isBordered = false
             button.alignment = .left
             button.lineBreakMode = .byTruncatingTail
+            button.font = font
             button.setAccessibilityRole(.button)
             button.setAccessibilityLabel("候选 \(candidate.ordinal)")
-            button.setAccessibilityValue(candidate.text)
+            button.setAccessibilityValue(row.accessibilityValue)
             button.setAccessibilitySelected(index == 0)
-            button.setAccessibilityHelp(index == 0
+            var help = index == 0
                 ? "当前选中，按下以提交第 \(candidate.ordinal) 个候选"
-                : "按下以提交第 \(candidate.ordinal) 个候选")
+                : "按下以提交第 \(candidate.ordinal) 个候选"
+            if let hint = row.accessibilityHint { help += "，五笔编码 \(hint)" }
+            button.setAccessibilityHelp(help)
             button.setAccessibilityParent(panel)
             candidateButtons[candidate.ordinal] = button
             candidateStack.addArrangedSubview(button)
@@ -121,12 +147,13 @@ final class AccessibleCandidatePresenter: NSObject, CandidateAppearanceApplying 
     }
 
     func apply(settings: InputSettings) {
+        appearanceSettings = settings
         candidateStack.orientation = settings.candidateLayout == .vertical ? .vertical : .horizontal
-        let size = NSFont.systemFontSize * settings.candidateFontScale
-        for case let button as NSButton in candidateStack.arrangedSubviews {
-            button.font = .systemFont(ofSize: size)
-        }
         pageLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize * settings.candidateFontScale)
+        if let currentPage {
+            update(with: currentPage)
+            return
+        }
         resizeToFit()
     }
 
