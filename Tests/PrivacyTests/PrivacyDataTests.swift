@@ -45,6 +45,22 @@ final class PrivacyDataTests: XCTestCase {
         XCTAssertEqual(engine.process(.letter("a")).state.kind, .composing)
     }
 
+    func testEveryMutableDirectoryAndSnapshotUsesPrivatePermissions() throws {
+        let writer = try populatedWriter()
+        for domain in DataDomain.allCases {
+            try writer.commit(try DataSnapshot(domain: domain, schemaVersion: 1,
+                                                generation: 2,
+                                                payload: Data("replacement".utf8)))
+        }
+
+        XCTAssertEqual(permissions(writer.rootURL), 0o700)
+        for domain in DataDomain.allCases {
+            XCTAssertEqual(permissions(writer.directory(for: domain)), 0o700)
+            XCTAssertEqual(permissions(writer.currentURL(for: domain)), 0o600)
+            XCTAssertEqual(permissions(writer.previousURL(for: domain)), 0o600)
+        }
+    }
+
     private func populatedWriter() throws -> SnapshotWriter {
         let writer = try SnapshotWriter(rootURL: temporaryRoot())
         for domain in DataDomain.allCases {
@@ -55,6 +71,10 @@ final class PrivacyDataTests: XCTestCase {
     }
     private func temporaryRoot() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("MacWubiPrivacy-\(UUID().uuidString)")
+    }
+    private func permissions(_ url: URL) -> Int {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes?[.posixPermissions] as? NSNumber)?.intValue ?? -1
     }
     private enum DeleteFailure: Error { case expected }
 }
