@@ -152,7 +152,7 @@
 - [X] T049 [US5] 在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖字段级错误、最后有效 baseline、future 只读提示和焦点定位，再在 `Sources/InputMethod/SettingsWindowController.swift` 与 `Sources/InputMethod/SettingsCoordinator.swift` 实现拒绝保存及可访问反馈
 - [X] T050 [US5] 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 与 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖恢复确认、取消、I/O 失败和其他域字节/代次不变，再在 `Sources/InputMethod/SettingsWindowController.swift` 和 `Sources/Persistence/SettingsStore.swift` 实现仅 Settings 的原子恢复默认
 - [X] T051 [US5] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 和 `Tests/FailureRecoveryTests/DomainRecoveryTests.swift` 覆盖输入法重启、模拟系统重启、v1 升级、损坏 current/previous 与迁移失败隔离
-- [ ] T052 [US5] 运行迁移、持久化、恢复和设置 UI 全套测试，将每个 schema/故障路径及 UserLexicon/Learning checksum 对比记录到 `specs/002-settings-experience/evidence/us5-persistence-recovery.md`
+- [X] T052 [US5] 运行迁移、持久化、恢复和设置 UI 全套测试，将每个 schema/故障路径及 UserLexicon/Learning checksum 对比记录到 `specs/002-settings-experience/evidence/us5-persistence-recovery.md`
 
 **Checkpoint**: User Story 5 的保存、升级、future 保护和恢复默认均可独立验证且不损害其他数据域。
 
