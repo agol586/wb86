@@ -62,7 +62,7 @@
 **Independent Test**: 修改全部初始状态，在空闲与组合期间分别保存并创建/重新激活会话；新会话采用
 保存值，已有组合完整使用旧快照，中文英文标点与全半角输出确定，重启后值仍存在。
 
-- [ ] T011 [US1] 先在 `Tests/CoreTests/TextConversionTests.swift` 覆盖“先标点映射、再转换剩余 ASCII”的简繁/半全角矩阵，再在 `Sources/Core/PunctuationConverter.swift` 和 `Sources/Core/InputMode.swift` 实现确定转换规则
+- [X] T011 [US1] 先在 `Tests/CoreTests/TextConversionTests.swift` 覆盖“先标点映射、再转换剩余 ASCII”的简繁/半全角矩阵，再在 `Sources/Core/PunctuationConverter.swift` 和 `Sources/Core/InputMode.swift` 实现确定转换规则
 - [ ] T012 [US1] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖初始模式仅用于新建/重新激活且普通保存不重置临时模式，再在 `Sources/Core/InputEngine.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 分离 runtime policy 应用与 mode 初始化
 - [ ] T013 [US1] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“常用”页 saved/draft、默认值和键盘焦点，再在 `Sources/InputMethod/SettingsWindowController.swift` 构建初始状态、四码/五码、调频、混输、提示和快捷选择控件
 - [ ] T014 [US1] 先在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift` 覆盖 Save/Cancel 成功失败反馈、label/value/help 与焦点保持，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现完整 draft 校验、显式保存和取消零写入

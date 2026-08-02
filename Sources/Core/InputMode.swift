@@ -30,4 +30,10 @@ struct InputMode: Equatable, Codable, Sendable {
         width: .half,
         script: .simplified
     )
+
+    /// Chinese punctuation is meaningful only while the session is in Chinese
+    /// input. Width conversion remains available in either language mode.
+    var effectivePunctuation: PunctuationMode {
+        language == .chinese ? punctuation : .english
+    }
 }

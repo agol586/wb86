@@ -2,6 +2,10 @@ struct PunctuationConverter: Sendable {
     private var nextDoubleQuoteIsOpening = true
     private var nextSingleQuoteIsOpening = true
 
+    mutating func convert(_ text: String, mode: InputMode) -> String? {
+        convert(text, punctuation: mode.effectivePunctuation, width: mode.width)
+    }
+
     mutating func convert(_ text: String,
                           punctuation: PunctuationMode,
                           width: CharacterWidth) -> String? {

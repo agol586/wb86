@@ -3,6 +3,35 @@ import XCTest
 @testable import MacWubi
 
 final class TextConversionTests: XCTestCase {
+    func testPunctuationThenWidthMatrixIsIndependentOfOutputScript() {
+        for script in [OutputScript.simplified, .traditional] {
+            var converter = PunctuationConverter()
+            let chineseHalf = InputMode(language: .chinese, punctuation: .chinese,
+                                        width: .half, script: script)
+            XCTAssertEqual(converter.convert(",", mode: chineseHalf), "，")
+            XCTAssertNil(converter.convert("-", mode: chineseHalf))
+
+            let chineseFull = InputMode(language: .chinese, punctuation: .chinese,
+                                        width: .full, script: script)
+            XCTAssertEqual(converter.convert(",", mode: chineseFull), "，")
+            XCTAssertEqual(converter.convert("-", mode: chineseFull), "－")
+
+            let englishHalf = InputMode(language: .chinese, punctuation: .english,
+                                        width: .half, script: script)
+            XCTAssertNil(converter.convert(",", mode: englishHalf))
+
+            let englishFull = InputMode(language: .chinese, punctuation: .english,
+                                        width: .full, script: script)
+            XCTAssertEqual(converter.convert(",", mode: englishFull), "，")
+            XCTAssertEqual(converter.convert("\"", mode: englishFull), "＂")
+
+            let directEnglish = InputMode(language: .directEnglish, punctuation: .chinese,
+                                          width: .full, script: script)
+            XCTAssertEqual(converter.convert(",", mode: directEnglish), "，")
+            XCTAssertEqual(converter.convert("A", mode: directEnglish), "Ａ")
+        }
+    }
+
     func testChineseAndEnglishPunctuationIncludingPairedQuotes() {
         var converter = PunctuationConverter()
         XCTAssertEqual(converter.convert(",", punctuation: .chinese, width: .half), "，")
