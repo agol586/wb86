@@ -188,6 +188,55 @@ final class InputModeTests: XCTestCase {
                                               isComposing: true), .passThrough)
     }
 
+    func testIndependentModeBindingsRequireExactModifiersAndNonRepeat() throws {
+        let bindings = try KeyBindingSettings(
+            languageSwitch: .disabled,
+            scriptSwitch: .controlShiftF,
+            widthSwitch: .shiftSpace,
+            pageKeyGroups: [],
+            keyboardLayout: .us
+        )
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 3, characters: "f", flags: [.control, .shift]),
+            isComposing: false, keyBindings: bindings
+        ), .switchScript)
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 49, characters: " ", flags: [.shift]),
+            isComposing: true, keyBindings: bindings
+        ), .switchWidth)
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 3, characters: "f", flags: [.control, .shift, .option]),
+            isComposing: false, keyBindings: bindings
+        ), .passThrough)
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 3, characters: "f", flags: [.control, .shift],
+                         isARepeat: true),
+            isComposing: false, keyBindings: bindings
+        ), .passThrough)
+    }
+
+    func testConfiguredModeBindingPrecedesSystemShortcutAndCandidatesNeverStealThem() throws {
+        let bindings = try KeyBindingSettings(
+            languageSwitch: .controlShiftF,
+            scriptSwitch: .disabled,
+            widthSwitch: .disabled,
+            pageKeyGroups: [.commaPeriod],
+            keyboardLayout: .us
+        )
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 3, characters: "f", flags: [.control, .shift]),
+            isComposing: true, keyBindings: bindings
+        ), .switchLanguage)
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 18, characters: "1", flags: [.command]),
+            isComposing: true, keyBindings: bindings
+        ), .passThrough)
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 43, characters: ",", flags: [.control]),
+            isComposing: true, keyBindings: bindings
+        ), .passThrough)
+    }
+
     func testCandidateControlsAreOrdinaryTextWhenIdle() throws {
         let digit = try keyEvent(keyCode: 18, characters: "1")
         XCTAssertEqual(InputEventMapper.map(digit, isComposing: false), .text("1"))
@@ -225,7 +274,8 @@ final class InputModeTests: XCTestCase {
     }
 
     private func keyEvent(keyCode: UInt16, characters: String,
-                          flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
+                          flags: NSEvent.ModifierFlags = [],
+                          isARepeat: Bool = false) throws -> NSEvent {
         try XCTUnwrap(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -235,7 +285,7 @@ final class InputModeTests: XCTestCase {
             context: nil,
             characters: characters,
             charactersIgnoringModifiers: characters,
-            isARepeat: false,
+            isARepeat: isARepeat,
             keyCode: keyCode
         ))
     }

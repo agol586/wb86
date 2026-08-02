@@ -5,14 +5,24 @@ enum InputEventMapper {
                     keyBindings: KeyBindingSettings = .default) -> InputEvent {
         guard event.type == .keyDown else { return .passThrough }
         let exactModeFlags = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        if keyBindings.modeSwitch == .controlShiftDigits,
-           exactModeFlags == [.control, .shift] {
-            switch event.keyCode {
-            case 18: return .switchLanguage
-            case 19: return .switchPunctuation
-            case 20: return .switchWidth
-            case 21: return .switchScript
-            default: break
+        if !event.isARepeat {
+            if usesLegacyDigitBindings(keyBindings), exactModeFlags == [.control, .shift] {
+                switch event.keyCode {
+                case 18: return .switchLanguage
+                case 19: return .switchPunctuation
+                case 20: return .switchWidth
+                case 21: return .switchScript
+                default: break
+                }
+            }
+            if matches(keyBindings.languageSwitch, event: event, flags: exactModeFlags) {
+                return .switchLanguage
+            }
+            if matches(keyBindings.scriptSwitch, event: event, flags: exactModeFlags) {
+                return .switchScript
+            }
+            if matches(keyBindings.widthSwitch, event: event, flags: exactModeFlags) {
+                return .switchWidth
             }
         }
         let shortcutFlags = event.modifierFlags.intersection([.command, .control, .option])
@@ -34,6 +44,24 @@ enum InputEventMapper {
                 return page
             }
             return InputCode(characters) != nil ? .letter(characters) : .text(characters)
+        }
+    }
+
+    private static func usesLegacyDigitBindings(_ settings: KeyBindingSettings) -> Bool {
+        settings.languageSwitch == .legacyControlShiftDigits
+            || settings.scriptSwitch == .legacyControlShiftDigits
+            || settings.widthSwitch == .legacyControlShiftDigits
+    }
+
+    private static func matches(_ binding: ModeSwitchBinding, event: NSEvent,
+                                flags: NSEvent.ModifierFlags) -> Bool {
+        switch binding {
+        case .controlShiftF:
+            return event.keyCode == 3 && flags == [.control, .shift]
+        case .shiftSpace:
+            return event.keyCode == 49 && flags == [.shift]
+        case .standaloneShift, .legacyControlShiftDigits, .custom, .disabled:
+            return false
         }
     }
 
