@@ -47,6 +47,7 @@ final class SettingsWindowController: NSWindowController {
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
     private var popupsByLabel = [String: NSPopUpButton]()
+    private var bindingChoicesByLabel = [String: [(title: String, binding: ModeSwitchBinding)]]()
     private var titlesByControl = [ObjectIdentifier: String]()
     private weak var tabView: NSTabView?
     private let panelController = ImportExportPanelController()
@@ -76,6 +77,7 @@ final class SettingsWindowController: NSWindowController {
         titlesByControl.removeAll()
         controlsByTitle.removeAll()
         popupsByLabel.removeAll()
+        bindingChoicesByLabel.removeAll()
         pageSizeStepper = nil
         layoutPopup = nil
         fontScaleSlider = nil
@@ -304,8 +306,10 @@ final class SettingsWindowController: NSWindowController {
             caption.frame = NSRect(x: 24, y: 340 - index * 44, width: 130, height: 24)
             let popup = NSPopUpButton(frame: NSRect(x: 162, y: 334 - index * 44,
                                                     width: 220, height: 30))
-            popup.addItems(withTitles: Self.bindingTitles)
-            popup.selectItem(at: bindingIndex(row.1))
+            let choices = bindingChoices(for: row.0, current: row.1)
+            bindingChoicesByLabel[row.0] = choices
+            popup.addItems(withTitles: choices.map(\.title))
+            popup.selectItem(at: choices.firstIndex { $0.binding == row.1 } ?? 0)
             register(popup, label: row.0)
             popupsByLabel[row.0] = popup
             view.addSubview(caption)
@@ -405,7 +409,9 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func selectedBinding(_ label: String) -> ModeSwitchBinding {
-        binding(at: selectedIndex(label))
+        let choices = bindingChoicesByLabel[label] ?? []
+        let index = selectedIndex(label)
+        return choices.indices.contains(index) ? choices[index].binding : .disabled
     }
 
     private func isOn(_ title: String) -> Bool { controlsByTitle[title]?.state == .on }
@@ -441,15 +447,9 @@ final class SettingsWindowController: NSWindowController {
         popupsByLabel["初始简繁体"]?.selectItem(at: draftSettings.defaultMode.script == .simplified ? 0 : 1)
         popupsByLabel["初始全半角"]?.selectItem(at: draftSettings.defaultMode.width == .half ? 0 : 1)
         popupsByLabel["中文模式标点"]?.selectItem(at: draftSettings.defaultMode.punctuation == .english ? 0 : 1)
-        popupsByLabel["中英文切换"]?.selectItem(
-            at: bindingIndex(draftSettings.keyBindings.languageSwitch)
-        )
-        popupsByLabel["简繁切换"]?.selectItem(
-            at: bindingIndex(draftSettings.keyBindings.scriptSwitch)
-        )
-        popupsByLabel["全半角切换"]?.selectItem(
-            at: bindingIndex(draftSettings.keyBindings.widthSwitch)
-        )
+        refreshBindingPopup("中英文切换", current: draftSettings.keyBindings.languageSwitch)
+        refreshBindingPopup("简繁切换", current: draftSettings.keyBindings.scriptSwitch)
+        refreshBindingPopup("全半角切换", current: draftSettings.keyBindings.widthSwitch)
         popupsByLabel["键盘布局"]?.selectItem(
             at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1
         )
@@ -503,28 +503,38 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
-    private static let bindingTitles = [
-        "Shift", "Control-Shift-F", "Shift-Space", "禁用", "旧版 Control-Shift-数字"
-    ]
-
-    private func bindingIndex(_ binding: ModeSwitchBinding) -> Int {
-        switch binding {
-        case .standaloneShift, .standaloneControl, .standaloneCapsLock: return 0
-        case .controlShiftF: return 1
-        case .shiftSpace: return 2
-        case .disabled: return 3
-        case .legacyControlShiftDigits, .custom: return 4
+    private func bindingChoices(for label: String,
+                                current: ModeSwitchBinding) -> [(title: String,
+                                                                  binding: ModeSwitchBinding)] {
+        var choices: [(title: String, binding: ModeSwitchBinding)]
+        switch label {
+        case "中英文切换":
+            choices = [
+                ("Shift", .standaloneShift),
+                ("Control", .standaloneControl),
+                ("Caps Lock", .standaloneCapsLock),
+                ("禁用快捷键", .disabled)
+            ]
+        case "简繁切换":
+            choices = [("Control-Shift-F", .controlShiftF), ("禁用快捷键", .disabled)]
+        case "全半角切换":
+            choices = [("Shift-Space", .shiftSpace), ("禁用快捷键", .disabled)]
+        default:
+            choices = [("禁用快捷键", .disabled)]
         }
+        if !choices.contains(where: { $0.binding == current }) {
+            choices.append(("旧版设置（需更新）", current))
+        }
+        return choices
     }
 
-    private func binding(at index: Int) -> ModeSwitchBinding {
-        switch index {
-        case 0: return .standaloneShift
-        case 1: return .controlShiftF
-        case 2: return .shiftSpace
-        case 4: return .legacyControlShiftDigits
-        default: return .disabled
-        }
+    private func refreshBindingPopup(_ label: String, current: ModeSwitchBinding) {
+        guard let popup = popupsByLabel[label] else { return }
+        let choices = bindingChoices(for: label, current: current)
+        bindingChoicesByLabel[label] = choices
+        popup.removeAllItems()
+        popup.addItems(withTitles: choices.map(\.title))
+        popup.selectItem(at: choices.firstIndex { $0.binding == current } ?? 0)
     }
 
     private func pageTitle(for group: CandidatePageKeyGroup) -> String {

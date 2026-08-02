@@ -114,11 +114,14 @@ final class SettingsWindowTests: XCTestCase {
 
         let popups = controller.registeredControls.compactMap { $0 as? NSPopUpButton }
         XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "中英文切换"
-            && $0.titleOfSelectedItem == "Shift" })
+            && $0.titleOfSelectedItem == "Shift"
+            && $0.itemTitles == ["Shift", "Control", "Caps Lock", "禁用快捷键"] })
         XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "简繁切换"
-            && $0.titleOfSelectedItem == "Control-Shift-F" })
+            && $0.titleOfSelectedItem == "Control-Shift-F"
+            && $0.itemTitles == ["Control-Shift-F", "禁用快捷键"] })
         XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "全半角切换"
-            && $0.titleOfSelectedItem == "禁用" })
+            && $0.titleOfSelectedItem == "禁用快捷键"
+            && $0.itemTitles == ["Shift-Space", "禁用快捷键"] })
         XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "键盘布局"
             && $0.itemTitles == ["美国 ANSI", "跟随系统布局"] })
 
@@ -128,6 +131,42 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(pageButtons.filter { $0.state == .on }.count, 4)
         XCTAssertEqual(pageButtons.first { $0.identifier?.rawValue == "上下方向键翻页" }?.state,
                        .off)
+    }
+
+    func testLanguageModifierChoicesSaveAndReopenWithExactSelection() throws {
+        let choices: [(String, ModeSwitchBinding)] = [
+            ("Shift", .standaloneShift),
+            ("Control", .standaloneControl),
+            ("Caps Lock", .standaloneCapsLock),
+            ("禁用快捷键", .disabled)
+        ]
+
+        for (index, choice) in choices.enumerated() {
+            var persisted = [InputSettings]()
+            let controller = SettingsWindowController(settings: .default) {
+                persisted.append($0)
+            }
+            controller.loadWindow()
+            let popup = try XCTUnwrap(controller.registeredControls
+                .compactMap { $0 as? NSPopUpButton }
+                .first { $0.identifier?.rawValue == "中英文切换" })
+            XCTAssertEqual(popup.itemTitles, choices.map(\.0))
+            popup.selectItem(at: index)
+            let save = try XCTUnwrap(controller.registeredControls
+                .compactMap { $0 as? NSButton }
+                .first { $0.identifier?.rawValue == "保存" })
+
+            save.performClick(nil)
+
+            let saved = try XCTUnwrap(persisted.last)
+            XCTAssertEqual(saved.keyBindings.languageSwitch, choice.1)
+            let restarted = SettingsWindowController(settings: saved)
+            restarted.loadWindow()
+            let restartedPopup = try XCTUnwrap(restarted.registeredControls
+                .compactMap { $0 as? NSPopUpButton }
+                .first { $0.identifier?.rawValue == "中英文切换" })
+            XCTAssertEqual(restartedPopup.titleOfSelectedItem, choice.0)
+        }
     }
 
     func testKeyBindingConflictAndUnavailableLayoutFocusExactControl() {
