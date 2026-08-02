@@ -164,7 +164,7 @@
 
 - [X] T053 [P] 在 `Tests/PrivacyTests/DiagnosticsRedactionTests.swift`、`Tests/PrivacyTests/PrivacyDataTests.swift` 和 `Scripts/privacy-audit.sh` 覆盖零网络、无 monitor/event tap、无输入/拼音/候选/路径日志及 `0700`/`0600` 权限
 - [X] T054 [P] 在 `Tests/PerformanceTests/LookupPerformanceTests.swift` 增加 Wubi-only、pinyin prefix/exact、merge/dedupe/简繁/翻页/全开设置样本，并证明每个已识别样本 `<2 ms` 而非仅 percentile
-- [ ] T055 在 `Tests/PerformanceTests/ReleasePerformanceTests.swift` 与 `Scripts/measure-memory.sh` 加入 MWPY 文件大小、共享映射和全功能 Release footprint 测量，必要时调整 `Sources/DictionaryCompiler/PinyinDictionaryCompiler.swift` 的上限/压缩直到 RSS `<15 MB`
+- [X] T055 在 `Tests/PerformanceTests/ReleasePerformanceTests.swift` 与 `Scripts/measure-memory.sh` 加入 MWPY 文件大小、共享映射和全功能 Release footprint 测量，必要时调整 `Sources/DictionaryCompiler/PinyinDictionaryCompiler.swift` 的上限/压缩直到 RSS `<15 MB`
 - [ ] T056 在 `Tests/PerformanceTests/LongRunStressTests.swift` 与 `Scripts/run-long-stress.sh` 加入多会话设置 churn、混输、调频和翻页负载，运行八小时并把无增长证据记录到 `specs/002-settings-experience/evidence/eight-hour-stress.md`
 - [ ] T057 [P] 在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift`、`Tests/AccessibilityTests/CandidateAccessibilityTests.swift` 和 `Tests/AccessibilityTests/ManualAccessibilityScenarios.md` 完成全部新增控件、错误反馈、提示与键盘/VoiceOver 验收矩阵
 - [ ] T058 [P] 在 `Tests/ReleaseContractTests/ReleaseContractTests.swift`、`Tests/ReleaseContractTests/PrivacyReleaseContractTests.swift` 和 `Scripts/verify-release.sh` 验证仅 arm64、无 Intel/Rosetta、无新包/动态库/网络权限、空最小 entitlements 及拼音许可/清单随包分发

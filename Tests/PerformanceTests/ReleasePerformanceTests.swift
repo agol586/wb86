@@ -4,6 +4,33 @@ import XCTest
 @testable import MacWubi
 
 final class ReleasePerformanceTests: XCTestCase {
+    func testPinyinResourceSizeAndMappedImageAreBoundedAndShared() throws {
+        let resources = repositoryRoot().appendingPathComponent("Sources/Resources")
+        let pinyinURL = resources.appendingPathComponent("pinyin-simp.bin")
+        let attributes = try FileManager.default.attributesOfItem(atPath: pinyinURL.path)
+        let byteCount = try XCTUnwrap((attributes[.size] as? NSNumber)?.intValue)
+        XCTAssertGreaterThan(byteCount, 0)
+        XCTAssertLessThanOrEqual(byteCount, 4 * 1_024 * 1_024)
+
+        let wb86 = try DictionaryLoader.load(
+            from: resources.appendingPathComponent("wb86.bin")
+        )
+        let image = try PinyinDictionaryLoader.load(from: pinyinURL, wb86Image: wb86)
+        let firstSessionIndex = PinyinDictionaryIndex(image: image)
+        let secondSessionIndex = PinyinDictionaryIndex(image: image)
+        XCTAssertEqual(firstSessionIndex.mappedImageIdentity,
+                       secondSessionIndex.mappedImageIdentity)
+
+        let sequence = try XCTUnwrap(CompositionKeySequence("nihao"))
+        for index in [firstSessionIndex, secondSessionIndex] {
+            XCTAssertTrue(index.prefixExists(sequence))
+            XCTAssertGreaterThan(try index.page(for: sequence, pageIndex: 0,
+                                                pageSize: 9).totalCount, 0)
+            XCTAssertEqual(index.mappedImageIdentity, firstSessionIndex.mappedImageIdentity)
+        }
+        print("MACWUBI_MWPY_RESOURCE bytes=\(byteCount) sharedMappedImages=1 sessions=2")
+    }
+
     func testReleaseLookupCorpusReportsAbsoluteLatencyAndStaysBelowBudget() throws {
         let records = try acceptanceRecords()
         let image = try DictionaryFormatV1.encode(records: records, buildIdentifier: 1)
@@ -67,6 +94,12 @@ final class ReleasePerformanceTests: XCTestCase {
                 if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
                 return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
             }
+    }
+
+    private func repositoryRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }
 

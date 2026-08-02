@@ -28,6 +28,8 @@ struct PinyinLookupPage: Equatable, Sendable {
 struct PinyinDictionaryIndex: Sendable {
     private let image: PinyinDictionaryImage
 
+    var mappedImageIdentity: ObjectIdentifier { ObjectIdentifier(image) }
+
     init(image: PinyinDictionaryImage) {
         self.image = image
     }
