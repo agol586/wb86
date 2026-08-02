@@ -2,6 +2,7 @@ import AppKit
 import InputMethodKit
 
 @objc(InputController)
+@MainActor
 final class InputController: IMKInputController {
     private var inputSession: InputControllerSession!
     private var candidatePresenter: AccessibleCandidatePresenter!

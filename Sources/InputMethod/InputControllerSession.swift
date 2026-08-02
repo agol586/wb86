@@ -7,12 +7,17 @@ protocol InputClientProxy: AnyObject {
     func candidateAnchorTopLeft() -> NSPoint?
 }
 
+@MainActor
 final class InputControllerSession: PrivacySessionControlling, SettingsSessionControlling {
     private let engine: InputEngine
     private let presenter: CandidatePresenting
     private let learningHandler: (LearningDelta) -> Void
     private weak var activeClient: InputClientProxy?
-    private(set) var settings = InputSettings.default
+    private(set) var activeSnapshot = SettingsSnapshot(generation: 0, settings: .default)
+    private(set) var pendingSnapshot: SettingsSnapshot?
+    private var hasAppliedSettingsSnapshot = false
+
+    var settings: InputSettings { activeSnapshot.settings }
 
     var state: CompositionState { engine.state }
     var mode: InputMode { engine.mode }
@@ -52,10 +57,12 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             }
         } catch {
             recover(client: client)
+            applyPendingSettingsIfIdle()
             return true
         }
         apply(result.candidateAction, client: client)
         if let learningDelta = result.learningDelta { learningHandler(learningDelta) }
+        applyPendingSettingsIfIdle()
         return result.consumed
     }
 
@@ -67,19 +74,50 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             presenter.hide()
         }
         activeClient = nil
+        applyPendingSettingsIfIdle()
     }
 
     func resetWithoutClient() {
         engine.reset()
         presenter.hide()
         activeClient = nil
+        applyPendingSettingsIfIdle()
     }
 
     func apply(settings: InputSettings) {
         guard state == .idle else { return }
-        self.settings = settings
+        activeSnapshot = SettingsSnapshot(generation: activeSnapshot.generation,
+                                          settings: settings)
+        hasAppliedSettingsSnapshot = true
         engine.apply(settings: settings)
         (presenter as? AccessibleCandidatePresenter)?.apply(settings: settings)
+    }
+
+    func stage(settingsSnapshot: SettingsSnapshot) {
+        let newestGeneration = max(activeSnapshot.generation,
+                                   pendingSnapshot?.generation ?? 0)
+        guard !hasAppliedSettingsSnapshot || settingsSnapshot.generation >= newestGeneration else {
+            return
+        }
+        if state == .idle {
+            applySnapshot(settingsSnapshot)
+        } else if pendingSnapshot == nil
+                    || settingsSnapshot.generation >= pendingSnapshot!.generation {
+            pendingSnapshot = settingsSnapshot
+        }
+    }
+
+    func applyPendingSettingsIfIdle() {
+        guard state == .idle, let pendingSnapshot else { return }
+        self.pendingSnapshot = nil
+        applySnapshot(pendingSnapshot)
+    }
+
+    private func applySnapshot(_ snapshot: SettingsSnapshot) {
+        activeSnapshot = snapshot
+        hasAppliedSettingsSnapshot = true
+        engine.apply(settings: snapshot.settings)
+        (presenter as? AccessibleCandidatePresenter)?.apply(settings: snapshot.settings)
     }
 
     private func apply(_ action: ClientTextAction, to client: InputClientProxy) throws {

@@ -1,10 +1,15 @@
 import Foundation
 
+@MainActor
 protocol SettingsSessionControlling: AnyObject {
     var state: CompositionState { get }
-    func apply(settings: InputSettings)
+    var activeSnapshot: SettingsSnapshot { get }
+    var pendingSnapshot: SettingsSnapshot? { get }
+    func stage(settingsSnapshot: SettingsSnapshot)
+    func applyPendingSettingsIfIdle()
 }
 
+@MainActor
 final class SettingsCoordinator {
     static let shared: SettingsCoordinator? = {
         guard let root = FileManager.default.urls(for: .applicationSupportDirectory,
@@ -23,7 +28,6 @@ final class SettingsCoordinator {
         init(_ value: SettingsSessionControlling) { self.value = value }
     }
     private var sessions: [WeakSession] = []
-    private var pending: InputSettings?
     private let globalApply: (InputSettings) -> Void
 
     init(store: SettingsStore, globalApply: @escaping (InputSettings) -> Void = { _ in }) {
@@ -36,29 +40,20 @@ final class SettingsCoordinator {
     func register(_ session: SettingsSessionControlling) {
         sessions.removeAll { $0.value == nil || $0.value === session }
         sessions.append(WeakSession(session))
-        if session.state == .idle { session.apply(settings: store.settings) }
+        session.stage(settingsSnapshot: store.snapshot)
     }
 
     func save(_ settings: InputSettings) throws {
         try store.save(settings)
         sessions.removeAll { $0.value == nil }
-        let live = sessions.compactMap(\.value)
-        if live.allSatisfy({ $0.state == .idle }) {
-            live.forEach { $0.apply(settings: settings) }
-            globalApply(settings)
-            pending = nil
-        } else {
-            pending = settings
-        }
+        let published = store.snapshot
+        sessions.compactMap(\.value).forEach { $0.stage(settingsSnapshot: published) }
+        globalApply(published.settings)
     }
 
     func applyPendingAtIdle() {
         sessions.removeAll { $0.value == nil }
-        let live = sessions.compactMap(\.value)
-        guard let pending, live.allSatisfy({ $0.state == .idle }) else { return }
-        live.forEach { $0.apply(settings: pending) }
-        globalApply(pending)
-        self.pending = nil
+        sessions.compactMap(\.value).forEach { $0.applyPendingSettingsIfIdle() }
     }
 
     func restoreDefaults() throws { try save(.default) }

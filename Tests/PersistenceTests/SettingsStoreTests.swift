@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import MacWubi
 
+@MainActor
 final class SettingsStoreTests: XCTestCase {
     func testV2SnapshotPublishesOnlyAfterAtomicValidatedReadback() throws {
         let root = FileManager.default.temporaryDirectory
@@ -118,5 +119,21 @@ private final class SettingsSessionSpy: SettingsSessionControlling {
     var currentState = CompositionState.idle
     var state: CompositionState { currentState }
     var applied = [InputSettings]()
-    func apply(settings: InputSettings) { applied.append(settings) }
+    var activeSnapshot = SettingsSnapshot(generation: 0, settings: .default)
+    var pendingSnapshot: SettingsSnapshot?
+    func stage(settingsSnapshot: SettingsSnapshot) {
+        if state == .idle {
+            activeSnapshot = settingsSnapshot
+            applied.append(settingsSnapshot.settings)
+        } else if pendingSnapshot == nil
+                    || settingsSnapshot.generation >= pendingSnapshot!.generation {
+            pendingSnapshot = settingsSnapshot
+        }
+    }
+    func applyPendingSettingsIfIdle() {
+        guard state == .idle, let pendingSnapshot else { return }
+        self.pendingSnapshot = nil
+        activeSnapshot = pendingSnapshot
+        applied.append(pendingSnapshot.settings)
+    }
 }

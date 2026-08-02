@@ -47,7 +47,7 @@
 - [X] T005 [P] 先在 `Tests/CoreTests/CoreModelTests.swift` 覆盖 1...32 位组合序列、五笔/拼音路由、候选来源和学习键身份，再在 `Sources/Core/CompositionKeySequence.swift`、`Sources/Core/Candidate.swift` 和 `Sources/Core/CompositionState.swift` 实现通用组合与候选值对象
 - [X] T006 先在 `Tests/CoreTests/InputEngineTests.swift` 与 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖有序客户端动作的单次执行和失败中止，再在 `Sources/Core/InputEngine.swift` 与 `Sources/InputMethod/InputControllerSession.swift` 将单一 `ClientTextAction` 升级为有序复合动作批次
 - [X] T007 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 增加 v2 current 原子保存、读回验证、代次单调和失败不发布测试，并在 `Sources/Persistence/SettingsStore.swift` 实现可发布的 `SettingsSnapshot` 与 v2 save/load
-- [ ] T008 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 先覆盖空闲立即应用、组合独立 pending、最新代次覆盖及新会话取最新值，再在 `Sources/InputMethod/SettingsCoordinator.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 实现主线程串行的会话级 active/pending 快照
+- [X] T008 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 先覆盖空闲立即应用、组合独立 pending、最新代次覆盖及新会话取最新值，再在 `Sources/InputMethod/SettingsCoordinator.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 实现主线程串行的会话级 active/pending 快照
 - [ ] T009 在 `Tests/CoreTests/CandidateQueryTests.swift` 与 `Tests/IntegrationTests/PersonalizationIntegrationTests.swift` 覆盖查询、分页、排名和学习均冻结同一会话策略，再在 `Sources/Core/CandidateRanker.swift` 与 `Sources/InputMethod/PersonalizationCoordinator.swift` 移除输入路径对全局可变语义设置的依赖
 - [ ] T010 运行 `Scripts/test.sh` 验证基础层并将命令、通过数量和宪章五项影响记录到 `specs/002-settings-experience/evidence/foundation.md`
 
