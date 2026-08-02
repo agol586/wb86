@@ -32,4 +32,6 @@
 ## Notes
 
 - Validation iteration 1 passed all items on 2026-08-02.
+- Validation iteration 2 passed all items after replacing the eight-hour wall-clock gate with a
+  deterministic 30-logical-day, 1,000,000-committed-character workload gate.
 - No clarification markers remain; the specification is ready for `$speckit-plan`.

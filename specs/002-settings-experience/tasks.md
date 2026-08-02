@@ -165,7 +165,7 @@
 - [X] T053 [P] 在 `Tests/PrivacyTests/DiagnosticsRedactionTests.swift`、`Tests/PrivacyTests/PrivacyDataTests.swift` 和 `Scripts/privacy-audit.sh` 覆盖零网络、无 monitor/event tap、无输入/拼音/候选/路径日志及 `0700`/`0600` 权限
 - [X] T054 [P] 在 `Tests/PerformanceTests/LookupPerformanceTests.swift` 增加 Wubi-only、pinyin prefix/exact、merge/dedupe/简繁/翻页/全开设置样本，并证明每个已识别样本 `<2 ms` 而非仅 percentile
 - [X] T055 在 `Tests/PerformanceTests/ReleasePerformanceTests.swift` 与 `Scripts/measure-memory.sh` 加入 MWPY 文件大小、共享映射和全功能 Release footprint 测量，必要时调整 `Sources/DictionaryCompiler/PinyinDictionaryCompiler.swift` 的上限/压缩直到 RSS `<15 MB`
-- [ ] T056 在 `Tests/PerformanceTests/LongRunStressTests.swift` 与 `Scripts/run-long-stress.sh` 加入多会话设置 churn、混输、调频和翻页负载，运行八小时并把无增长证据记录到 `specs/002-settings-experience/evidence/eight-hour-stress.md`
+- [X] T056 在 `Tests/PerformanceTests/LongRunStressTests.swift` 与 `Scripts/run-long-stress.sh` 加入多会话设置 churn、混输、调频和翻页负载，模拟 30 个逻辑输入日并累计实际提交至少 1,000,000 个中文字符，把无增长证据记录到 `specs/002-settings-experience/evidence/monthly-volume-stress.md`
 - [X] T057 [P] 在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift`、`Tests/AccessibilityTests/CandidateAccessibilityTests.swift` 和 `Tests/AccessibilityTests/ManualAccessibilityScenarios.md` 完成全部新增控件、错误反馈、提示与键盘/VoiceOver 验收矩阵
 - [X] T058 [P] 在 `Tests/ReleaseContractTests/ReleaseContractTests.swift`、`Tests/ReleaseContractTests/PrivacyReleaseContractTests.swift` 和 `Scripts/verify-release.sh` 验证仅 arm64、无 Intel/Rosetta、无新包/动态库/网络权限、空最小 entitlements 及拼音许可/清单随包分发
 - [X] T059 按 `specs/002-settings-experience/quickstart.md` 运行 `Scripts/test.sh`、开发签名 arm64 build、release verification 和 privacy audit，并把命令与结果记录到 `specs/002-settings-experience/evidence/quickstart.md`；Developer ID 公证、staple 与 Gatekeeper 仍保留为最终发布门禁
@@ -242,7 +242,7 @@ T035 的来源/许可整理可与 T036 的格式测试准备并行；从 T037 �
 ### Cross-cutting
 
 T053、T054、T057、T058 在五个故事完成后可并行，分别编辑隐私、性能、无障碍和发行测试；T055、
-T056、T059、T060 按资源优化、长压、Quickstart、文档收口顺序完成。
+T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收口顺序完成。
 
 ---
 
@@ -261,7 +261,7 @@ T056、T059、T060 按资源优化、长压、Quickstart、文档收口顺序完
 3. US3 自动上屏/调频 → 完整提交与学习矩阵。
 4. US4 混输/提示 → 许可、可复现资源和内存硬门禁。
 5. US5 升级/恢复 → future 和故障注入。
-6. Cross-cutting → 隐私、性能、八小时稳定、无障碍和发布契约。
+6. Cross-cutting → 隐私、性能、月度等效量稳定、无障碍和发布契约。
 
 ### Commit verification loop
 

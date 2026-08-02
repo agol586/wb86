@@ -74,9 +74,11 @@ Scripts/privacy-audit.sh
 
 ```bash
 Scripts/measure-memory.sh /absolute/path/to/MacWubi.app
-Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app
+Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
 ```
 
 使用 Release 签名 arm64 产物记录硬件、macOS/Xcode、资源 manifest、warm-up、样本数、p50/p95/max。
 五笔-only、拼音 prefix/exact、合并/去重/简繁、翻页和全部开关开启的每个已识别样本必须 `<2 ms`；
-正常 resident memory `<15 MB`；八小时无持续内存或延迟增长。任一失败都阻止完成对应任务和发布。
+正常 resident memory `<15 MB`；月度等效负载必须完成 30 个逻辑输入日、累计实际提交至少
+1,000,000 个中文字符，并且无持续内存或延迟增长。运行时长仅作信息记录，不作为通过条件。任一失败
+都阻止完成对应任务和发布。

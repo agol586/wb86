@@ -28,7 +28,7 @@
 
 **Project Type**: InputMethodKit 输入法应用 + 纯 Swift 构建期词典编译工具
 
-**Performance Goals**: 每个已识别的五笔、拼音或合并查询样本到首批候选可用均 `< 2 ms`；正常输入常驻内存 `< 15 MB`；八小时压力测试无持续增长
+**Performance Goals**: 每个已识别的五笔、拼音或合并查询样本到首批候选可用均 `< 2 ms`；正常输入常驻内存 `< 15 MB`；模拟 30 个逻辑输入日并累计提交至少 1,000,000 个中文字符的压力负载无持续内存或延迟增长
 
 **Constraints**: 完全离线；核心层不得导入 AppKit/InputMethodKit；不得全局监听按键；不得记录输入内容；资源损坏时有界降级；设置保存不得在输入路径执行磁盘 I/O
 
@@ -47,7 +47,7 @@
 | InputMethodKit 与签名 | PASS | 仅扩展既有 IMK 适配边界；无 App Sandbox、网络、Apple Events、Mach 或 Hardened Runtime 例外。 |
 | 故障安全 | PASS | 设置、拼音资源、学习数据分别验证和降级；任何失败清理过期候选且不提交原始编码。 |
 | 本地数据隐私 | PASS | 拼音为包内只读资源；设置/学习保留在批准目录；无网络、全局键盘监听或输入内容日志。 |
-| 性能和发布门禁 | PASS WITH MEASUREMENT REQUIRED | 采用共享只读映射和有界查询；实现后仍必须以全功能发布构建证明 `<2 ms`、`<15 MB` 与八小时稳定。 |
+| 性能和发布门禁 | PASS WITH MEASUREMENT REQUIRED | 采用共享只读映射和有界查询；实现后仍必须以全功能发布构建证明 `<2 ms`、`<15 MB`，并在 30 个逻辑输入日、至少 1,000,000 个已提交中文字符的确定性负载中证明稳定。 |
 
 ### Post-Design Gate
 

@@ -75,3 +75,18 @@
 - 保存或恢复失败不改变内存中的有效代次。
 - 恢复默认只替换 Settings；UserLexicon、Learning、Base Dictionary 的内容和代次不变。
 - 所有可变文件保持目录 `0700`、文件 `0600`。
+
+## 9. MonthlyVolumeWorkload
+
+月度等效压力负载是仅用于测试的确定性状态，不持久化用户内容：
+
+- `logicalDay`: `1...30`；每个边界销毁并重建全部输入会话。
+- `targetCommittedCharacters`: 发布门禁至少 `1_000_000`。
+- `committedCharacters`: 只累加 `commitText` 客户端动作中的中文字符；marked text、取消、ASCII、
+  失败和未提交候选均不计数。
+- `sessionCount`: 同时覆盖至少 8 个独立会话，并在每个逻辑日重新创建。
+- `metrics`: 只记录逻辑日、提交字符数、迭代数、学习增量数，以及首尾窗口延迟和 physical
+  footprint；不得记录编码、候选或提交正文。
+
+每个逻辑日运行到累计量达到按比例分配的日末阈值，确保所有 30 个边界都执行；最终允许因一个候选
+含多个汉字而略高于目标，但不得低于目标。
