@@ -183,15 +183,21 @@ final class InputEngine {
     }
 
     private func switchMode(_ update: (inout InputMode) -> Void) -> InputProcessingResult {
-        let wasComposing = state.kind == .composing
-        if wasComposing { state = .idle }
+        let resetActions = cancelCompositionForModeSwitch()
         update(&mode)
         return result(
             state: .idle,
-            clientAction: wasComposing ? .clearMarkedText : .none,
-            candidateAction: wasComposing ? .hide : .none,
+            clientAction: resetActions.client,
+            candidateAction: resetActions.candidates,
             consumed: true
         )
+    }
+
+    private func cancelCompositionForModeSwitch()
+        -> (client: ClientTextAction, candidates: CandidateWindowAction) {
+        guard state.kind == .composing else { return (.none, .none) }
+        state = .idle
+        return (.clearMarkedText, .hide)
     }
 
     private func processSelection(_ ordinal: Int) -> InputProcessingResult {

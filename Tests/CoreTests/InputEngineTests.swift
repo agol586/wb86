@@ -2,6 +2,28 @@ import XCTest
 @testable import MacWubi
 
 final class InputEngineTests: XCTestCase {
+    func testModeShortcutsSafelyCancelCompositionWithoutCommittingRawCode() throws {
+        let cases: [(InputEvent, (InputMode) -> Bool)] = [
+            (.switchLanguage, { $0.language == .directEnglish }),
+            (.switchScript, { $0.script == .traditional }),
+            (.switchWidth, { $0.width == .full })
+        ]
+
+        for (event, modeChanged) in cases {
+            let engine = InputEngine(query: query)
+            _ = engine.process(.letter("w"))
+            let result = engine.process(event)
+
+            XCTAssertEqual(result.state, .idle)
+            XCTAssertEqual(result.clientActions.actions, [.clearMarkedText])
+            XCTAssertEqual(result.candidateAction, .hide)
+            XCTAssertFalse(result.clientActions.actions.contains(.commitText("w")))
+            XCTAssertNil(result.learningDelta)
+            XCTAssertTrue(result.consumed)
+            XCTAssertTrue(modeChanged(engine.mode))
+        }
+    }
+
     func testInitialModeIsSeparateFromRuntimePolicyApplication() throws {
         let engine = InputEngine(query: query)
         var first = InputSettings.default
