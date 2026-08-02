@@ -262,7 +262,8 @@ final class InputEngine {
                 selectionIndex: page.items.isEmpty ? nil : 0
             )
             state = next
-            if autoCommitAtFour, code.length == 4, !page.items.isEmpty {
+            if autoCommitAtFour, code.length == 4, pageIndex == 0,
+               page.totalCount == 1, page.items.count == 1 {
                 return processSelection(1)
             }
             return result(

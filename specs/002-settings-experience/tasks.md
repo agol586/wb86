@@ -103,7 +103,7 @@
 **Independent Test**: 对四码零/一/多候选、五码连续键及调频/私密/禁止学习组合运行固定矩阵；每个
 事件至多提交一次，第五码成为新组合首键，关闭调频后排序稳定且零学习写入。
 
-- [ ] T028 [US3] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖四码零、唯一、多候选与过期页，再在 `Sources/Core/InputEngine.swift` 把四码自动提交修正为仅完整四码恰好一个有效候选
+- [X] T028 [US3] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖四码零、唯一、多候选与过期页，再在 `Sources/Core/InputEngine.swift` 把四码自动提交修正为仅完整四码恰好一个有效候选
 - [ ] T029 [US3] 在 `Tests/CoreTests/InputEngineTests.swift` 覆盖五码有/无首选、双开关、下一键不丢失和每事件单提交，再在 `Sources/Core/InputEngine.swift` 实现“提交旧首选→新键 marked text→新候选”的原子复合结果
 - [ ] T030 [US3] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖复合动作精确客户端调用顺序、任一步失败清理和 pending 设置只在整批结束后应用，再在 `Sources/InputMethod/InputControllerSession.swift` 完成适配器执行与恢复
 - [ ] T031 [P] [US3] 先在 `Tests/PersistenceTests/LearningStoreTests.swift` 与 `Tests/MigrationTests/DataMigratorTests.swift` 覆盖五笔/拼音 typed learning key、v1 包装迁移和域隔离，再在 `Sources/Persistence/LearningStore.swift` 与 `Sources/Persistence/DataMigrator.swift` 实现 Learning schema v2

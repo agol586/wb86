@@ -167,20 +167,44 @@ final class InputEngineTests: XCTestCase {
         XCTAssertFalse(queried)
     }
 
-    func testFourCodeAutoCommitIsAppliedOnlyWhenEnabled() throws {
-        let engine = InputEngine(query: query)
-        var settings = InputSettings.default
-        settings.autoCommitAtFour = true
-        settings.automaticFrequency = true
-        engine.apply(settings: settings)
+    func testFourCodeAutoCommitRequiresExactlyOneCurrentCompleteResult() throws {
+        let cases: [(name: String, items: Int, totalCount: Int, expectedCommit: String?)] = [
+            ("zero", 0, 0, nil),
+            ("unique", 1, 1, "候选1"),
+            ("multiple", 2, 2, nil),
+            ("stale partial page", 1, 2, nil)
+        ]
 
-        for letter in ["w", "q", "v"] { _ = engine.process(.letter(letter)) }
-        let committed = engine.process(.letter("b"))
+        for testCase in cases {
+            let engine = InputEngine { code, pageIndex in
+                let candidates = try (0..<testCase.items).map { offset in
+                    let ordinal = offset + 1
+                    return try Candidate(text: "候选\(ordinal)", code: code, source: .base,
+                                         baseRank: ordinal - 1, learnedScore: 0,
+                                         ordinal: ordinal)
+                }
+                return try CandidatePage(items: candidates, pageIndex: pageIndex,
+                                         pageSize: 5, totalCount: testCase.totalCount)
+            }
+            var settings = InputSettings.default
+            settings.autoCommitAtFour = true
+            settings.automaticFrequency = true
+            engine.apply(settings: settings)
 
-        XCTAssertEqual(committed.clientAction, .commitText("候选1"))
-        XCTAssertEqual(committed.candidateAction, .hide)
-        XCTAssertEqual(committed.state, .idle)
-        XCTAssertEqual(committed.learningDelta?.code, InputCode("wqvb"))
+            for letter in ["w", "q", "v"] { _ = engine.process(.letter(letter)) }
+            let result = engine.process(.letter("b"))
+
+            if let expectedCommit = testCase.expectedCommit {
+                XCTAssertEqual(result.clientAction, .commitText(expectedCommit), testCase.name)
+                XCTAssertEqual(result.candidateAction, .hide, testCase.name)
+                XCTAssertEqual(result.state, .idle, testCase.name)
+                XCTAssertEqual(result.learningDelta?.code, InputCode("wqvb"), testCase.name)
+            } else {
+                XCTAssertEqual(result.clientAction, .setMarkedText("wqvb"), testCase.name)
+                XCTAssertEqual(result.state.composition?.code, InputCode("wqvb"), testCase.name)
+                XCTAssertNil(result.learningDelta, testCase.name)
+            }
+        }
     }
 
     private func query(code: InputCode, pageIndex: Int) throws -> CandidatePage {
