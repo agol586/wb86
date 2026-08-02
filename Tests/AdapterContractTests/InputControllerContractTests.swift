@@ -116,15 +116,6 @@ final class InputControllerContractTests: XCTestCase {
     }
 
     func testOrderedClientActionBatchExecutesOnceAndStopsAfterFailure() throws {
-        var learned = [LearningDelta]()
-        let client = RecordingInputClient()
-        client.failureAttempt = 2
-        let presenter = RecordingCandidatePresenter()
-        presenter.isVisible = true
-        let session = InputControllerSession(engine: InputEngine(query: query),
-                                             presenter: presenter) {
-            learned.append($0)
-        }
         let code = try XCTUnwrap(InputCode("wqvb"))
         let result = InputProcessingResult(
             state: .idle,
@@ -138,12 +129,83 @@ final class InputControllerContractTests: XCTestCase {
             learningDelta: LearningDelta(code: code, candidateText: "旧候选", amount: 1)
         )
 
+        for failureAttempt in [1, 2] {
+            var learned = [LearningDelta]()
+            let client = RecordingInputClient()
+            client.failureAttempt = failureAttempt
+            let presenter = RecordingCandidatePresenter()
+            presenter.isVisible = true
+            let session = InputControllerSession(engine: InputEngine(query: query),
+                                                 presenter: presenter) {
+                learned.append($0)
+            }
+
+            XCTAssertTrue(session.apply(result, client: client))
+            XCTAssertEqual(client.actions,
+                           failureAttempt == 1 ? [.cleared]
+                               : [.committed("旧候选"), .cleared])
+            XCTAssertEqual(client.attemptCount, failureAttempt + 1)
+            XCTAssertTrue(learned.isEmpty)
+            XCTAssertFalse(presenter.isVisible)
+            XCTAssertEqual(session.state, .idle)
+        }
+    }
+
+    func testFifthCodeBatchCallsClientInCommitThenMarkedTextOrder() throws {
+        let client = RecordingInputClient()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: RecordingCandidatePresenter())
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = false
+        settings.autoCommitFirstAtFive = true
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: settings))
+
+        for letter in ["w", "q", "v", "b"] {
+            XCTAssertTrue(session.handle(.letter(letter), client: client))
+        }
+        XCTAssertTrue(session.handle(.letter("a"), client: client))
+
+        XCTAssertEqual(Array(client.actions.suffix(2)),
+                       [.committed("候选1"), .marked("a")])
+        XCTAssertEqual(client.actions.filter {
+            if case .committed = $0 { return true }
+            return false
+        }.count, 1)
+        XCTAssertEqual(session.state.composition?.code, InputCode("a"))
+    }
+
+    func testReentrantPendingSnapshotAppliesOnlyAfterWholeClientBatch() throws {
+        let client = RecordingInputClient()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: RecordingCandidatePresenter())
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default))
+
+        var updated = InputSettings.default
+        updated.autoCommitFirstAtFive = true
+        let pending = SettingsSnapshot(generation: 2, settings: updated)
+        var observedGenerations = [UInt64]()
+        client.didPerformAction = { action in
+            if action == .committed("旧候选") {
+                session.stage(settingsSnapshot: pending)
+            }
+            observedGenerations.append(session.activeSnapshot.generation)
+        }
+        let result = InputProcessingResult(
+            state: .idle,
+            clientActions: ClientTextActionBatch([
+                .commitText("旧候选"),
+                .setMarkedText("a")
+            ]),
+            candidateAction: .hide,
+            consumed: true,
+            learningDelta: nil
+        )
+
         XCTAssertTrue(session.apply(result, client: client))
-        XCTAssertEqual(client.actions, [.committed("旧候选"), .cleared])
-        XCTAssertEqual(client.attemptCount, 3)
-        XCTAssertTrue(learned.isEmpty)
-        XCTAssertFalse(presenter.isVisible)
-        XCTAssertEqual(session.state, .idle)
+        XCTAssertEqual(client.actions, [.committed("旧候选"), .marked("a")])
+        XCTAssertEqual(observedGenerations, [1, 1])
+        XCTAssertEqual(session.activeSnapshot.generation, 2)
+        XCTAssertNil(session.pendingSnapshot)
     }
 
     func testMarkedTextCommitAndMouseSelectionUseTheSameEnginePath() throws {
@@ -282,6 +344,7 @@ private final class ContractKeyboardSnapshotProvider {
 private final class RecordingInputClient: InputClientProxy {
     enum Action: Equatable { case marked(String), committed(String), cleared }
     var actions = [Action]()
+    var didPerformAction: ((Action) -> Void)?
     var shouldFail = false
     var failureAttempt: Int?
     private(set) var attemptCount = 0
@@ -293,17 +356,23 @@ private final class RecordingInputClient: InputClientProxy {
 
     func setMarkedText(_ text: String) throws {
         try checkFailure()
-        actions.append(.marked(text))
+        let action = Action.marked(text)
+        actions.append(action)
+        didPerformAction?(action)
     }
 
     func commitText(_ text: String) throws {
         try checkFailure()
-        actions.append(.committed(text))
+        let action = Action.committed(text)
+        actions.append(action)
+        didPerformAction?(action)
     }
 
     func clearMarkedText() throws {
         try checkFailure()
-        actions.append(.cleared)
+        let action = Action.cleared
+        actions.append(action)
+        didPerformAction?(action)
     }
 
     func candidateAnchorTopLeft() -> NSPoint? { NSPoint(x: 100, y: 100) }

@@ -18,6 +18,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     private(set) var appearanceSettings = InputSettings.default
     private var hasAppliedSettingsSnapshot = false
     private var hasInitializedMode = false
+    private var resultApplicationDepth = 0
 
     var settings: InputSettings { activeSnapshot.settings }
 
@@ -64,20 +65,25 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     @discardableResult
     func apply(_ result: InputProcessingResult, client: InputClientProxy) -> Bool {
         activeClient = client
+        resultApplicationDepth += 1
+        defer {
+            resultApplicationDepth -= 1
+            if resultApplicationDepth == 0 {
+                applyPendingSettingsIfIdle()
+            }
+        }
         do {
             for action in result.clientActions.actions {
                 try apply(action, to: client)
             }
         } catch {
             recover(client: client)
-            applyPendingSettingsIfIdle()
             return true
         }
         apply(result.candidateAction, client: client)
         if let learningDelta = result.learningDelta {
             learningHandler(learningDelta, activeSnapshot.candidateRankingPolicy)
         }
-        applyPendingSettingsIfIdle()
         return result.consumed
     }
 
@@ -127,7 +133,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             return
         }
         applyAppearance(settingsSnapshot.settings)
-        if state == .idle {
+        if state == .idle, resultApplicationDepth == 0 {
             applySnapshot(settingsSnapshot)
         } else if pendingSnapshot == nil
                     || settingsSnapshot.generation >= pendingSnapshot!.generation {
@@ -136,7 +142,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     }
 
     func applyPendingSettingsIfIdle() {
-        guard state == .idle, let pendingSnapshot else { return }
+        guard resultApplicationDepth == 0, state == .idle, let pendingSnapshot else { return }
         self.pendingSnapshot = nil
         applySnapshot(pendingSnapshot)
     }
