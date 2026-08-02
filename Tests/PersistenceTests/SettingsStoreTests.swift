@@ -3,6 +3,41 @@ import XCTest
 @testable import MacWubi
 
 final class SettingsStoreTests: XCTestCase {
+    func testV2SnapshotPublishesOnlyAfterAtomicValidatedReadback() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiSettingsSnapshot-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        let store = try SettingsStore(writer: writer)
+        XCTAssertEqual(store.snapshot, SettingsSnapshot(generation: 0, settings: .default))
+
+        var first = InputSettings.default
+        first.candidatePageSize = 7
+        try store.save(first)
+        XCTAssertEqual(store.snapshot, SettingsSnapshot(generation: 1, settings: first))
+        XCTAssertEqual(try SettingsStore(writer: SnapshotWriter(rootURL: root)).snapshot,
+                       store.snapshot)
+
+        var second = first
+        second.candidatePageSize = 9
+        try store.save(second)
+        let published = store.snapshot
+        XCTAssertEqual(published.generation, 2)
+
+        writer.failureInjector = { stage in
+            if stage == .afterTemporaryValidation { throw TestError.interrupted }
+        }
+        var rejected = second
+        rejected.candidatePageSize = 6
+        XCTAssertThrowsError(try store.save(rejected))
+        XCTAssertEqual(store.snapshot, published)
+        XCTAssertEqual(try writer.load(.settings)?.generation, published.generation)
+
+        var invalid = second
+        invalid.candidatePageSize = 32
+        XCTAssertThrowsError(try store.save(invalid))
+        XCTAssertEqual(store.snapshot, published)
+    }
+
     func testDefaultsValidationAndKeyConflicts() throws {
         let fresh = InputSettings.newInstallDefault
         XCTAssertEqual(fresh.candidatePageSize, 5)
@@ -76,6 +111,8 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(session.applied, [changed])
     }
 }
+
+private enum TestError: Error { case interrupted }
 
 private final class SettingsSessionSpy: SettingsSessionControlling {
     var currentState = CompositionState.idle

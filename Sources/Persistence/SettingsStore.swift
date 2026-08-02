@@ -10,6 +10,13 @@ enum SettingsValidationError: Error, Equatable {
     case invalidFontScale
     case unsupportedSchema
     case corruptPayload
+    case generationExhausted
+    case readbackMismatch
+}
+
+struct SettingsSnapshot: Equatable, Sendable {
+    let generation: UInt64
+    let settings: InputSettings
 }
 
 struct InputSettings: Equatable, Codable, Sendable {
@@ -129,33 +136,43 @@ struct InputSettings: Equatable, Codable, Sendable {
 
 final class SettingsStore {
     private let writer: SnapshotWriter
-    private(set) var generation: UInt64 = 0
-    private(set) var settings = InputSettings.default
+    private(set) var snapshot = SettingsSnapshot(generation: 0, settings: .default)
+
+    var generation: UInt64 { snapshot.generation }
+    var settings: InputSettings { snapshot.settings }
 
     init(writer: SnapshotWriter) throws {
         self.writer = writer
-        if let snapshot = try writer.recover(.settings,
-                                             supportedSchemaVersions: [InputSettings.schemaVersion]) {
+        if let recovered = try writer.recover(
+            .settings,
+            supportedSchemaVersions: [InputSettings.schemaVersion]
+        ) {
             guard let decoded = try? JSONDecoder().decode(InputSettings.self,
-                                                          from: snapshot.payload) else {
+                                                          from: recovered.payload) else {
                 throw SettingsValidationError.corruptPayload
             }
-            settings = try decoded.validated()
-            generation = snapshot.generation
+            snapshot = SettingsSnapshot(generation: recovered.generation,
+                                        settings: try decoded.validated())
         }
     }
 
     func save(_ value: InputSettings) throws {
         let validated = try value.validated()
-        let nextGeneration = generation + 1
+        let increment = generation.addingReportingOverflow(1)
+        guard !increment.overflow else { throw SettingsValidationError.generationExhausted }
+        let nextGeneration = increment.partialValue
         let payload = try JSONEncoder.sorted.encode(validated)
-        try writer.commit(try DataSnapshot(domain: .settings,
-                                           schemaVersion: InputSettings.schemaVersion,
-                                           generation: nextGeneration, payload: payload)) {
+        let encodedSnapshot = try DataSnapshot(domain: .settings,
+                                               schemaVersion: InputSettings.schemaVersion,
+                                               generation: nextGeneration,
+                                               payload: payload)
+        try writer.commit(encodedSnapshot) {
             (try? JSONDecoder().decode(InputSettings.self, from: $0).validated()) != nil
         }
-        settings = validated
-        generation = nextGeneration
+        guard try writer.load(.settings) == encodedSnapshot else {
+            throw SettingsValidationError.readbackMismatch
+        }
+        snapshot = SettingsSnapshot(generation: nextGeneration, settings: validated)
     }
 
     func restoreDefaults() throws { try save(.default) }
