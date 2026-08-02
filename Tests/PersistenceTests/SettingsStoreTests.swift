@@ -4,7 +4,27 @@ import XCTest
 
 final class SettingsStoreTests: XCTestCase {
     func testDefaultsValidationAndKeyConflicts() throws {
-        XCTAssertEqual(InputSettings.default.candidatePageSize, 5)
+        let fresh = InputSettings.newInstallDefault
+        XCTAssertEqual(fresh.candidatePageSize, 5)
+        XCTAssertEqual(fresh.defaultMode, InputMode(language: .chinese, punctuation: .english,
+                                                    width: .half, script: .simplified))
+        XCTAssertTrue(fresh.autoCommitAtFour)
+        XCTAssertFalse(fresh.autoCommitFirstAtFive)
+        XCTAssertFalse(fresh.automaticFrequency)
+        XCTAssertTrue(fresh.mixedPinyinEnabled)
+        XCTAssertTrue(fresh.codeHintEnabled)
+        XCTAssertFalse(fresh.candidate2And3ShortcutsEnabled)
+        XCTAssertEqual(InputSettings.default, fresh)
+
+        let compatible = InputSettings.migrationCompatibilityDefault
+        XCTAssertEqual(compatible.defaultMode, .default)
+        XCTAssertFalse(compatible.autoCommitAtFour)
+        XCTAssertFalse(compatible.autoCommitFirstAtFive)
+        XCTAssertTrue(compatible.automaticFrequency)
+        XCTAssertFalse(compatible.mixedPinyinEnabled)
+        XCTAssertFalse(compatible.codeHintEnabled)
+        XCTAssertFalse(compatible.candidate2And3ShortcutsEnabled)
+
         XCTAssertThrowsError(try InputSettings(candidatePageSize: 4))
         XCTAssertThrowsError(try InputSettings(candidateFontScale: 3))
         XCTAssertThrowsError(try KeyBindingSettings(modeSwitch: .custom("control-space"),

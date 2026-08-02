@@ -13,22 +13,61 @@ enum SettingsValidationError: Error, Equatable {
 }
 
 struct InputSettings: Equatable, Codable, Sendable {
-    static let schemaVersion: UInt32 = 1
+    static let schemaVersion: UInt32 = 2
 
     var candidatePageSize: Int
     var candidateLayout: CandidateLayout
     var candidateFontScale: Double
     var keyBindings: KeyBindingSettings
     var autoCommitAtFour: Bool
+    var autoCommitFirstAtFive: Bool
     var defaultMode: InputMode
-    var learningEnabled: Bool
+    var automaticFrequency: Bool
+    var mixedPinyinEnabled: Bool
+    var codeHintEnabled: Bool
+    var candidate2And3ShortcutsEnabled: Bool
 
-    static let `default` = try! InputSettings()
+    /// Defaults shown to a new install and restored by the explicit Reset action.
+    static let newInstallDefault = try! InputSettings(
+        candidatePageSize: 5,
+        candidateLayout: .vertical,
+        candidateFontScale: 1,
+        keyBindings: .default,
+        autoCommitAtFour: true,
+        autoCommitFirstAtFive: false,
+        defaultMode: InputMode(language: .chinese, punctuation: .english,
+                               width: .half, script: .simplified),
+        automaticFrequency: false,
+        mixedPinyinEnabled: true,
+        codeHintEnabled: true,
+        candidate2And3ShortcutsEnabled: false
+    )
+
+    /// Conservative values used only when schema-v1 data is migrated.
+    static let migrationCompatibilityDefault = try! InputSettings(
+        candidatePageSize: 5,
+        candidateLayout: .vertical,
+        candidateFontScale: 1,
+        keyBindings: .default,
+        autoCommitAtFour: false,
+        autoCommitFirstAtFive: false,
+        defaultMode: .default,
+        automaticFrequency: true,
+        mixedPinyinEnabled: false,
+        codeHintEnabled: false,
+        candidate2And3ShortcutsEnabled: false
+    )
+
+    static let `default` = newInstallDefault
 
     init(candidatePageSize: Int = 5, candidateLayout: CandidateLayout = .vertical,
          candidateFontScale: Double = 1, keyBindings: KeyBindingSettings = .default,
-         autoCommitAtFour: Bool = false, defaultMode: InputMode = .default,
-         learningEnabled: Bool = true) throws {
+         autoCommitAtFour: Bool = true, autoCommitFirstAtFive: Bool = false,
+         defaultMode: InputMode = InputMode(language: .chinese, punctuation: .english,
+                                            width: .half, script: .simplified),
+         automaticFrequency: Bool = false, mixedPinyinEnabled: Bool = true,
+         codeHintEnabled: Bool = true,
+         candidate2And3ShortcutsEnabled: Bool = false) throws {
         guard (5...9).contains(candidatePageSize) else {
             throw SettingsValidationError.invalidPageSize
         }
@@ -40,8 +79,37 @@ struct InputSettings: Equatable, Codable, Sendable {
         self.candidateFontScale = candidateFontScale
         self.keyBindings = keyBindings
         self.autoCommitAtFour = autoCommitAtFour
+        self.autoCommitFirstAtFive = autoCommitFirstAtFive
         self.defaultMode = defaultMode
-        self.learningEnabled = learningEnabled
+        self.automaticFrequency = automaticFrequency
+        self.mixedPinyinEnabled = mixedPinyinEnabled
+        self.codeHintEnabled = codeHintEnabled
+        self.candidate2And3ShortcutsEnabled = candidate2And3ShortcutsEnabled
+    }
+
+    init(candidatePageSize: Int = 5, candidateLayout: CandidateLayout = .vertical,
+         candidateFontScale: Double = 1, keyBindings: KeyBindingSettings = .default,
+         autoCommitAtFour: Bool = true,
+         defaultMode: InputMode = InputMode(language: .chinese, punctuation: .english,
+                                            width: .half, script: .simplified),
+         learningEnabled: Bool) throws {
+        try self.init(candidatePageSize: candidatePageSize,
+                      candidateLayout: candidateLayout,
+                      candidateFontScale: candidateFontScale,
+                      keyBindings: keyBindings,
+                      autoCommitAtFour: autoCommitAtFour,
+                      autoCommitFirstAtFive: false,
+                      defaultMode: defaultMode,
+                      automaticFrequency: learningEnabled,
+                      mixedPinyinEnabled: true,
+                      codeHintEnabled: true,
+                      candidate2And3ShortcutsEnabled: false)
+    }
+
+    /// Source-compatible name for existing runtime policy call sites.
+    var learningEnabled: Bool {
+        get { automaticFrequency }
+        set { automaticFrequency = newValue }
     }
 
     func validated() throws -> InputSettings {
@@ -50,8 +118,12 @@ struct InputSettings: Equatable, Codable, Sendable {
                           candidateFontScale: candidateFontScale,
                           keyBindings: keyBindings,
                           autoCommitAtFour: autoCommitAtFour,
+                          autoCommitFirstAtFive: autoCommitFirstAtFive,
                           defaultMode: defaultMode,
-                          learningEnabled: learningEnabled)
+                          automaticFrequency: automaticFrequency,
+                          mixedPinyinEnabled: mixedPinyinEnabled,
+                          codeHintEnabled: codeHintEnabled,
+                          candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
     }
 }
 
