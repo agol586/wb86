@@ -67,7 +67,7 @@ final class InputEngineTests: XCTestCase {
         XCTAssertEqual(result.learningDelta?.candidateText, "候选2")
     }
 
-    func testEmptyResultNeverCommitsAndBoundaryPagingIsConsumed() throws {
+    func testEmptyResultNeverCommitsAndBoundaryPagingPassesThrough() throws {
         let emptyEngine = InputEngine(query: { code, page in
             try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
         })
@@ -79,7 +79,7 @@ final class InputEngineTests: XCTestCase {
         _ = engine.process(.letter("w"))
         let before = engine.state
         let previous = engine.process(.pagePrevious)
-        XCTAssertTrue(previous.consumed)
+        XCTAssertFalse(previous.consumed)
         XCTAssertEqual(previous.state, before)
         XCTAssertEqual(previous.clientAction, .none)
         XCTAssertEqual(previous.candidateAction, .none)

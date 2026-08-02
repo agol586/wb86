@@ -262,6 +262,88 @@ final class InputModeTests: XCTestCase {
         ), .passThrough)
     }
 
+    func testAllEnabledPageGroupsMapBothDirectionsOnlyDuringComposition() throws {
+        let bindings = try KeyBindingSettings(
+            languageSwitch: .disabled,
+            scriptSwitch: .disabled,
+            widthSwitch: .disabled,
+            pageKeyGroups: Set(CandidatePageKeyGroup.allCases),
+            keyboardLayout: .us
+        )
+        let cases: [(UInt16, String, NSEvent.ModifierFlags, InputEvent)] = [
+            (43, ",", [], .pagePrevious), (47, ".", [], .pageNext),
+            (27, "-", [], .pagePrevious), (24, "=", [], .pageNext),
+            (33, "[", [], .pagePrevious), (30, "]", [], .pageNext),
+            (48, "\t", [.shift], .pagePrevious), (48, "\t", [], .pageNext),
+            (126, "", [], .pagePrevious), (125, "", [], .pageNext)
+        ]
+        for (keyCode, characters, flags, expected) in cases {
+            XCTAssertEqual(InputEventMapper.map(
+                try keyEvent(keyCode: keyCode, characters: characters, flags: flags),
+                isComposing: true, keyBindings: bindings
+            ), expected)
+        }
+
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 43, characters: ","),
+            isComposing: false, keyBindings: bindings
+        ), .text(","))
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 43, characters: ",", flags: [.shift]),
+            isComposing: true, keyBindings: bindings
+        ), .passThrough)
+    }
+
+    func testPagingBoundariesAndMissingSecondThirdShortcutsRemainUnhandled() throws {
+        let engine = InputEngine { code, pageIndex in
+            let count = pageIndex == 0 ? 5 : 1
+            let candidates = try (1...count).map { ordinal in
+                try Candidate(text: "候选\(pageIndex)-\(ordinal)", code: code, source: .base,
+                              baseRank: ordinal - 1, learnedScore: 0, ordinal: ordinal)
+            }
+            return try CandidatePage(items: candidates, pageIndex: pageIndex,
+                                     pageSize: 5, totalCount: 6)
+        }
+        _ = engine.process(.letter("a"))
+        let firstPage = engine.state
+        XCTAssertFalse(engine.process(.pagePrevious).consumed)
+        XCTAssertEqual(engine.state, firstPage)
+
+        XCTAssertTrue(engine.process(.pageNext).consumed)
+        let lastPage = engine.state
+        XCTAssertFalse(engine.process(.pageNext).consumed)
+        XCTAssertEqual(engine.state, lastPage)
+        XCTAssertFalse(engine.process(.select(2)).consumed)
+        XCTAssertFalse(engine.process(.select(3)).consumed)
+        XCTAssertEqual(engine.state, lastPage)
+    }
+
+    func testSemicolonAndQuoteShortcutsRequireSettingCompositionAndExactModifiers() throws {
+        let bindings = try KeyBindingSettings(
+            languageSwitch: .disabled, scriptSwitch: .disabled, widthSwitch: .disabled,
+            pageKeyGroups: [], keyboardLayout: .us
+        )
+        let semicolon = try keyEvent(keyCode: 41, characters: ";")
+        let quote = try keyEvent(keyCode: 39, characters: "'")
+        XCTAssertEqual(InputEventMapper.map(semicolon, isComposing: true,
+                                            keyBindings: bindings,
+                                            candidate2And3ShortcutsEnabled: true), .select(2))
+        XCTAssertEqual(InputEventMapper.map(quote, isComposing: true,
+                                            keyBindings: bindings,
+                                            candidate2And3ShortcutsEnabled: true), .select(3))
+        XCTAssertEqual(InputEventMapper.map(semicolon, isComposing: false,
+                                            keyBindings: bindings,
+                                            candidate2And3ShortcutsEnabled: true), .text(";"))
+        XCTAssertEqual(InputEventMapper.map(semicolon, isComposing: true,
+                                            keyBindings: bindings,
+                                            candidate2And3ShortcutsEnabled: false), .text(";"))
+        XCTAssertEqual(InputEventMapper.map(
+            try keyEvent(keyCode: 41, characters: ";", flags: [.shift]),
+            isComposing: true, keyBindings: bindings,
+            candidate2And3ShortcutsEnabled: true
+        ), .passThrough)
+    }
+
     func testVisibleIndicatorAndInputMenuContainNoInputText() {
         let traditional = InputMode(language: .chinese, punctuation: .english,
                                     width: .full, script: .traditional)

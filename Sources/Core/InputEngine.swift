@@ -200,7 +200,7 @@ final class InputEngine {
         }
         guard (1...9).contains(ordinal),
               let candidate = composition.candidates.items.first(where: { $0.ordinal == ordinal }) else {
-            return result(state: state, consumed: true)
+            return result(state: state, consumed: false)
         }
 
         state = .idle
@@ -225,7 +225,7 @@ final class InputEngine {
         }
         if (delta < 0 && !composition.candidates.hasPrevious)
             || (delta > 0 && !composition.candidates.hasNext) {
-            return result(state: state, consumed: true)
+            return result(state: state, consumed: false)
         }
         guard let code = composition.code else { return recoverFromError() }
         return queryAndCompose(code: code, pageIndex: composition.pageIndex + delta)

@@ -2,7 +2,8 @@ import AppKit
 
 enum InputEventMapper {
     static func map(_ event: NSEvent, isComposing: Bool,
-                    keyBindings: KeyBindingSettings = .default) -> InputEvent {
+                    keyBindings: KeyBindingSettings = .default,
+                    candidate2And3ShortcutsEnabled: Bool = false) -> InputEvent {
         guard event.type == .keyDown else { return .passThrough }
         let exactModeFlags = event.modifierFlags.intersection([.command, .control, .option, .shift])
         if !event.isARepeat {
@@ -33,16 +34,30 @@ enum InputEventMapper {
         case 51, 117: return .backspace
         default: break
         }
+        if isComposing {
+            if candidate2And3ShortcutsEnabled, exactModeFlags.isEmpty {
+                switch event.keyCode {
+                case 41: return .select(2)
+                case 39: return .select(3)
+                default: break
+                }
+            }
+            if let page = pageEvent(for: event, groups: keyBindings.pageKeyGroups,
+                                    flags: exactModeFlags) {
+                return page
+            }
+            if isCandidateControlKey(event.keyCode), !exactModeFlags.isEmpty {
+                return .passThrough
+            }
+        }
         guard let characters = event.charactersIgnoringModifiers, characters.count == 1 else {
             return .passThrough
         }
         switch characters {
-        case " " where isComposing: return .selectFirst
-        case "1"..."9" where isComposing: return .select(Int(characters) ?? 0)
+        case " " where isComposing && exactModeFlags.isEmpty: return .selectFirst
+        case "1"..."9" where isComposing && exactModeFlags.isEmpty:
+            return .select(Int(characters) ?? 0)
         default:
-            if isComposing, let page = pageEvent(for: characters, keySet: keyBindings.pageKeys) {
-                return page
-            }
             return InputCode(characters) != nil ? .letter(characters) : .text(characters)
         }
     }
@@ -65,15 +80,31 @@ enum InputEventMapper {
         }
     }
 
-    private static func pageEvent(for characters: String,
-                                  keySet: CandidatePageKeySet) -> InputEvent? {
-        switch (keySet, characters) {
-        case (.minusEquals, "-"), (.commaPeriod, ","), (.bracketPair, "["):
-            return .pagePrevious
-        case (.minusEquals, "="), (.commaPeriod, "."), (.bracketPair, "]"):
-            return .pageNext
-        default:
+    private static func pageEvent(for event: NSEvent, groups: Set<CandidatePageKeyGroup>,
+                                  flags: NSEvent.ModifierFlags) -> InputEvent? {
+        if groups.contains(.tab), event.keyCode == 48 {
+            if flags == [.shift] { return .pagePrevious }
+            if flags.isEmpty { return .pageNext }
             return nil
         }
+        guard flags.isEmpty else { return nil }
+        switch event.keyCode {
+        case 43 where groups.contains(.commaPeriod),
+             27 where groups.contains(.minusEquals),
+             33 where groups.contains(.bracketPair),
+             126 where groups.contains(.arrows):
+            return .pagePrevious
+        case 47 where groups.contains(.commaPeriod),
+             24 where groups.contains(.minusEquals),
+             30 where groups.contains(.bracketPair),
+             125 where groups.contains(.arrows):
+            return .pageNext
+        default: return nil
+        }
+    }
+
+    private static func isCandidateControlKey(_ keyCode: UInt16) -> Bool {
+        [18, 19, 20, 21, 22, 23, 25, 26, 28, 29, 39, 41, 43, 47,
+         27, 24, 33, 30, 48, 49, 125, 126].contains(keyCode)
     }
 }
