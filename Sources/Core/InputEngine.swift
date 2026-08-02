@@ -30,6 +30,18 @@ enum CandidateWindowAction: Equatable, Sendable {
     }
 }
 
+enum PinyinQueryState: Equatable, Sendable {
+    case unavailable
+    case noMatch
+    case viablePrefix
+    case exactMatch
+}
+
+struct SequenceQueryResult: Equatable, Sendable {
+    let pinyinState: PinyinQueryState
+    let page: CandidatePage
+}
+
 struct LearningDelta: Equatable, Sendable {
     let code: InputCode
     let candidateText: String
@@ -64,8 +76,12 @@ final class InputEngine {
     typealias Query = (_ code: InputCode, _ pageIndex: Int) throws -> CandidatePage
     typealias PolicyQuery = (_ code: InputCode, _ pageIndex: Int,
                              _ policy: CandidateRankingPolicy) throws -> CandidatePage
+    typealias SequencePolicyQuery = (_ sequence: CompositionKeySequence, _ pageIndex: Int,
+                                     _ policy: CandidateRankingPolicy, _ mode: InputMode,
+                                     _ mixedPinyinEnabled: Bool) throws -> SequenceQueryResult
 
-    private let policyQuery: PolicyQuery
+    private let policyQuery: PolicyQuery?
+    private let sequencePolicyQuery: SequencePolicyQuery?
     private let scriptConverter: ScriptConverter?
     private(set) var state = CompositionState.idle
     private(set) var mode: InputMode
@@ -75,6 +91,7 @@ final class InputEngine {
     var learningEnabled = true
     private var autoCommitAtFour = false
     private var autoCommitFirstAtFive = false
+    private var mixedPinyinEnabled = false
     private(set) var rankingPolicy = CandidateRankingPolicy(
         settingsGeneration: 0, pageSize: 5, automaticFrequency: true
     )
@@ -84,6 +101,7 @@ final class InputEngine {
         self.mode = mode
         self.scriptConverter = scriptConverter
         policyQuery = { code, pageIndex, _ in try query(code, pageIndex) }
+        sequencePolicyQuery = nil
     }
 
     init(mode: InputMode = .default, scriptConverter: ScriptConverter? = nil,
@@ -91,6 +109,15 @@ final class InputEngine {
         self.mode = mode
         self.scriptConverter = scriptConverter
         self.policyQuery = policyQuery
+        sequencePolicyQuery = nil
+    }
+
+    init(mode: InputMode = .default, scriptConverter: ScriptConverter? = nil,
+         sequencePolicyQuery: @escaping SequencePolicyQuery) {
+        self.mode = mode
+        self.scriptConverter = scriptConverter
+        policyQuery = nil
+        self.sequencePolicyQuery = sequencePolicyQuery
     }
 
     @discardableResult
@@ -154,6 +181,7 @@ final class InputEngine {
         learningEnabled = settings.learningEnabled
         autoCommitAtFour = settings.autoCommitAtFour
         autoCommitFirstAtFive = settings.autoCommitFirstAtFive
+        mixedPinyinEnabled = settings.mixedPinyinEnabled
         rankingPolicy = CandidateRankingPolicy(
             settingsGeneration: generation,
             pageSize: settings.candidatePageSize,
@@ -168,29 +196,45 @@ final class InputEngine {
 
     private func processLetter(_ rawLetter: String) -> InputProcessingResult {
         let existing = state.composition?.sequence.letters ?? ""
-        if existing.utf8.count == 4, autoCommitFirstAtFive {
-            return processFifthLetter(rawLetter)
-        }
-        guard existing.utf8.count < 4, let code = InputCode(existing + rawLetter) else {
+        guard existing.utf8.count < CompositionKeySequence.maximumLength,
+              let sequence = CompositionKeySequence(existing + rawLetter) else {
             return recoverFromError()
         }
-        return queryAndCompose(code: code, pageIndex: 0)
+        if existing.utf8.count == 4, autoCommitFirstAtFive {
+            if mixedPinyinEnabled, sequencePolicyQuery != nil {
+                do {
+                    let response = try query(sequence: sequence, pageIndex: 0)
+                    let prospectiveRoute = route(for: sequence,
+                                                 pinyinState: response.pinyinState)
+                    if prospectiveRoute == .mixed || prospectiveRoute == .pinyinOnly {
+                        return queryAndCompose(sequence: sequence, pageIndex: 0,
+                                               response: response)
+                    }
+                } catch {
+                    return recoverFromError()
+                }
+            }
+            return processFifthLetter(rawLetter)
+        }
+        return queryAndCompose(sequence: sequence, pageIndex: 0)
     }
 
     private func processFifthLetter(_ rawLetter: String) -> InputProcessingResult {
         guard let previous = state.composition,
-              previous.route == .wubiOnly,
               let previousCode = previous.code,
-              let nextCode = InputCode(rawLetter) else {
+              let nextSequence = CompositionKeySequence(rawLetter),
+              nextSequence.wubiCode != nil else {
             return recoverFromError()
         }
 
         do {
-            let queriedNextPage = try policyQuery(nextCode, 0, rankingPolicy)
-            let nextPage = try scriptConverter?.convert(queriedNextPage, to: mode.script)
-                ?? queriedNextPage
+            let nextResponse = try query(sequence: nextSequence, pageIndex: 0)
+            let nextPage = nextResponse.page
+            let nextRoute = route(for: nextSequence, pinyinState: nextResponse.pinyinState)
+            guard nextRoute != .invalid else { return recoverFromError() }
             let nextState = try CompositionState.composing(
-                code: nextCode,
+                sequence: nextSequence,
+                route: nextRoute,
                 candidates: nextPage,
                 pageIndex: 0,
                 selectionIndex: nextPage.items.isEmpty ? nil : 0
@@ -198,10 +242,10 @@ final class InputEngine {
 
             var actions = [ClientTextAction]()
             var learning: LearningDelta?
-            if previous.pageIndex == 0, let shownFirst = previous.candidates.items.first {
-                let queriedCurrentPage = try policyQuery(previousCode, 0, rankingPolicy)
-                let currentPage = try scriptConverter?.convert(queriedCurrentPage, to: mode.script)
-                    ?? queriedCurrentPage
+            if previous.pageIndex == 0,
+               let shownFirst = previous.candidates.items.first,
+               shownFirst.queryKey.kind == .wubi {
+                let currentPage = try query(sequence: previous.sequence, pageIndex: 0).page
                 if currentPage.pageIndex == 0,
                    let currentFirst = currentPage.items.first,
                    currentFirst.queryKey == shownFirst.queryKey,
@@ -214,7 +258,7 @@ final class InputEngine {
                     }
                 }
             }
-            actions.append(.setMarkedText(nextCode.letters))
+            actions.append(.setMarkedText(nextSequence.letters))
             state = nextState
             return result(
                 state: nextState,
@@ -289,8 +333,8 @@ final class InputEngine {
             || (delta > 0 && !composition.candidates.hasNext) {
             return result(state: state, consumed: false)
         }
-        guard let code = composition.code else { return recoverFromError() }
-        return queryAndCompose(code: code, pageIndex: composition.pageIndex + delta)
+        return queryAndCompose(sequence: composition.sequence,
+                               pageIndex: composition.pageIndex + delta)
     }
 
     private func processBackspace() -> InputProcessingResult {
@@ -303,33 +347,66 @@ final class InputEngine {
                           candidateAction: .hide, consumed: true)
         }
         let shortened = String(composition.sequence.letters.dropLast())
-        guard let code = InputCode(shortened) else { return recoverFromError() }
-        return queryAndCompose(code: code, pageIndex: 0)
+        guard let sequence = CompositionKeySequence(shortened) else { return recoverFromError() }
+        return queryAndCompose(sequence: sequence, pageIndex: 0)
     }
 
-    private func queryAndCompose(code: InputCode, pageIndex: Int) -> InputProcessingResult {
+    private func queryAndCompose(sequence: CompositionKeySequence, pageIndex: Int,
+                                 response suppliedResponse: SequenceQueryResult? = nil)
+        -> InputProcessingResult {
         do {
-            let queriedPage = try policyQuery(code, pageIndex, rankingPolicy)
-            let page = try scriptConverter?.convert(queriedPage, to: mode.script) ?? queriedPage
+            let response = try suppliedResponse ?? query(sequence: sequence, pageIndex: pageIndex)
+            let page = response.page
+            let resolvedRoute = route(for: sequence, pinyinState: response.pinyinState)
+            guard resolvedRoute != .invalid else { return recoverFromError() }
             let next = try CompositionState.composing(
-                code: code,
+                sequence: sequence,
+                route: resolvedRoute,
                 candidates: page,
                 pageIndex: pageIndex,
                 selectionIndex: page.items.isEmpty ? nil : 0
             )
             state = next
-            if autoCommitAtFour, code.length == 4, pageIndex == 0,
+            if autoCommitAtFour, sequence.length == 4, pageIndex == 0,
                page.totalCount == 1, page.items.count == 1 {
                 return processSelection(1)
             }
             return result(
                 state: next,
-                clientAction: .setMarkedText(code.letters),
+                clientAction: .setMarkedText(sequence.letters),
                 candidateAction: page.items.isEmpty ? .hide : .show(page),
                 consumed: true
             )
         } catch {
             return recoverFromError()
+        }
+    }
+
+    private func query(sequence: CompositionKeySequence, pageIndex: Int) throws
+        -> SequenceQueryResult {
+        if let sequencePolicyQuery {
+            return try sequencePolicyQuery(sequence, pageIndex, rankingPolicy, mode,
+                                           mixedPinyinEnabled)
+        }
+        guard let code = sequence.wubiCode, let policyQuery else {
+            throw InputEngineQueryError.invalidSequence
+        }
+        let queriedPage = try policyQuery(code, pageIndex, rankingPolicy)
+        let page = try scriptConverter?.convert(queriedPage, to: mode.script) ?? queriedPage
+        return SequenceQueryResult(pinyinState: .unavailable, page: page)
+    }
+
+    private func route(for sequence: CompositionKeySequence,
+                       pinyinState: PinyinQueryState) -> CompositionRoute {
+        let supportsPinyin = mixedPinyinEnabled && sequencePolicyQuery != nil
+        guard supportsPinyin else {
+            return sequence.wubiCode == nil ? .invalid : .wubiOnly
+        }
+        switch pinyinState {
+        case .viablePrefix, .exactMatch:
+            return sequence.wubiCode == nil ? .pinyinOnly : .mixed
+        case .unavailable, .noMatch:
+            return sequence.wubiCode == nil ? .invalid : .wubiOnly
         }
     }
 
@@ -362,4 +439,8 @@ final class InputEngine {
             learningDelta: learningDelta
         )
     }
+}
+
+private enum InputEngineQueryError: Error {
+    case invalidSequence
 }

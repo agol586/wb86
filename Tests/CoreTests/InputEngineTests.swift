@@ -314,6 +314,106 @@ final class InputEngineTests: XCTestCase {
         XCTAssertFalse(fifth.clientActions.actions.contains(.commitText("候选-wqvb")))
     }
 
+    func testViableShangPinyinPrefixDoesNotTriggerFifthCodeTruncation() throws {
+        let engine = InputEngine(sequencePolicyQuery: { sequence, pageIndex, policy, _, mixed in
+            let pinyinState: PinyinQueryState
+            if mixed, "shang".hasPrefix(sequence.letters) {
+                pinyinState = sequence.letters == "shang" ? .exactMatch : .viablePrefix
+            } else {
+                pinyinState = .noMatch
+            }
+            let items: [Candidate]
+            if sequence.letters == "shang" {
+                let key = try XCTUnwrap(
+                    CandidateQueryKey(kind: .pinyin, code: sequence.letters)
+                )
+                items = [try Candidate(text: "上", queryKey: key, source: .localPinyin,
+                                       baseRank: 0, learnedScore: 0, ordinal: 1)]
+            } else if let code = sequence.wubiCode {
+                items = [try Candidate(text: "四码首选", code: code, source: .baseWubi,
+                                       baseRank: 0, learnedScore: 0, ordinal: 1)]
+            } else {
+                items = []
+            }
+            return SequenceQueryResult(
+                pinyinState: pinyinState,
+                page: try CandidatePage(items: items, pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: items.count)
+            )
+        })
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = true
+        settings.autoCommitFirstAtFive = true
+        settings.autoCommitAtFour = false
+        engine.apply(settings: settings)
+
+        for letter in ["s", "h", "a", "n"] { _ = engine.process(.letter(letter)) }
+        let fifth = engine.process(.letter("g"))
+
+        XCTAssertEqual(fifth.clientActions.actions, [.setMarkedText("shang")])
+        XCTAssertFalse(fifth.clientActions.actions.contains(.commitText("四码首选")))
+        XCTAssertEqual(fifth.state.composition?.sequence.letters, "shang")
+        XCTAssertEqual(fifth.state.composition?.route, .pinyinOnly)
+        XCTAssertEqual(fifth.candidateAction.page?.items.map(\.text), ["上"])
+    }
+
+    func testMixedPinyinDisabledKeepsLegacyFifthCodeBehavior() throws {
+        var observedMixedFlags = [Bool]()
+        let engine = InputEngine(sequencePolicyQuery: { sequence, pageIndex, policy, _, mixed in
+            observedMixedFlags.append(mixed)
+            let code = try XCTUnwrap(sequence.wubiCode)
+            let text = sequence.letters == "wqvb" ? "旧首选" : "新候选"
+            let candidate = try Candidate(text: text, code: code, source: .baseWubi,
+                                          baseRank: 0, learnedScore: 0, ordinal: 1)
+            return SequenceQueryResult(
+                pinyinState: .unavailable,
+                page: try CandidatePage(items: [candidate], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 1)
+            )
+        })
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = false
+        settings.autoCommitFirstAtFive = true
+        settings.autoCommitAtFour = false
+        engine.apply(settings: settings)
+
+        for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
+        let fifth = engine.process(.letter("a"))
+
+        XCTAssertEqual(fifth.clientActions.actions,
+                       [.commitText("旧首选"), .setMarkedText("a")])
+        XCTAssertEqual(fifth.state.composition?.route, .wubiOnly)
+        XCTAssertTrue(observedMixedFlags.allSatisfy { !$0 })
+    }
+
+    func testPinyinQueryFailureDuringLongSequenceResetsWithoutCommittingRawOrOldText() throws {
+        let engine = InputEngine(sequencePolicyQuery: { sequence, pageIndex, policy, _, _ in
+            if sequence.length == 5 { throw TestError.failed }
+            let code = try XCTUnwrap(sequence.wubiCode)
+            let candidate = try Candidate(text: "旧首选", code: code, source: .baseWubi,
+                                          baseRank: 0, learnedScore: 0, ordinal: 1)
+            return SequenceQueryResult(
+                pinyinState: .viablePrefix,
+                page: try CandidatePage(items: [candidate], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 1)
+            )
+        })
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = true
+        settings.autoCommitFirstAtFive = true
+        settings.autoCommitAtFour = false
+        engine.apply(settings: settings)
+
+        for letter in ["s", "h", "a", "n"] { _ = engine.process(.letter(letter)) }
+        let result = engine.process(.letter("g"))
+
+        XCTAssertEqual(result.state, .idle)
+        XCTAssertEqual(result.clientActions.actions, [.clearMarkedText])
+        XCTAssertEqual(result.candidateAction, .hide)
+        XCTAssertFalse(result.clientActions.actions.contains(.commitText("旧首选")))
+        XCTAssertFalse(result.clientActions.actions.contains(.commitText("shang")))
+    }
+
     private func query(code: InputCode, pageIndex: Int) throws -> CandidatePage {
         let items = try [1, 2].map {
             try Candidate(text: "候选\($0)", code: code, source: .base,
