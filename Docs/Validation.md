@@ -15,7 +15,7 @@ Scripts/measure-memory.sh /absolute/path/to/MacWubi.app
 Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
 ```
 
-The 2026-08-02 feature run passed 217/217 XCTest cases, deterministic dictionary compilation, a
+The 2026-08-02 final scope-amended run passed 213/213 XCTest cases, deterministic dictionary compilation, a
 development-signed native arm64 Release build, release verification, privacy audit, every-sample lookup
 latency and the 15 MiB steady footprint gate. See `specs/002-settings-experience/evidence/` for commands,
 environment and fixed-data results. The 30-logical-day, one-million-committed-character verdict is in
@@ -25,7 +25,7 @@ environment and fixed-data results. The 30-logical-day, one-million-committed-ch
 
 | Requirement | Status | Primary automated evidence |
 |---|---|---|
-| FR-001 | PASS automated; physical VoiceOver settings flow deferred | `SettingsWindowTests`, `SettingsAccessibilityTests`, manual matrix |
+| FR-001 | PASS automated; ordinary physical settings flow remains in final matrix | `SettingsWindowTests`, settings integration |
 | FR-002 | PASS | `InputModeTests`, `SettingsWindowTests`, `SettingsIntegrationTests` |
 | FR-003 | PASS | `TextConversionTests` punctuation-before-width matrix |
 | FR-004 | PASS | `InputControllerContractTests`, `SettingsIntegrationTests` session reactivation |
@@ -35,8 +35,8 @@ environment and fixed-data results. The 30-logical-day, one-million-committed-ch
 | FR-008 | PASS | `CandidateQueryTests`, `PersonalizationIntegrationTests` bounded same-key learning |
 | FR-009 | PASS | `PinyinDictionaryFormatTests`, `DailyInputIntegrationTests`, privacy audit |
 | FR-010 | PASS | `CandidateQueryTests` Wubi-first merge, conversion, dedupe, paging and learning |
-| FR-011 | PASS | `CandidateAccessibilityTests` hint on/off invariance |
-| FR-012 | PASS automated; visual matrix deferred | Candidate row/layout accessibility tests |
+| FR-011 | PASS | `CandidatePanelPresenterTests` hint on/off invariance |
+| FR-012 | PASS automated; visual matrix deferred | Candidate row/layout ordinary-interaction tests |
 | FR-013 | PASS | `InputModeTests` second/third candidate shortcut boundaries |
 | FR-014 | PASS | `StandaloneShiftRecognizerTests`, adapter contract tests |
 | FR-015 | PASS | `InputModeTests`, settings key-binding tests |
@@ -45,7 +45,7 @@ environment and fixed-data results. The 30-logical-day, one-million-committed-ch
 | FR-018 | PASS automated; physical click/focus regression deferred | `InputModeTests`, `ModeInputIntegrationTests`; T027 remains manual |
 | FR-019 | PASS | `KeyboardLayoutTranslatorTests`, unavailable-layout UI error test |
 | FR-020 | PASS | `KeyBindingValidator` range, duplicate, reserved, legacy and layout tests |
-| FR-021 | PASS | Draft/save/cancel/I/O/accessibility feedback tests |
+| FR-021 | PASS | Draft/save/cancel/I/O and visible feedback tests |
 | FR-022 | PASS | Appearance-immediate and semantic-safe-boundary integration test |
 | FR-023 | PASS | Multi-client generation, reentrant batch and focus-churn tests |
 | FR-024 | PASS | Settings v2 snapshots, restart and atomic replacement tests |
@@ -55,7 +55,8 @@ environment and fixed-data results. The 30-logical-day, one-million-committed-ch
 | FR-028 | PASS | Diagnostics redaction, source/binary privacy audit and private permissions |
 | FR-029 | PASS | Thin arm64, no package/foreign runtime, empty-entitlement release contracts |
 | FR-030 | PASS | T054 every-sample lookup, T055 footprint and T056 30-day/1,000,000-character stability gates pass |
-| FR-031 | PASS | 217-test full suite covers defaults, validation, migration, recovery, sessions and input states |
+| FR-031 | PASS | 213-test full suite covers defaults, validation, migration, recovery, sessions and input states |
+| FR-032 | PASS | Documentation boundary plus `UnsupportedAssistiveTechnologyTests`; no specialized screen-reader source remains |
 
 ## Success criteria
 
@@ -69,17 +70,16 @@ environment and fixed-data results. The 30-logical-day, one-million-committed-ch
 | SC-006 | PASS automated | Restart reconstruction, v1 upgrade, future/corrupt/interruption recovery |
 | SC-007 | PASS | Concurrent sessions freeze one immutable generation through each composition |
 | SC-008 | PASS | UserLexicon/Learning bytes and generations unchanged for every restore path |
-| SC-009 | PARTIAL | Automated labels, values, focus and announcements pass; remaining physical VoiceOver rows deferred by user |
+| SC-009 | PASS automated | Ordinary keyboard focus, visible errors, candidate mouse/keyboard selection and screen layout pass; physical matrix remains a release gate |
 | SC-010 | PASS | Every lookup sample `<2 ms`; normal footprint 8,258,208 bytes; T056 peak 8,487,584 bytes with no sustained drift after 1,000,000 committed characters |
 | SC-011 | PASS | Zero network capability/connections/APIs and content-free diagnostics/persistence audit |
-| SC-012 | PASS automated | 217/217 tests plus deterministic resources, privacy and release contracts |
+| SC-012 | PASS automated | 213/213 tests plus deterministic resources, privacy and release contracts |
+| SC-013 | PASS | README, user guide, specs and release checklist explicitly mark screen-reader-specific functionality unsupported |
 
 ## Release blockers not hidden by automation
 
 - T027: physical InputMethodKit marked-text click/candidate/focus/source-switch regression was explicitly
   deferred and remains open.
-- Remaining VoiceOver settings traversal, error/confirmation, appearance and display rows were explicitly
-  deferred by the user; candidate navigation/activation/paging/cancel/focus-recovery passed previously.
 - Developer ID Application signing, secure timestamp, notarization, staple and Gatekeeper are final-release
   operations and were intentionally deferred.
 - macOS 13/current-supported-OS physical matrices, the target-user usability study and the broader product

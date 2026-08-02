@@ -49,8 +49,8 @@ No interrupted path published the proposed generation.
 
 - Full-draft validation rejects page-size, font-scale, duplicate/range-overlapping/reserved bindings,
   unsupported legacy bindings, and unavailable keyboard layouts before persistence.
-- Field errors select the relevant settings tab, focus the exact control, and issue an accessibility
-  announcement. Generic I/O/readback failures keep the last valid saved baseline.
+- Field errors select the relevant settings tab, focus the exact control, and display a visible
+  message. Generic I/O/readback failures keep the last valid saved baseline.
 - Future and failed-recovery stores expose a visible, selectable “设置状态” message, focus that status,
   disable modifying controls, and reject Save/Restore.
 - Cancel discards the draft and performs zero writes.

@@ -8,7 +8,7 @@ settings, and the same notarized final candidate.
 
 | System | Hardware | Required coverage | Release state |
 |---|---|---|---|
-| macOS 13 latest update | Physical Apple Silicon Mac | Full quickstart, seven application classes, VoiceOver, install/upgrade/uninstall | Pending final hardware run |
+| macOS 13 latest update | Physical Apple Silicon Mac | Full quickstart, seven application classes, ordinary mouse/keyboard UI, install/upgrade/uninstall | Pending final hardware run |
 | Current supported macOS | Physical Apple Silicon Mac | Same full matrix | Pending final candidate run |
 
 If the current supported version is macOS 13, add the newest later supported macOS before release so
@@ -25,9 +25,9 @@ replace either physical-hardware row.
 4. Install through `Scripts/install.sh`; verify discovery, enablement, connection and input in native
    editor, browser, office suite, code editor, terminal, system search and Electron application.
 5. Execute every quickstart input, settings, personalization, import/export, migration, recovery,
-   privacy, accessibility and performance scenario.
+   privacy, ordinary interaction and performance scenario.
 6. Upgrade in place and confirm data preservation; uninstall once preserving personalization and once
    explicitly deleting it. Never disable Gatekeeper, SIP, Secure Event Input or other protections.
 
-Any missing row or failed architecture, signing, InputMethodKit, privacy, recovery, accessibility or
+Any missing row or failed architecture, signing, InputMethodKit, privacy, recovery, ordinary interaction or
 performance gate blocks release. Results belong in `specs/001-native-wubi/evidence/release-matrix.md`.

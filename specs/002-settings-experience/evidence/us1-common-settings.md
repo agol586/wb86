@@ -18,7 +18,7 @@ xcodebuild test -quiet -project MacWubi.xcodeproj -scheme MacWubi \
   -only-testing:MacWubiTests/TextConversionTests \
   -only-testing:MacWubiTests/InputEngineTests \
   -only-testing:MacWubiTests/SettingsWindowTests \
-  -only-testing:MacWubiTests/SettingsAccessibilityTests \
+  -only-testing:MacWubiTests/SettingsWindowTests \
   -only-testing:MacWubiTests/SettingsIntegrationTests \
   -only-testing:MacWubiTests/InputControllerContractTests
 ```

@@ -67,5 +67,5 @@ xcrun swift Scripts/select-input-source.swift
 - macOS 13 physical runtime validation remains deferred to T081/T083/T110.
 - Developer ID secure timestamp, notarization, stapling, and Gatekeeper assessment remain deferred to
   T108/T111.
-- Seven-application release compatibility, accessibility matrices, long-duration resource tests, and all
+- Seven-application release compatibility, ordinary interaction matrices, monthly-volume resource tests, and all
   later user stories remain open.

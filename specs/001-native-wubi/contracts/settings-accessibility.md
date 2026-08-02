@@ -1,4 +1,7 @@
-# Contract: Settings and Accessibility
+# Contract: Settings and Ordinary Interaction
+
+> 2026-08-02 scope amendment: VoiceOver, VoiceOver Utility, Accessibility Inspector, and
+> screen-reader-specific speech, focus, selection, actions, and settings navigation are unsupported.
 
 ## Entry and lifecycle
 
@@ -16,22 +19,22 @@
 
 恢复默认设置不得清除 UserLexicon 或 Learning；清除数据必须是独立、明确确认的操作。
 
-## Candidate accessibility
+## Candidate ordinary interaction
 
-- 候选容器、当前编码、每个候选、序号、选中状态、页码和可翻页状态必须具有稳定的辅助
-  功能语义。
-- 选中变化只朗读当前候选和必要位置，不重复朗读整页。
-- 候选顺序、数字选择顺序、视觉顺序和辅助技术顺序必须一致。
+- 候选顺序、数字选择顺序、鼠标选择顺序和视觉顺序必须一致。
 - 浅色、深色、高对比度、系统减少动态效果和多显示器缩放变化不得隐藏焦点或选中状态。
-- 候选窗口不得夺取客户端键盘焦点；鼠标选择和辅助操作必须转换为相同核心选择事件。
+- 候选窗口不得夺取客户端键盘焦点；鼠标选择必须转换为相同核心选择事件。
 
-## Settings accessibility
+## Settings ordinary interaction
 
-- 所有控件具有可理解标签、当前值、错误说明和键盘焦点顺序。
+- 所有控件具有可见标题、当前值、错误说明和普通键盘焦点顺序。
 - 全部功能可由键盘访问，不依赖悬停、颜色或手势作为唯一信息。
 - 删除、重置、导入覆盖等破坏性操作必须说明影响的数据域并要求确认。
 
+不得发布或测试专用屏幕阅读器候选树、朗读公告、辅助焦点、辅助操作或设置辅助导航。
+系统开启辅助技术时仍适用一般故障安全要求，但不构成辅助技术支持承诺。
+
 ## Validation matrix
 
-至少覆盖 VoiceOver、完全键盘控制、浅色、深色、高对比度、不同缩放和多显示器。核心输入
+至少覆盖普通鼠标/键盘、浅色、深色、高对比度、减少动态效果、不同缩放和多显示器。核心输入
 与设置流程必须在不查看生产输入正文日志的前提下验收。

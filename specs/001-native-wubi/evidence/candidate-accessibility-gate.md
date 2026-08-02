@@ -1,4 +1,8 @@
-# T020 Candidate Accessibility Gate Evidence
+# T020 Candidate Accessibility Gate Evidence (Historical)
+
+> Superseded on 2026-08-02 by feature 002 T061–T063. The product now explicitly does not support
+> VoiceOver, Accessibility Inspector, or screen-reader-specific candidate behavior. The specialized
+> implementation described below was deleted; only ordinary mouse/keyboard and visual layout decisions remain.
 
 ## Verdict
 

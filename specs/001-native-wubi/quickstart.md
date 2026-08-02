@@ -8,7 +8,7 @@
 - 安装支持项目 SDK 的 Xcode 15 或更新版本，并接受许可。
 - 一台受支持的 Apple Silicon Mac；发布验收不包含 Intel Mac。
 - 具备通过 macOS 标准授权将 bundle 安装到系统级 `/Library/Input Methods/` 的管理员权限。
-- 准备标准五笔 86 语料、七类应用、VoiceOver、损坏快照和 10,000 条导入样本。
+- 准备标准五笔 86 语料、七类应用、普通鼠标/键盘与视觉环境、损坏快照和 10,000 条导入样本。
 - 仓库根目录为当前工作目录。
 
 每次发布验证记录 Mac 型号、CPU、macOS、Xcode、构建配置、词库清单、测试数据版本和
@@ -95,16 +95,17 @@ macOS 13 与当前支持版本的完整矩阵，以及 Developer ID、公证、s
 预期：学习行为有界且确定；私密模式不产生学习增量或其他输入相关写入，已有学习不参与
 排序。输入法没有全局按键监听，也不尝试绕过 Secure Event Input。
 
-## 6. Validate settings and accessibility
+## 6. Validate settings and ordinary interaction
 
 修改候选数量、布局、字号、翻页键、模式键、自动上屏、简繁和学习开关，重启验证保留；
 恢复默认设置并确认 UserLexicon 与 Learning 未被删除。
 
-使用 VoiceOver、完全键盘控制、Accessibility Inspector、浅色、深色、高对比度、多显示器
-和不同缩放完成核心输入与设置流程。
+使用普通鼠标/键盘、浅色、深色、高对比度、减少动态效果、多显示器和不同缩放完成核心输入与
+设置流程。确认产品说明明确将 VoiceOver、旁白实用工具、Accessibility Inspector 和屏幕阅读器
+专用能力列为不支持，并通过源码边界测试确认不存在专用实现。
 
-预期：候选序号、视觉顺序、选择顺序和朗读顺序一致；候选窗口不夺取文本焦点且保持可见；
-所有设置可键盘操作。若 `IMKCandidates` 无法通过，候选展示实现不得进入发布路径。
+预期：候选序号、视觉顺序和选择顺序一致；候选窗口不夺取文本焦点且保持可见；所有设置可由
+普通键盘操作。系统开启辅助技术时不崩溃或错误提交，但不验收其朗读、焦点或选择行为。
 
 ## 7. Validate import, export, migration, and rollback
 
@@ -128,7 +129,8 @@ macOS 13 与当前支持版本的完整矩阵，以及 Developer ID、公证、s
 ## 9. Performance, privacy, and distribution release gates
 
 在 Release bundle 和发布数据上先预热，再覆盖一至四位编码、基础/用户/学习合并、简繁和
-首中末范围查询。报告 p50、p95、p99、最大值和 RSS；执行八小时连续输入与应用切换压力。
+首中末范围查询。报告 p50、p95、p99、最大值和 RSS；执行 30 个逻辑输入日、100 万提交汉字
+及应用/会话切换压力，不按墙钟等待一个月或八小时。
 
 同时观察输入法及其组件的网络活动，扫描签名 entitlements、Application Support 数据目录、生产日志、崩溃产物和
 导出文件。
@@ -137,9 +139,9 @@ macOS 13 与当前支持版本的完整矩阵，以及 Developer ID、公证、s
 并通过 Gatekeeper 评估；在 Apple Silicon macOS 13 与当前支持版本执行完整安装、发现、
 启用、七类应用输入和卸载矩阵。
 
-预期：所有可识别编码在 2 ms 内提供首批候选，正常输入 RSS 始终低于 15 MB，八小时无
-持续增长；零网络连接、零网络 entitlement，且不存在原始输入历史、应用上下文或可重建
+预期：所有可识别编码在 2 ms 内提供首批候选，正常输入 RSS 始终低于 15 MB，月度等效输入量
+无持续增长；零网络连接、零网络 entitlement，且不存在原始输入历史、应用上下文或可重建
 输入时间线。
 
-任何架构、签名、公证、Hardened Runtime、输入正确性、隐私、恢复、迁移、无障碍或性能门禁失败都阻止
+任何架构、签名、公证、Hardened Runtime、输入正确性、隐私、恢复、迁移、普通交互或性能门禁失败都阻止
 发布，不得以关闭安全约束或跳过失败测试解决。

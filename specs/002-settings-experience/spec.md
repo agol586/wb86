@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-02
 
-**Status**: Amended; VoiceOver-specific support removal in progress, final manual/distribution gates remain
+**Status**: Implemented and automatically validated; final ordinary manual/distribution gates remain
 
 **Input**: User description: "实现设置体验增强：可配置初始中英文、简繁体、全半角及中文模式标点；四码唯一自动上屏、五码首选上屏、自动调频；五笔拼音混输、编码提示、分号/单引号候选快捷键；可配置中英文和简繁切换键；支持逗号句号、减号等号、中括号、Tab/Shift-Tab、上下方向键翻页；全半角快捷键、键盘布局和恢复默认设置。所有设置需持久化、校验、即时或安全延迟生效，并提供自动化测试。"
 

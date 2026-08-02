@@ -1,4 +1,9 @@
-# US8 Accessibility Evidence
+# US8 Assistive-Technology Evidence (Historical and Superseded)
+
+> This document preserves earlier test history only. On 2026-08-02 feature 002 T061–T063 explicitly made
+> VoiceOver/Accessibility Inspector/screen-reader-specific behavior unsupported, removed the specialized
+> code and tests, and cancelled T100–T101 as release gates. Do not use the results below as a current
+> support claim.
 
 Status: **AUTOMATED PASS / REMAINING MANUAL GATE SKIPPED BY USER**
 
@@ -84,7 +89,8 @@ the original client showed no residual composition and allowed a fresh session. 
 
 ## Deferred continuation
 
-On 2026-08-02 the user explicitly skipped the remaining VoiceOver work. T100 stays open. Resume at the
+This historical note originally left T100 open. The later feature 002 T061–T063 amendment cancelled T100;
+there is no VoiceOver release gate to resume. The old stopping point was the
 keyboard-only settings-entry scenario, followed by settings traversal/error/confirmation, appearance and
 display coverage. The completed candidate navigation, activation, paging, cancellation and focus-recovery
 observations above remain valid for the recorded candidate hash.

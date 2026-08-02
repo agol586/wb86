@@ -78,7 +78,7 @@ cross-domain isolation: migrating or writing Learning did not alter Settings or 
 ### Settings persistence and safe delay
 
 The four-code, fifth-code, and automatic-frequency checkboxes independently updated the draft v2
-settings model and their accessibility values. Saving preserved all three values across a fresh
+settings model and their visible checkbox states. Saving preserved all three values across a fresh
 `SettingsStore` and settings-window construction. A composing session retained its old semantic
 snapshot while the new snapshot was pending, then atomically adopted all three values after Cancel
 reached idle.

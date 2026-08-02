@@ -11,7 +11,8 @@
 基础词库与分层用户数据提供稳定候选、本地学习、自定义词条、简繁输出和迁移。输入法自身
 提供轻量设置窗口与显式本地导入导出，不引入配套常驻进程或网络能力。发布构建仅面向
 Apple Silicon `arm64`，采用 Developer ID、Hardened Runtime 与公证的非沙箱分发路线；分层验证覆盖长期输入、升级、
-无障碍、15 MB/2 ms 门禁和零输入数据外传。
+普通键鼠与视觉环境、15 MB/2 ms 门禁和零输入数据外传。VoiceOver、旁白实用工具、
+Accessibility Inspector 及屏幕阅读器专用能力明确不受支持。
 
 ## Technical Context
 
@@ -25,7 +26,7 @@ XCTest；无第三方运行时或库
 学习快照，目录/文件权限为 `0700`/`0600`；导入导出仅访问用户显式选择的本地文件
 
 **Testing**: XCTest 单元/集成/迁移/故障/性能测试，伪造文本客户端的适配层契约测试，
-设置与导入导出 UI 测试，发布 bundle 签名与架构检查，以及七类应用和辅助技术实机验收
+设置与导入导出 UI 测试，发布 bundle 签名与架构检查，以及七类应用和普通交互实机验收
 
 **Target Platform**: macOS 13.0 及以上的 Apple Silicon Mac；发布架构仅为 `arm64`，不支持
 Intel Mac、`x86_64` 或 Universal Binary
@@ -34,7 +35,7 @@ Intel Mac、`x86_64` 或 Universal Binary
 应用 bundle，附不随产品运行的纯 Swift 词库编译与数据检查工具
 
 **Performance Goals**: 预热后的候选查询 p99 小于 2 ms；正常输入路径总常驻内存小于
-15 MB；10,000 条导入在 5 秒内完成；八小时压力运行无持续内存或延迟增长
+15 MB；10,000 条导入在 5 秒内完成；30 个逻辑输入日、100 万提交汉字无持续内存或延迟增长
 
 **Constraints**: 纯 Swift 核心；仅原生 `arm64`，无 C/C++ 动态库和 Rosetta 2；不使用
 App Sandbox；无网络、Apple Events 或 Mach 临时例外；Developer ID 分发构建启用 Hardened
@@ -43,7 +44,7 @@ Runtime、时间戳与公证；生产日志不含输入内容；持久化必须�
 
 **Scale/Scope**: 单一 macOS 用户、多个彼此隔离的应用会话；一至四位 `a...y` 编码；每页
 5...9 项候选；基础词库以覆盖验收而非固定条目数为准，运行时查询工作集目标小于 4 MB；
-最多 100,000 个用户词条和 50,000 条有界学习记录；支持设置、迁移、简繁和无障碍，不含
+最多 100,000 个用户词条和 50,000 条有界学习记录；支持设置、迁移、简繁和普通键鼠操作，不含
 拼音混输、账户、云同步、广告或在线更新
 
 ## Constitution Check
@@ -97,7 +98,7 @@ Sources/
 │   ├── InputController.swift
 │   ├── CandidatePresenter.swift
 │   ├── SettingsWindowController.swift
-│   └── AccessibilityAdapter.swift
+│   └── CandidatePanelPresenter.swift
 ├── Core/
 │   ├── InputEngine.swift
 │   ├── CompositionState.swift
@@ -134,7 +135,7 @@ Tests/
 ├── PersistenceTests/
 ├── MigrationTests/
 ├── ImportExportTests/
-├── AccessibilityTests/
+├── AdapterContractTests/
 └── PerformanceTests/
 
 Scripts/

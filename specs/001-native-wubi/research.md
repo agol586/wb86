@@ -1,5 +1,9 @@
 # Phase 0 Research: 隐私优先的原生五笔 86 输入法
 
+> Historical note (2026-08-02): VoiceOver/Accessibility Inspector investigation below records an earlier
+> design decision only. Feature 002 T061–T063 explicitly removed specialized screen-reader support and
+> implementation; these observations are no longer current product or release requirements.
+
 ## InputMethodKit 接入方式
 
 **Decision**: 在后台输入法应用入口创建一个 `IMKServer`，由系统为每个输入会话实例化

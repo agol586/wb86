@@ -1,8 +1,8 @@
 # Requirements Traceability Review
 
-Reviewed 2026-08-01 after T109. **Release is prohibited while any row is PARTIAL or PENDING.** Automated
-tests passed 114/114, but automated evidence is not substituted for physical OS, assistive-technology,
-long-duration, study or final distribution gates.
+Reviewed 2026-08-02 after feature 002 T061–T063. **Release is prohibited while any row is PARTIAL or
+PENDING.** Automated evidence is not substituted for physical OS, ordinary interaction, study or final
+distribution gates. Screen-reader-specific functionality is explicitly unsupported.
 
 ## Functional requirements
 
@@ -16,8 +16,8 @@ long-duration, study or final distribution gates.
 | FR-006 | PASS | `us2-input-modes.md`, mode integration tests. |
 | FR-007 | PASS | `us2-input-modes.md`, mapper/session contract tests. |
 | FR-008 | PASS | `us2-input-modes.md`, conversion compiler/vector tests. |
-| FR-009 | PARTIAL | Candidate appearance/layout automated tests pass; human appearance acceptance is T100. |
-| FR-010 | PARTIAL | Bounds/scaling/full-screen/multi-display logic tests pass; physical multi-display acceptance is T100. |
+| FR-009 | PARTIAL | Candidate appearance/layout automated tests pass; human appearance acceptance is T110. |
+| FR-010 | PARTIAL | Bounds/scaling/full-screen/multi-display logic tests pass; physical multi-display acceptance is T110. |
 | FR-011 | PASS | `us3-personalization.md`, ranking/learning tests. |
 | FR-012 | PASS | Three-selection promotion, cap and decay tests in `us3-personalization.md`. |
 | FR-013 | PASS | User lexicon service/store/settings contracts in `us3-personalization.md`. |
@@ -36,8 +36,8 @@ long-duration, study or final distribution gates.
 | FR-026 | PASS | Independent domain quarantine/restore/default tests in `us6-lifecycle-recovery.md`. |
 | FR-027 | PARTIAL | Current candidates verify exact arm64; final two-OS matrix is T083/T110. Intel is explicitly excluded. |
 | FR-028 | PASS for current development matrix | `<2 ms` report, `<15 MiB` normal footprint and amended 30-day/1,000,000-character stability gate pass; final two-OS release matrix remains under FR-027/SC-013. |
-| FR-029 | PARTIAL | Seven-class fixtures pass; actual seven-application final and accessibility matrices are T083/T101/T110. |
-| FR-030 | PARTIAL | Automated semantics/focus/layout pass; VoiceOver/Inspector/keyboard/appearance acceptance is T100. |
+| FR-029 | PARTIAL | Seven-class fixtures pass; actual seven-application final matrix is T083/T110. |
+| FR-030 | PASS automated | Scope amended by feature 002 T061–T063: ordinary mouse/keyboard/focus/layout regressions pass and specialized screen-reader source is absent; VoiceOver/Inspector are explicitly unsupported. |
 | FR-031 | PASS | Supported migrations, interruption rollback and future-version preservation in `us6-lifecycle-recovery.md`. |
 
 ## Success criteria
@@ -52,16 +52,16 @@ long-duration, study or final distribution gates.
 | SC-006 | PASS | 10,000-record import completes under 5 seconds with exact counts and atomicity. |
 | SC-007 | PASS | Supported domain migration and interrupted migration matrices pass 100%. |
 | SC-008 | PASS | Defined corruption/input/client failure tests pass without crash, commit or cross-session loss. |
-| SC-009 | PARTIAL | Fixture matrix passes; actual seven-application physical matrix is pending T083/T101/T110. |
+| SC-009 | PARTIAL | Fixture matrix passes; actual seven-application physical matrix is pending T083/T110. |
 | SC-010 | PASS | Current complete privacy audit reports zero network and no sensitive-content artifacts. |
 | SC-011 | PASS | 10,000 private/learning-disabled submissions preserve learning generation/content. |
-| SC-012 | PENDING | Automated accessibility contracts pass, but required human VoiceOver/FKA/appearance flow is T100/T101. |
+| SC-012 | PASS automated | Scope amended by feature 002 T061–T063: ordinary interaction and visual contracts pass; screen-reader-specific support is explicitly excluded. |
 | SC-013 | PENDING | Final Apple Silicon macOS 13/current matrix and immutable candidate are T083/T110/T111. |
 
 ## Open release blockers
 
 - T083: final signed physical Apple Silicon macOS 13/current compatibility matrix (explicitly deferred).
-- T100–T101: human VoiceOver/Accessibility Inspector/FKA acceptance and accessible seven-app rerun.
+- T100–T101 are cancelled by the 2026-08-02 support-scope amendment and are not release gates.
 - The active feature amendment's monthly-volume stability gate passed; it is not an open release blocker.
 - SC-002 30-day replacement study and SC-003 first-user timed study.
 - T110: complete quickstart on macOS 13 and current supported macOS (explicitly deferred).

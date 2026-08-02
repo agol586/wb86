@@ -73,5 +73,5 @@ steady memory/latency growth gates passed. See `evidence/monthly-volume-stress.m
 
 Per the user's release-stage decision, Developer ID Application signing, secure timestamp, notarization,
 stapling and Gatekeeper assessment are not claimed here and remain final-release gates. The previously
-deferred physical InputMethodKit click/focus regression and remaining VoiceOver/settings appearance matrix
+deferred physical InputMethodKit click/focus regression and remaining ordinary settings appearance matrix
 also remain manual gates; automated fixtures are not presented as substitutes.

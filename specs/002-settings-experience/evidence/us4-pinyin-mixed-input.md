@@ -49,12 +49,12 @@ change the representation if the complete input method does not remain below 15 
 | Duplicate正文 and scripts | `CandidateQueryTests` converts each candidate to the selected script before stable display-text deduplication, including learned traditional display text. PASS. |
 | Long viable Pinyin | `InputEngineTests` keeps valid 1...32 byte prefixes such as `shang` composing instead of applying the Wubi fifth-code policy. PASS. |
 | Compatibility when disabled | `InputEngineTests` preserves the legacy Wubi-only four/five-code behavior when mixed input is off. PASS. |
-| Optional WB86 hints | `CandidateAccessibilityTests` verifies hint visibility, width-first hint removal, font/layout changes, and正文-first accessibility output. PASS. |
+| Optional WB86 hints | `CandidatePanelPresenterTests` verifies hint visibility, width-first hint removal, and font/layout changes. PASS. |
 | Selection learning | `DailyInputIntegrationTests` records a typed Pinyin learning key only when the frozen session policy permits it. PASS. |
 | Paging and bounds | `CandidateQueryTests` verifies prefix/exact lookup, bounded page decoding, stable pagination, and the maximum candidate count. PASS. |
 
 The adapter queries by the entire viable sequence, so a Pinyin continuation is neither truncated nor
-replayed as a synthetic event. Candidate accessibility values expose正文 before the optional Wubi
+replayed as a synthetic event. Candidate visible titles place正文 before the optional Wubi
 hint, and layout pressure removes the hint before truncating正文.
 
 ## Corruption and degradation results

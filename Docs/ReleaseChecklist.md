@@ -24,10 +24,11 @@
 - [ ] `Scripts/privacy-audit.sh` 对最终候选和正常/失败/导入/升级/私密模式流程通过。
 - [ ] 运行进程零网络连接，日志、导出和 Application Support diff 无输入内容或时间线。
 
-## 无障碍、兼容性与性能
+## 交互支持边界、兼容性与性能
 
-- [ ] VoiceOver、Accessibility Inspector、完全键盘控制、深浅色、高对比度、缩放、多显示器通过。
-- [ ] 开启无障碍功能后七类应用矩阵无回归。
+- [x] README、用户指南和规格明确标记 VoiceOver、旁白实用工具、Accessibility Inspector
+  及屏幕阅读器专用朗读、焦点、选择和设置导航不受支持；源码边界测试确认无专用实现。
+- [ ] 普通鼠标/键盘操作、深浅色、高对比度、减少动态效果、缩放和多显示器通过。
 - [x] Release 查询报告的全部样本 `< 2 ms`，并记录硬件、OS、Xcode、配置、语料、热身和百分位。
 - [x] `Scripts/measure-memory.sh /绝对路径/MacWubi.app` 在正常输入稳态下报告 physical footprint `< 15 MiB`。
 - [x] `Scripts/run-long-stress.sh /绝对路径/MacWubi.app 1000000` 完成 30 个逻辑输入日、至少
@@ -36,6 +37,6 @@
 
 ## 可追踪性
 
-- [ ] `FR-001…FR-031` 与 `SC-001…SC-013` 均有 PASS 证据；30 天实际用户替代研究与首次用户研究已完成。
+- [ ] `FR-001…FR-032` 与 `SC-001…SC-013` 均有 PASS 证据；30 天实际用户替代研究与首次用户研究已完成。
 - [ ] 词库来源、许可证、对应源、manifest、checksum 和双次可复现编译均通过。
 - [ ] 最终候选摘要、产物哈希、签名身份、公证结果和所有未决项记录在 evidence 文档中。

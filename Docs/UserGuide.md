@@ -6,6 +6,11 @@ Mac Wubi 86 仅支持 Apple Silicon（`arm64`）Mac，最低系统为 macOS 13�
 `x86_64`、Rosetta 2、Mac App Store 和 App Sandbox 均不在支持范围。输入、词库、学习和设置
 完全在本机完成，产品不建立网络连接。
 
+VoiceOver、旁白实用工具、Accessibility Inspector，以及屏幕阅读器专用的候选朗读、辅助
+焦点、辅助选择和设置导航明确不受支持。系统开启这些工具时，输入法仍应保持一般故障安全，
+但不保证其语音或辅助导航行为。普通鼠标/键盘操作、深浅色、高对比度、减少动态效果、缩放和
+多显示器布局仍在支持范围内。
+
 ## 安装与启用
 
 1. 使用可信的已签名构建，执行 `Scripts/install.sh /绝对路径/MacWubi.app`，并按系统提示提供

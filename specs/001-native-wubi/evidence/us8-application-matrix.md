@@ -1,4 +1,7 @@
-# US8 Seven-Application Accessibility Matrix
+# US8 Seven-Application Assistive-Technology Matrix (Historical and Superseded)
+
+> Feature 002 T061–T063 cancelled this matrix as a release gate because VoiceOver and screen-reader-specific
+> behavior are explicitly unsupported. This file remains only as historical evidence.
 
 Status: **SKIPPED BY USER — PENDING MANUAL EXECUTION**
 
@@ -18,7 +21,8 @@ input flows in all seven application classes with VoiceOver and Full Keyboard Ac
 
 No row may be marked PASS from fixture-only evidence, and no input or candidate text may be recorded.
 
-T101 remains open. Its VoiceOver/Full Keyboard Access seven-application rerun was explicitly skipped by
+This historical note originally left T101 open. Feature 002 T061–T063 later cancelled it because the
+VoiceOver/Full Keyboard Access seven-application rerun is outside the supported scope. It was skipped by
 the user on 2026-08-02 and must not be inferred from the automated fixture or the completed TextEdit checks.
 
 ## Available applications (2026-08-01)

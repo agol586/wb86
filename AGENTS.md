@@ -52,7 +52,9 @@ Build a native macOS Wubi 86 input method that can replace a commercial Wubi inp
 use while remaining private, simple, fast, and maintainable.
 
 “Replace” means supporting complete daily Wubi workflows, local personalization, settings, migration,
-long-term upgrades, privacy controls, and accessibility. It does not mean copying another product's
+long-term upgrades, privacy controls, and ordinary mouse/keyboard operation. VoiceOver, VoiceOver Utility,
+Accessibility Inspector, and screen-reader-specific speech, focus, selection, or settings navigation are
+explicitly unsupported. This does not mean copying another product's
 branding, proprietary implementation, private data format, advertising, telemetry, or online services.
 
 ## 4. Non-Negotiable Engineering Rules
@@ -77,7 +79,7 @@ branding, proprietary implementation, private data format, advertising, telemetr
 
 - `Sources/Core/` MUST NOT import AppKit or InputMethodKit.
 - `Sources/InputMethod/` is the system adapter boundary for `IMKServer`, `IMKInputController`, client
-  text operations, candidate presentation, settings windows, and accessibility.
+  text operations, candidate presentation, and settings windows.
 - Every input session owns independent composition state.
 - Cancel must clear marked text without inserting `originalString` or committing the current code.
 - Unhandled system/application shortcuts must pass through after any required safe reset.
@@ -144,8 +146,8 @@ repeatable failing measurement exists.
   product intentionally does not use App Sandbox and is not distributed through the Mac App Store.
 - `T019` in `tasks.md` is a hard stop: prove Developer-ID-route InputMethodKit discovery, enablement, connection,
   and cross-app input on macOS 13 and the current supported macOS before broader implementation.
-- `T020` decides whether the system candidate window meets keyboard, VoiceOver, focus, and display
-  requirements. Use the recorded verdict; do not assume undocumented behavior.
+- The candidate window must satisfy ordinary mouse/keyboard, focus-safety, and display requirements.
+  Do not add VoiceOver or screen-reader-specific trees, announcements, focus, actions, or validation gates.
 
 If either platform assumption fails, stop and report the evidence. The next action is a specification
 or constitution decision, not an undocumented entitlement or security-control workaround.
@@ -173,7 +175,6 @@ Tests/
 ├── ImportExportTests/
 ├── FailureRecoveryTests/
 ├── PrivacyTests/
-├── AccessibilityTests/
 ├── PerformanceTests/
 ├── ReleaseContractTests/
 └── IntegrationTests/
@@ -216,13 +217,14 @@ Scripts/privacy-audit.sh
 Until those scripts are implemented, run the smallest available checks and state the validation gap.
 After implementation, a release requires:
 
-- Unit, contract, integration, migration, recovery, privacy, accessibility, and performance tests.
+- Unit, contract, integration, migration, recovery, privacy, unsupported-assistive-technology boundary,
+  and performance tests.
 - A signed `arm64` binary on supported Apple Silicon validation hardware.
 - The complete `specs/001-native-wubi/quickstart.md` procedure.
 - Traceability for FR-001 through FR-031 and SC-001 through SC-013.
 
 Do not use production telemetry to validate reliability. Use deterministic tests, local stress harnesses,
-manual accessibility checks, and privacy-safe user studies.
+manual ordinary-interaction checks, and privacy-safe user studies.
 
 ## 12. Change Discipline
 

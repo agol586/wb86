@@ -1,4 +1,8 @@
-# Complete Automated Test Evidence
+# Complete Automated Test Evidence (Historical Run)
+
+> Specialized accessibility claims in this historical run were superseded on 2026-08-02. Feature 002
+> T061–T063 removed that code and replaced it with ordinary interaction regression tests plus an explicit
+> unsupported-assistive-technology source boundary. See the feature 002 US6 evidence for current results.
 
 Status: **PASS**
 

@@ -49,7 +49,7 @@
 - [X] T017 [P] Implement privacy-safe fixed-category diagnostics with no input-bearing fields in `Sources/Core/Diagnostics.swift`
 - [X] T018 Implement the IMKServer entry point, per-session controller skeleton, and candidate presenter abstraction in `Sources/InputMethod/AppDelegate.swift`, `Sources/InputMethod/InputController.swift`, and `Sources/InputMethod/CandidatePresenter.swift`
 - [X] T019 Build with Apple Development, sign, install, and record the non-sandbox InputMethodKit discovery, enablement, selection, launch, and real text-client connection verdict on the current Apple Silicon development macOS in `specs/001-native-wubi/evidence/inputmethod-distribution-gate.md`; defer macOS 13 and Developer ID/notarization to the final-release gates
-- [X] T020 Probe IMKCandidates keyboard, VoiceOver, Accessibility Inspector, focus, and multi-display behavior and record the system-wrapper-versus-custom-presenter decision in `specs/001-native-wubi/evidence/candidate-accessibility-gate.md`
+- [X] T020 Historical platform probe; its VoiceOver/Accessibility Inspector conclusions are superseded by feature 002 T061–T063, while the ordinary focus/multi-display presenter decision remains
 - [X] T021 Implement the candidate presenter selected by T020 as either a verified IMKCandidates wrapper or accessible custom panel in `Sources/InputMethod/SystemCandidatePresenter.swift` or `Sources/InputMethod/AccessibleCandidatePresenter.swift`
 - [X] T022 Create the single local verification entry point that runs unit, integration, release-contract, and fixture checks in `Scripts/test.sh`
 
@@ -240,27 +240,27 @@
 
 ---
 
-## Phase 10: User Story 8 - 无障碍与键盘优先操作 (Priority: P3)
+## Phase 10: User Story 8 - 普通键盘优先操作与辅助技术边界 (Priority: P3; scope amended 2026-08-02)
 
-**Goal**: Make candidate selection and all major settings perceivable and operable with VoiceOver, keyboard navigation, high contrast, scaling, and multiple displays.
+**Goal**: Preserve ordinary mouse/keyboard candidate and settings behavior, high contrast, reduced motion, scaling, and multiple displays. VoiceOver/screen-reader-specific behavior is unsupported.
 
-**Independent Test**: With VoiceOver and Full Keyboard Access, complete candidate navigation/selection and every major settings change across appearance and display variants.
+**Independent Test**: Complete candidate navigation/selection and every major settings change with ordinary mouse/keyboard across appearance/display variants, and verify no specialized screen-reader source remains.
 
 ### Tests for User Story 8
 
-- [X] T094 [P] [US8] Write failing candidate role, label, value, selected-state, order, action, and focus accessibility tests in `Tests/AccessibilityTests/CandidateAccessibilityTests.swift`
-- [X] T095 [P] [US8] Write failing keyboard-only settings traversal, error-announcement, destructive-confirmation, and focus-order tests in `Tests/AccessibilityTests/SettingsAccessibilityTests.swift`
+- [X] T094 [P] [US8] Historical implementation task; superseded and removed by feature 002 T062 after assistive-technology scope amendment
+- [X] T095 [P] [US8] Historical implementation task; superseded and removed by feature 002 T062 after assistive-technology scope amendment
 
 ### Implementation for User Story 8
 
-- [X] T096 [US8] Implement or complete the candidate accessibility representation selected by T020 in `Sources/InputMethod/AccessibilityAdapter.swift` and the presenter file selected by T021
+- [X] T096 [US8] Historical implementation task; `AccessibilityAdapter.swift` and specialized presenter behavior removed by feature 002 T062
 - [X] T097 [P] [US8] Implement candidate screen-bounds, scaling, full-screen, multi-display, reduced-motion, and high-contrast behavior in `Sources/InputMethod/CandidateLayoutController.swift`
-- [X] T098 [P] [US8] Complete settings labels, values, focus order, keyboard actions, and announced validation errors in `Sources/InputMethod/SettingsWindowController.swift`
-- [X] T099 [US8] Add VoiceOver and Full Keyboard Access manual scenario definitions without input-text logging in `Tests/AccessibilityTests/ManualAccessibilityScenarios.md`
-- [ ] T100 [US8] Execute VoiceOver, Accessibility Inspector, keyboard, appearance, scaling, and multi-display acceptance and record evidence in `specs/001-native-wubi/evidence/us8-accessibility.md` — SKIPPED BY USER; release gate remains open
-- [ ] T101 [US8] Re-run the seven-application core input matrix with accessibility features enabled and record deltas in `specs/001-native-wubi/evidence/us8-application-matrix.md` — SKIPPED BY USER; release gate remains open
+- [X] T098 [P] [US8] Preserve visible errors and ordinary keyboard focus in `Sources/InputMethod/SettingsWindowController.swift`; specialized announcements removed by feature 002 T062
+- [X] T099 [US8] Historical manual assistive-technology scenarios removed by feature 002 T062
+- [X] T100 [US8] CANCELLED BY SCOPE: VoiceOver/Accessibility Inspector acceptance is explicitly unsupported and is not a release gate
+- [X] T101 [US8] CANCELLED BY SCOPE: assistive-technology seven-application rerun is explicitly unsupported and is not a release gate
 
-**Checkpoint**: US8 completes the simple, keyboard-first product experience for assistive-technology users.
+**Checkpoint**: US8 retains ordinary keyboard-first behavior and an explicit unsupported assistive-technology boundary.
 
 ---
 
@@ -269,12 +269,12 @@
 **Purpose**: Satisfy constitution-wide quality, performance, documentation, and final release evidence after every desired story is complete.
 
 - [X] T102 [P] Add absolute wall-clock, percentile reporting, warm-up, corpus metadata, and machine metadata to `Tests/PerformanceTests/ReleasePerformanceTests.swift`
-- [X] T103 [P] Add eight-hour rapid-input, application-switch, session-churn, and memory-trend stress harness in `Tests/PerformanceTests/LongRunStressTests.swift`
+- [X] T103 [P] Add deterministic 30-logical-day/1,000,000-committed-character input, application-switch, session-churn, and memory-trend stress harness in `Tests/PerformanceTests/LongRunStressTests.swift`; supersedes the original eight-hour wall-clock wording
 - [X] T104 Optimize query working set and candidate decoding until all release lookup samples meet 2 ms in `Sources/Core/DictionaryIndex.swift` and document before/after evidence in `specs/001-native-wubi/evidence/performance.md`
 - [X] T105 Optimize process allocations, mapped resource residency, user indexes, and learning caches until normal-input RSS stays below 15 MB in `Sources/Core/DictionaryLoader.swift` and document evidence in `specs/001-native-wubi/evidence/memory.md`
 - [X] T106 [P] Finalize Wubi 86 coverage corpus, lexicon manifest, license notices, and reproducible compiler output in `Sources/Resources/wb86.manifest.json`, `Docs/LexiconProvenance.md`, and `Tests/Fixtures/Lexicon/wb86-acceptance.tsv`
 - [X] T107 [P] Write Apple-Silicon-only installation, enablement, daily input, modes, settings, personalization, migration, private mode, reset, and uninstall guidance in `Docs/UserGuide.md` and update product scope in `README.md`
-- [X] T108 [P] Create the constitution-aligned release checklist with exact-arm64, prohibited-x86_64, Developer ID, Hardened Runtime, notarization, privacy, recovery, migration, accessibility, and performance gates in `Docs/ReleaseChecklist.md`
+- [X] T108 [P] Create the constitution-aligned release checklist with exact-arm64, prohibited-x86_64, Developer ID, Hardened Runtime, notarization, privacy, recovery, migration, ordinary-interaction support boundary, and performance gates in `Docs/ReleaseChecklist.md`
 - [X] T109 Run `Scripts/test.sh` and record the complete automated result in `specs/001-native-wubi/evidence/automated-tests.md`
 - [ ] T110 Execute every scenario in `specs/001-native-wubi/quickstart.md` on Apple Silicon macOS 13 and the current supported macOS and record the final verdict in `specs/001-native-wubi/evidence/quickstart-validation.md`
 - [ ] T111 Build with Developer ID Application, secure timestamp and notarization; staple and assess with Gatekeeper; run `Scripts/build-release.sh`, `Scripts/verify-release.sh`, and `Scripts/privacy-audit.sh` against the final candidate; and record immutable command/output summaries in `specs/001-native-wubi/evidence/final-release.md`
@@ -336,11 +336,11 @@ Setup -> Foundational -> US1 -> US2 -> US4 -> US7 -> Polish
 US1: T023 InputEngine tests | T024 query tests | T025 adapter tests | T026 performance tests
 US2: T034 mode tests | T035 conversion tests; then T036 punctuation | T037 script compiler
 US3: T042 snapshot tests | T043 user lexicon tests | T044 learning tests | T045 private-mode tests
-US4: T055 settings storage tests | T056 settings accessibility tests
+US4: T055 settings storage tests | T056 historical settings UI tests (moved/superseded by feature 002)
 US5: T063 importer tests | T064 exporter tests | T065 file-panel tests
 US6: T073 migration tests | T074 recovery tests | T075 installation tests
 US7: T084 data tests | T085 diagnostics tests | T086 release privacy tests
-US8: T094 candidate accessibility tests | T095 settings accessibility tests
+US8: T094/T095 historical assistive-technology tests (removed by feature 002 T062)
 ```
 
 ## Implementation Strategy
@@ -360,7 +360,7 @@ US8: T094 candidate accessibility tests | T095 settings accessibility tests
 1. Core input slice -> validate US1 without calling it a product release.
 2. Mode and personalization slices -> validate long-form daily input.
 3. Settings, migration, lifecycle, and privacy slices -> validate long-term replacement readiness.
-4. Accessibility and final performance/release gates -> validate complete product readiness.
+4. Ordinary interaction support boundary and final performance/release gates -> validate complete product readiness.
 
 ### Multi-Lane Execution
 
@@ -374,4 +374,5 @@ US6 and US7 integrate the stable persistence and UI contracts. Shared-file owner
 - Story labels map directly to the eight user stories in spec.md.
 - Evidence tasks are part of completion, not optional documentation.
 - No new dependency may be added without an explicit constitution-compliant decision.
-- Failed architecture, signature, notarization, Hardened Runtime, privacy, recovery, accessibility, or performance gates block release.
+- Failed architecture, signature, notarization, Hardened Runtime, privacy, recovery, ordinary interaction,
+  unsupported-assistive-technology boundary, or performance gates block release.
