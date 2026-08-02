@@ -45,6 +45,8 @@ final class SettingsCoordinator {
         try store.save(settings)
         sessions.removeAll { $0.value == nil }
         let published = store.snapshot
+        // Sessions extract appearance immediately while staging semantic changes
+        // until their current composition reaches a safe idle boundary.
         sessions.compactMap(\.value).forEach { $0.stage(settingsSnapshot: published) }
         globalApply(published.settings)
     }

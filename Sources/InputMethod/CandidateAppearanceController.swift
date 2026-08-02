@@ -1,5 +1,9 @@
 import AppKit
 
+protocol CandidateAppearanceApplying: CandidatePresenting {
+    func apply(settings: InputSettings)
+}
+
 struct CandidatePreview: Equatable, Sendable {
     let items: [String]
     let layout: CandidateLayout
@@ -13,7 +17,7 @@ final class CandidateAppearanceController {
                          fontScale: settings.candidateFontScale)
     }
 
-    func apply(settings: InputSettings, to presenter: AccessibleCandidatePresenter) {
+    func apply(settings: InputSettings, to presenter: CandidateAppearanceApplying) {
         presenter.apply(settings: settings)
     }
 }

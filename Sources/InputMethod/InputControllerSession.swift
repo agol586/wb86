@@ -15,6 +15,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     private weak var activeClient: InputClientProxy?
     private(set) var activeSnapshot = SettingsSnapshot(generation: 0, settings: .default)
     private(set) var pendingSnapshot: SettingsSnapshot?
+    private(set) var appearanceSettings = InputSettings.default
     private var hasAppliedSettingsSnapshot = false
     private var hasInitializedMode = false
 
@@ -108,6 +109,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
 
     func apply(settings: InputSettings) {
         guard state == .idle else { return }
+        applyAppearance(settings)
         activeSnapshot = SettingsSnapshot(generation: activeSnapshot.generation,
                                           settings: settings)
         hasAppliedSettingsSnapshot = true
@@ -116,7 +118,6 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             engine.initializeMode(from: settings.defaultMode)
             hasInitializedMode = true
         }
-        (presenter as? AccessibleCandidatePresenter)?.apply(settings: settings)
     }
 
     func stage(settingsSnapshot: SettingsSnapshot) {
@@ -125,6 +126,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
         guard !hasAppliedSettingsSnapshot || settingsSnapshot.generation >= newestGeneration else {
             return
         }
+        applyAppearance(settingsSnapshot.settings)
         if state == .idle {
             applySnapshot(settingsSnapshot)
         } else if pendingSnapshot == nil
@@ -147,7 +149,11 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             engine.initializeMode(from: snapshot.settings.defaultMode)
             hasInitializedMode = true
         }
-        (presenter as? AccessibleCandidatePresenter)?.apply(settings: snapshot.settings)
+    }
+
+    private func applyAppearance(_ settings: InputSettings) {
+        appearanceSettings = settings
+        (presenter as? CandidateAppearanceApplying)?.apply(settings: settings)
     }
 
     private func apply(_ action: ClientTextAction, to client: InputClientProxy) throws {

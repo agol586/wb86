@@ -1,9 +1,56 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import MacWubi
 
 @MainActor
 final class SettingsIntegrationTests: XCTestCase {
+    func testAppearanceAppliesImmediatelyWhileSemanticSnapshotWaitsAndModeStaysTemporary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiAppearanceDelay-\(UUID().uuidString)")
+        let coordinator = SettingsCoordinator(
+            store: try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        )
+        let presenter = SettingsAppearancePresenter()
+        let engine = InputEngine { code, page in
+            try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+        }
+        let session = InputControllerSession(engine: engine, presenter: presenter)
+        let client = SettingsInputClient()
+        coordinator.register(session)
+        _ = session.handle(.switchWidth, client: client)
+        XCTAssertEqual(session.mode.width, .full)
+        _ = session.handle(.letter("a"), client: client)
+        XCTAssertEqual(session.state.kind, .composing)
+
+        var changed = InputSettings.default
+        changed.candidateLayout = .horizontal
+        changed.candidateFontScale = 1.5
+        changed.defaultMode.width = .half
+        changed.defaultMode.script = .traditional
+        try coordinator.save(changed)
+
+        XCTAssertEqual(session.appearanceSettings.candidateLayout, .horizontal)
+        XCTAssertEqual(presenter.applied.last?.candidateFontScale, 1.5)
+        XCTAssertEqual(session.activeSnapshot.generation, 0)
+        XCTAssertEqual(session.pendingSnapshot?.generation, 1)
+        XCTAssertEqual(session.mode.width, .full)
+
+        _ = session.handle(.cancel, client: client)
+        XCTAssertEqual(session.activeSnapshot.generation, 1)
+        XCTAssertNil(session.pendingSnapshot)
+        XCTAssertEqual(session.mode.width, .full)
+
+        let newSession = InputControllerSession(
+            engine: InputEngine { code, page in
+                try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+            },
+            presenter: SettingsAppearancePresenter()
+        )
+        coordinator.register(newSession)
+        XCTAssertEqual(newSession.mode, changed.defaultMode)
+    }
+
     func testSessionsFreezeActiveSnapshotAndKeepOnlyLatestPendingGeneration() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiSessionSnapshots-\(UUID().uuidString)")
@@ -90,6 +137,24 @@ final class SettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .userLexicon)), userBefore)
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
     }
+}
+
+private final class SettingsAppearancePresenter: CandidateAppearanceApplying {
+    var applied = [InputSettings]()
+    var isVisible = false
+    func apply(settings: InputSettings) { applied.append(settings) }
+    func update(with page: CandidatePage) {}
+    func show() {}
+    func hide() {}
+    func setAnchorTopLeft(_ point: NSPoint) {}
+    func setSelectionHandler(_ handler: @escaping (Int) -> Void) {}
+}
+
+private final class SettingsInputClient: InputClientProxy {
+    func setMarkedText(_ text: String) throws {}
+    func commitText(_ text: String) throws {}
+    func clearMarkedText() throws {}
+    func candidateAnchorTopLeft() -> NSPoint? { nil }
 }
 
 private final class SettingsIntegrationSession: SettingsSessionControlling {

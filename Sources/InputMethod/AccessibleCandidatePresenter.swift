@@ -1,6 +1,6 @@
 import AppKit
 
-final class AccessibleCandidatePresenter: NSObject, CandidatePresenting {
+final class AccessibleCandidatePresenter: NSObject, CandidateAppearanceApplying {
     typealias SelectionHandler = (Int) -> Void
 
     private let panel: NonActivatingCandidatePanel
