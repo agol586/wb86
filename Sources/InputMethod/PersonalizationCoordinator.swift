@@ -69,17 +69,23 @@ final class PersonalizationCoordinator {
             pageSize: policy.pageSize,
             automaticFrequency: includeLearning
         )
+        let learningRecords: [LearnedCandidateRanking]
+        if includeLearning, let snapshot = learningStore?.snapshot {
+            learningRecords = snapshot.records.map {
+                LearnedCandidateRanking(queryKey: $0.queryKey,
+                                        candidateText: $0.candidateText,
+                                        score: $0.score)
+            }
+        } else {
+            learningRecords = []
+        }
         return try CandidateRanker(policy: effectivePolicy).page(
             for: code,
             records: records,
             userEntries: userStore?.snapshot.entries.map {
                 UserCandidateRanking(code: $0.code, text: $0.text, fixedRank: $0.fixedRank)
             } ?? [],
-            learningRecords: learningStore?.snapshot.records.compactMap {
-                guard let code = $0.code else { return nil }
-                return LearnedCandidateRanking(code: code, candidateText: $0.candidateText,
-                                               score: $0.score)
-            } ?? [],
+            learningRecords: learningRecords,
             pageIndex: pageIndex
         )
     }

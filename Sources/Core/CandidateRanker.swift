@@ -25,9 +25,19 @@ struct UserCandidateRanking: Equatable, Sendable {
 }
 
 struct LearnedCandidateRanking: Equatable, Sendable {
-    let code: InputCode
+    let queryKey: CandidateQueryKey
     let candidateText: String
     let score: Int
+
+    init(code: InputCode, candidateText: String, score: Int) {
+        self.init(queryKey: .wubi(code), candidateText: candidateText, score: score)
+    }
+
+    init(queryKey: CandidateQueryKey, candidateText: String, score: Int) {
+        self.queryKey = queryKey
+        self.candidateText = candidateText
+        self.score = score
+    }
 }
 
 struct CandidateRanker: Sendable {
@@ -59,10 +69,13 @@ struct CandidateRanker: Sendable {
         }
 
         let matchingUsers = userEntries.filter { $0.code == code }
-        let matchingLearning = learningEnabled ? learningRecords.filter { $0.code == code } : []
-        let scores = Dictionary(uniqueKeysWithValues: matchingLearning.map {
-            ($0.candidateText, $0.score)
-        })
+        let queryKey = CandidateQueryKey.wubi(code)
+        let matchingLearning = learningEnabled
+            ? learningRecords.filter { $0.queryKey == queryKey } : []
+        var scores = [String: Int]()
+        for record in matchingLearning {
+            scores[record.candidateText] = max(scores[record.candidateText] ?? 0, record.score)
+        }
         struct RankedValue {
             let text: String
             var source: CandidateSource
@@ -133,12 +146,19 @@ struct CandidateRanker: Sendable {
 
     static func rank(candidates: [Candidate], learningEnabled: Bool) -> [Candidate] {
         candidates.sorted {
+            let lhsTier = sourceTier($0.source)
+            let rhsTier = sourceTier($1.source)
+            if lhsTier != rhsTier { return lhsTier < rhsTier }
             let lhsScore = learningEnabled ? $0.learnedScore : 0
             let rhsScore = learningEnabled ? $1.learnedScore : 0
             if lhsScore != rhsScore { return lhsScore > rhsScore }
             if $0.baseRank != $1.baseRank { return $0.baseRank < $1.baseRank }
             return $0.text.utf8.lexicographicallyPrecedes($1.text.utf8)
         }
+    }
+
+    private static func sourceTier(_ source: CandidateSource) -> Int {
+        source == .localPinyin ? 1 : 0
     }
 }
 

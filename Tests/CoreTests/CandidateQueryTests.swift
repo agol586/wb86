@@ -112,4 +112,38 @@ final class CandidateQueryTests: XCTestCase {
                                        pageIndex: 0)
         XCTAssertEqual(disabled.items.map(\.text), ["用户词", "甲", "乙"])
     }
+
+    func testLearningRequiresExactTypedQueryKeyAndCannotCrossSourceTier() throws {
+        let code = try XCTUnwrap(InputCode("a"))
+        let otherCode = try XCTUnwrap(InputCode("b"))
+        let records = try [
+            DictionaryEntryRecord(code: code, rank: 0, text: "甲"),
+            DictionaryEntryRecord(code: code, rank: 1, text: "乙")
+        ]
+        let learning = [
+            LearnedCandidateRanking(queryKey: .wubi(code), candidateText: "乙", score: 5),
+            LearnedCandidateRanking(
+                queryKey: try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "a")),
+                candidateText: "甲", score: 99
+            ),
+            LearnedCandidateRanking(queryKey: .wubi(otherCode),
+                                    candidateText: "甲", score: 99)
+        ]
+        let page = try CandidateRanker(pageSize: 5).page(
+            for: code, records: records, userEntries: [], learningRecords: learning,
+            learningEnabled: true, pageIndex: 0
+        )
+        XCTAssertEqual(page.items.map(\.text), ["乙", "甲"])
+        XCTAssertEqual(page.items.map(\.learnedScore), [5, 0])
+
+        let wubi = try Candidate(text: "五笔", code: code, source: .base,
+                                 baseRank: 1, learnedScore: 0, ordinal: 1)
+        let pinyinKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "a"))
+        let pinyin = try Candidate(text: "拼音", queryKey: pinyinKey,
+                                   source: .localPinyin, baseRank: 0,
+                                   learnedScore: 100, ordinal: 2)
+        XCTAssertEqual(CandidateRanker.rank(candidates: [pinyin, wubi],
+                                            learningEnabled: true).map(\.text),
+                       ["五笔", "拼音"])
+    }
 }
