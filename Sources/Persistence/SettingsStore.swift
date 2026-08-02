@@ -182,4 +182,102 @@ final class SettingsStore {
     }
 
     func restoreDefaults() throws { try save(.default) }
+
+    static func migrateV1Payload(_ data: Data) throws -> Data {
+        try InputSettingsV1.validateExactShape(data)
+        let legacy: InputSettingsV1
+        do {
+            legacy = try JSONDecoder().decode(InputSettingsV1.self, from: data)
+        } catch {
+            throw SettingsValidationError.corruptPayload
+        }
+        let settings = try legacy.v2Settings().validated()
+        return try JSONEncoder.sorted.encode(settings)
+    }
+}
+
+private struct InputSettingsV1: Decodable {
+    let candidatePageSize: Int
+    let candidateLayout: CandidateLayout
+    let candidateFontScale: Double
+    let keyBindings: KeyBindingSettingsV1
+    let autoCommitAtFour: Bool
+    let defaultMode: InputMode
+    let learningEnabled: Bool
+
+    func v2Settings() throws -> InputSettings {
+        try InputSettings(
+            candidatePageSize: candidatePageSize,
+            candidateLayout: candidateLayout,
+            candidateFontScale: candidateFontScale,
+            keyBindings: keyBindings.v2Settings(),
+            autoCommitAtFour: autoCommitAtFour,
+            autoCommitFirstAtFive: false,
+            defaultMode: defaultMode,
+            automaticFrequency: learningEnabled,
+            mixedPinyinEnabled: false,
+            codeHintEnabled: false,
+            candidate2And3ShortcutsEnabled: false
+        )
+    }
+
+    static func validateExactShape(_ data: Data) throws {
+        guard let root = try? JSONSerialization.jsonObject(with: data),
+              let object = root as? [String: Any],
+              Set(object.keys) == topLevelKeys,
+              let mode = object["defaultMode"] as? [String: Any],
+              Set(mode.keys) == modeKeys,
+              let bindings = object["keyBindings"] as? [String: Any],
+              Set(bindings.keys) == bindingKeys,
+              let switchObject = bindings["modeSwitch"] as? [String: Any],
+              switchObject.count == 1,
+              let switchName = switchObject.keys.first,
+              switchCases.contains(switchName),
+              let associatedValues = switchObject[switchName] as? [String: Any]
+        else {
+            throw SettingsValidationError.corruptPayload
+        }
+
+        if switchName == "custom" {
+            guard Set(associatedValues.keys) == ["_0"],
+                  associatedValues["_0"] is String else {
+                throw SettingsValidationError.corruptPayload
+            }
+        } else if !associatedValues.isEmpty {
+            throw SettingsValidationError.corruptPayload
+        }
+    }
+
+    private static let topLevelKeys: Set<String> = [
+        "candidatePageSize", "candidateLayout", "candidateFontScale", "keyBindings",
+        "autoCommitAtFour", "defaultMode", "learningEnabled"
+    ]
+    private static let modeKeys: Set<String> = [
+        "language", "punctuation", "width", "script"
+    ]
+    private static let bindingKeys: Set<String> = ["modeSwitch", "pageKeys"]
+    private static let switchCases: Set<String> = ["controlShiftDigits", "custom", "disabled"]
+}
+
+private struct KeyBindingSettingsV1: Decodable {
+    let modeSwitch: ModeSwitchBindingV1
+    let pageKeys: CandidatePageKeySet
+
+    func v2Settings() throws -> KeyBindingSettings {
+        try KeyBindingSettings(modeSwitch: modeSwitch.v2Binding, pageKeys: pageKeys)
+    }
+}
+
+private enum ModeSwitchBindingV1: Decodable {
+    case controlShiftDigits
+    case custom(String)
+    case disabled
+
+    var v2Binding: ModeSwitchBinding {
+        switch self {
+        case .controlShiftDigits: return .legacyControlShiftDigits
+        case let .custom(value): return .custom(value)
+        case .disabled: return .disabled
+        }
+    }
 }
