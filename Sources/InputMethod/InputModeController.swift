@@ -3,21 +3,15 @@ import AppKit
 final class InputModeController: NSObject {
     static let shared = InputModeController()
 
-    private let statusItem: NSStatusItem
     private var handler: ((InputEvent) -> Void)?
     private var currentMode = InputMode.default
 
-    private override init() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        super.init()
-        update(mode: .default)
-    }
+    private override init() { super.init() }
 
     func activate(mode: InputMode, handler: @escaping (InputEvent) -> Void) {
         precondition(Thread.isMainThread)
         self.handler = handler
         update(mode: mode)
-        statusItem.menu = makeMenu()
     }
 
     func menu(mode: InputMode, handler: @escaping (InputEvent) -> Void) -> NSMenu {
@@ -28,9 +22,6 @@ final class InputModeController: NSObject {
     func update(mode: InputMode) {
         precondition(Thread.isMainThread)
         currentMode = mode
-        statusItem.button?.title = Self.label(for: mode)
-        statusItem.button?.toolTip = Self.modeDescription(for: mode)
-        statusItem.menu = makeMenu()
     }
 
     private func makeMenu() -> NSMenu {
@@ -77,13 +68,6 @@ final class InputModeController: NSObject {
         return "五·\(language)·\(punctuation)·\(width)·\(script)"
     }
 
-    private static func modeDescription(for mode: InputMode) -> String {
-        let language = mode.language == .chinese ? "中文输入" : "直接英文"
-        let punctuation = mode.punctuation == .chinese ? "中文标点" : "英文标点"
-        let width = mode.width == .half ? "半角" : "全角"
-        let script = mode.script == .simplified ? "简体" : "繁体"
-        return "\(language)，\(punctuation)，\(width)，\(script)"
-    }
 }
 
 private final class EventBox: NSObject {

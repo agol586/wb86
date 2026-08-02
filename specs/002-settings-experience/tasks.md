@@ -296,6 +296,6 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
 - [X] T065 [US2] 先在 `Tests/AdapterContractTests/StandaloneShiftRecognizerTests.swift` 与 `InputControllerContractTests.swift` 覆盖左右 Shift/Control、Caps Lock、长按、组合键、交错、reset、代次变化及事件透传，再将 `Sources/InputMethod/StandaloneShiftRecognizer.swift` 泛化为活动 InputMethodKit 会话内的修饰键单击识别并接入 `Sources/InputMethod/InputController.swift` per FR-014/US2-AC1 (missing)
 - [X] T066 [US2] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖中英文切换仅显示 Shift、Control、Caps Lock、禁用且正确回显/保存，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现按字段限定的切换选项 per FR-014/US2-AC2/SC-014 (partial)
 - [X] T067 [US2] 先在 `Tests/AdapterContractTests/InputModeControllerTests.swift` 覆盖菜单模式项不显示写死或无效的 `Control-Shift-1…4`，再在 `Sources/InputMethod/InputModeController.swift` 删除误导性标题提示并按真实绑定呈现 per FR-033/US2-AC6 (contradicts)
-- [ ] T068 [US2] 在 `Tests/AdapterContractTests/InputModeControllerTests.swift` 添加零额外 `NSStatusItem` 生命周期契约，再从 `Sources/InputMethod/InputModeController.swift` 删除重复常驻状态栏项目并保持 InputMethodKit 系统菜单、点击切换和“设置…”入口可用 per FR-033/SC-014 (contradicts)
+- [X] T068 [US2] 在 `Tests/AdapterContractTests/InputModeControllerTests.swift` 添加零额外 `NSStatusItem` 生命周期契约，再从 `Sources/InputMethod/InputModeController.swift` 删除重复常驻状态栏项目并保持 InputMethodKit 系统菜单、点击切换和“设置…”入口可用 per FR-033/SC-014 (contradicts)
 
 **Checkpoint**: 语言切换四种配置、系统输入菜单与状态栏行为和规格一致；完成 T027 真机矩阵后重新运行完整发布回归。
