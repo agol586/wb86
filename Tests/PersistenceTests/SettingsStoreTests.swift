@@ -89,6 +89,46 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
     }
 
+    func testFutureCurrentIsPreservedByteForByteAndMakesSettingsReadOnly() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiFutureSettings-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+
+        let supportedPayload = try JSONEncoder.sorted.encode(InputSettings.default)
+        let supported = try DataSnapshot(domain: .settings,
+                                         schemaVersion: InputSettings.schemaVersion,
+                                         generation: 10, payload: supportedPayload)
+        try writer.commit(supported)
+        let future = try DataSnapshot(domain: .settings, schemaVersion: 99,
+                                      generation: 11, payload: Data("future opaque bytes".utf8))
+        try writer.commit(future)
+        let currentBefore = try Data(contentsOf: writer.currentURL(for: .settings))
+        let previousBefore = try Data(contentsOf: writer.previousURL(for: .settings))
+
+        XCTAssertEqual(try writer.preflightCurrentSchema(
+            .settings, supportedSchemaVersions: [InputSettings.schemaVersion]
+        ), .unsupported(version: 99))
+
+        let store = try SettingsStore(writer: writer)
+        XCTAssertEqual(store.access, .readOnlyFuture(schemaVersion: 99))
+        XCTAssertEqual(store.snapshot, SettingsSnapshot(generation: 0, settings: .default))
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), currentBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.previousURL(for: .settings)), previousBefore)
+
+        var changed = InputSettings.default
+        changed.candidatePageSize = 9
+        XCTAssertThrowsError(try store.save(changed)) { error in
+            XCTAssertEqual(error as? SettingsValidationError, .unsupportedSchema)
+        }
+        XCTAssertThrowsError(try store.restoreDefaults()) { error in
+            XCTAssertEqual(error as? SettingsValidationError, .unsupportedSchema)
+        }
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), currentBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.previousURL(for: .settings)), previousBefore)
+        XCTAssertEqual(try writer.load(.settings), future)
+        XCTAssertEqual(try writer.loadPrevious(.settings), supported)
+    }
+
     func testCoordinatorDefersApplicationUntilEverySessionIsIdle() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiSettingsApply-\(UUID().uuidString)")

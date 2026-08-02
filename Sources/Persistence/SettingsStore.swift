@@ -25,6 +25,11 @@ struct SettingsSnapshot: Equatable, Sendable {
     }
 }
 
+enum SettingsStoreAccess: Equatable, Sendable {
+    case writable
+    case readOnlyFuture(schemaVersion: UInt32)
+}
+
 struct InputSettings: Equatable, Codable, Sendable {
     static let schemaVersion: UInt32 = 2
 
@@ -143,12 +148,20 @@ struct InputSettings: Equatable, Codable, Sendable {
 final class SettingsStore {
     private let writer: SnapshotWriter
     private(set) var snapshot = SettingsSnapshot(generation: 0, settings: .default)
+    private(set) var access = SettingsStoreAccess.writable
 
     var generation: UInt64 { snapshot.generation }
     var settings: InputSettings { snapshot.settings }
 
     init(writer: SnapshotWriter) throws {
         self.writer = writer
+        if case let .unsupported(version)? = try? writer.preflightCurrentSchema(
+            .settings,
+            supportedSchemaVersions: [InputSettings.schemaVersion]
+        ), version > InputSettings.schemaVersion {
+            access = .readOnlyFuture(schemaVersion: version)
+            return
+        }
         if let recovered = try writer.recover(
             .settings,
             supportedSchemaVersions: [InputSettings.schemaVersion]
@@ -163,6 +176,7 @@ final class SettingsStore {
     }
 
     func save(_ value: InputSettings) throws {
+        guard access == .writable else { throw SettingsValidationError.unsupportedSchema }
         let validated = try value.validated()
         let increment = generation.addingReportingOverflow(1)
         guard !increment.overflow else { throw SettingsValidationError.generationExhausted }

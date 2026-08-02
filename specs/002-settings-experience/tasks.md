@@ -147,7 +147,7 @@
 所有有效值保留，错误有具体反馈，future 原字节保留，UserLexicon/Learning 内容和代次不变。
 
 - [X] T046 [US5] 先在 `Tests/MigrationTests/DataMigratorTests.swift` 加入 golden v1 payload 的全部字段精确映射、兼容默认和幂等测试，再在 `Sources/Persistence/SettingsStore.swift` 与 `Sources/Persistence/DataMigrator.swift` 实现严格私有 `InputSettingsV1` 到 v2 原子迁移
-- [ ] T047 [US5] 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 覆盖 future current 字节保留、只读 Save/Restore 拒绝及 supported previous 不覆盖 future，再在 `Sources/Persistence/SettingsStore.swift` 和 `Sources/Persistence/SnapshotWriter.swift` 实现 schema 预检与只读兼容状态
+- [X] T047 [US5] 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 覆盖 future current 字节保留、只读 Save/Restore 拒绝及 supported previous 不覆盖 future，再在 `Sources/Persistence/SettingsStore.swift` 和 `Sources/Persistence/SnapshotWriter.swift` 实现 schema 预检与只读兼容状态
 - [ ] T048 [US5] 在 `Tests/MigrationTests/DataMigratorTests.swift` 和 `Tests/PersistenceTests/SnapshotWriterTests.swift` 注入 stage/write/validate/rename 各阶段中断，修正 `Sources/Persistence/DataMigrator.swift` 和 `Sources/Persistence/SnapshotWriter.swift` 使重启总能恢复最后完整快照
 - [ ] T049 [US5] 在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖字段级错误、最后有效 baseline、future 只读提示和焦点定位，再在 `Sources/InputMethod/SettingsWindowController.swift` 与 `Sources/InputMethod/SettingsCoordinator.swift` 实现拒绝保存及可访问反馈
 - [ ] T050 [US5] 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 与 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖恢复确认、取消、I/O 失败和其他域字节/代次不变，再在 `Sources/InputMethod/SettingsWindowController.swift` 和 `Sources/Persistence/SettingsStore.swift` 实现仅 Settings 的原子恢复默认

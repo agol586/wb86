@@ -12,6 +12,12 @@ enum SnapshotWriterError: Error, Equatable {
     case validationFailed
 }
 
+enum SnapshotSchemaPreflight: Equatable, Sendable {
+    case absent
+    case supported(version: UInt32)
+    case unsupported(version: UInt32)
+}
+
 final class SnapshotWriter {
     typealias FailureInjector = (SnapshotCommitStage) throws -> Void
 
@@ -108,6 +114,25 @@ final class SnapshotWriter {
         let snapshot = try loadUnlocked(url)
         guard snapshot.domain == domain else { throw SnapshotWriterError.domainMismatch }
         return snapshot
+    }
+
+    /// Inspects only the current envelope and never recovers, replaces, or removes a file.
+    /// Callers use this before corruption recovery so a future schema cannot be mistaken for
+    /// an invalid current snapshot and overwritten by an older supported previous snapshot.
+    func preflightCurrentSchema(
+        _ domain: DataDomain,
+        supportedSchemaVersions: Set<UInt32>
+    ) throws -> SnapshotSchemaPreflight {
+        lock.lock()
+        defer { lock.unlock() }
+        let url = currentURL(for: domain)
+        guard fileManager.fileExists(atPath: url.path) else { return .absent }
+        let snapshot = try loadUnlocked(url)
+        guard snapshot.domain == domain else { throw SnapshotWriterError.domainMismatch }
+        if supportedSchemaVersions.contains(snapshot.schemaVersion) {
+            return .supported(version: snapshot.schemaVersion)
+        }
+        return .unsupported(version: snapshot.schemaVersion)
     }
 
     func recover(_ domain: DataDomain,
