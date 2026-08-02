@@ -51,6 +51,57 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.draftSettings.automaticFrequency)
     }
 
+    func testKeyPageShowsThreeBindingsFivePageGroupsAndKeyboardLayout() {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let labels = Set(controller.accessibleControls.compactMap { $0.accessibilityLabel() })
+        XCTAssertTrue(labels.isSuperset(of: [
+            "中英文切换", "简繁切换", "全半角切换", "键盘布局",
+            "逗号句号翻页", "减号等号翻页", "中括号翻页",
+            "Tab/Shift-Tab 翻页", "上下方向键翻页"
+        ]))
+
+        let popups = controller.accessibleControls.compactMap { $0 as? NSPopUpButton }
+        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "中英文切换"
+            && $0.titleOfSelectedItem == "Shift" })
+        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "简繁切换"
+            && $0.titleOfSelectedItem == "Control-Shift-F" })
+        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "全半角切换"
+            && $0.titleOfSelectedItem == "禁用" })
+        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "键盘布局"
+            && $0.itemTitles == ["美国 ANSI", "跟随系统布局"] })
+
+        let pageButtons = controller.accessibleControls.compactMap { $0 as? NSButton }
+            .filter { ($0.accessibilityLabel() ?? "").hasSuffix("翻页") }
+        XCTAssertEqual(pageButtons.count, 5)
+        XCTAssertEqual(pageButtons.filter { $0.state == .on }.count, 4)
+        XCTAssertEqual(pageButtons.first { $0.accessibilityLabel() == "上下方向键翻页" }?.state,
+                       .off)
+    }
+
+    func testKeyBindingConflictAndUnavailableLayoutFocusExactControl() {
+        let conflict = SettingsWindowController.makeForTesting()
+        conflict.loadWindow()
+        conflict.updateDraft { draft in
+            draft.keyBindings.scriptSwitch = .standaloneShift
+        }
+        XCTAssertFalse(conflict.saveDraft())
+        XCTAssertEqual(conflict.lastFocusedControlLabel, "简繁切换")
+        XCTAssertTrue(conflict.lastValidationAnnouncement?.contains("重复") == true)
+
+        let unavailable = SettingsWindowController(
+            settings: .default,
+            layoutAvailability: { $0 == .us }
+        )
+        unavailable.loadWindow()
+        unavailable.updateDraft { draft in
+            draft.keyBindings.keyboardLayout = .followSystem
+        }
+        XCTAssertFalse(unavailable.saveDraft())
+        XCTAssertEqual(unavailable.lastFocusedControlLabel, "键盘布局")
+        XCTAssertTrue(unavailable.lastValidationAnnouncement?.contains("不可用") == true)
+    }
+
     func testAppearancePreviewContainsNoCandidateOrInputText() {
         let preview = CandidateAppearanceController().preview(settings: .default)
         XCTAssertEqual(preview.items, ["1  示例", "2  示例", "3  示例"])

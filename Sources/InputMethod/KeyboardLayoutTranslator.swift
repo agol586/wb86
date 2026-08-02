@@ -19,6 +19,10 @@ final class KeyboardLayoutTranslator {
 
     private let systemSnapshotProvider: SystemSnapshotProvider
 
+    static var isCurrentSystemLayoutAvailable: Bool {
+        CurrentASCIIKeyboardLayout.snapshot() != nil
+    }
+
     init(systemSnapshotProvider: @escaping SystemSnapshotProvider = {
         CurrentASCIIKeyboardLayout.snapshot()
     }) {

@@ -6,10 +6,17 @@ enum SettingsDestructiveAction: Sendable {
     case deleteAllPersonalization
 }
 
+private enum SettingsWindowValidationError: Error {
+    case keyBinding(KeyBindingConflict)
+}
+
 final class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController(
         settings: SettingsCoordinator.shared?.settings ?? .default,
-        saveHandler: { try SettingsCoordinator.shared?.save($0) }
+        saveHandler: { try SettingsCoordinator.shared?.save($0) },
+        layoutAvailability: { selection in
+            selection == .us || KeyboardLayoutTranslator.isCurrentSystemLayoutAvailable
+        }
     )
 
     let groupTitles = ["常用", "按键", "外观", "高级"]
@@ -21,8 +28,8 @@ final class SettingsWindowController: NSWindowController {
     private(set) var draftSettings: InputSettings
     var savedSettings: InputSettings { settings }
     private let saveHandler: (InputSettings) throws -> Void
+    private let keyBindingValidator: KeyBindingValidator
     private var controlsByTitle = [String: NSButton]()
-    private var pageKeysPopup: NSPopUpButton?
     private var pageSizeStepper: NSStepper?
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
@@ -33,10 +40,12 @@ final class SettingsWindowController: NSWindowController {
     private let privacyViewController = PrivacyViewController.makeDefault()
 
     init(settings: InputSettings,
-         saveHandler: @escaping (InputSettings) throws -> Void = { _ in }) {
+         saveHandler: @escaping (InputSettings) throws -> Void = { _ in },
+         layoutAvailability: @escaping KeyBindingValidator.LayoutAvailability = { _ in true }) {
         self.settings = settings
         draftSettings = settings
         self.saveHandler = saveHandler
+        keyBindingValidator = KeyBindingValidator(isLayoutAvailable: layoutAvailability)
         super.init(window: nil)
     }
 
@@ -50,7 +59,6 @@ final class SettingsWindowController: NSWindowController {
         accessibleControls.removeAll()
         controlsByTitle.removeAll()
         popupsByLabel.removeAll()
-        pageKeysPopup = nil
         pageSizeStepper = nil
         layoutPopup = nil
         fontScaleSlider = nil
@@ -89,6 +97,9 @@ final class SettingsWindowController: NSWindowController {
 
     func apply(_ value: InputSettings) throws {
         let validated = try value.validated()
+        if let conflict = keyBindingValidator.validate(validated.keyBindings).conflicts.first {
+            throw SettingsWindowValidationError.keyBinding(conflict)
+        }
         try saveHandler(validated)
         settings = validated
         draftSettings = validated
@@ -105,6 +116,8 @@ final class SettingsWindowController: NSWindowController {
             reject("设置无效：候选数量必须为 5 至 9。", focus: "每页候选数量 5 至 9")
         } catch SettingsValidationError.invalidFontScale {
             reject("设置无效：候选字号缩放必须为 0.8 至 2.0。", focus: "候选字号缩放")
+        } catch let SettingsWindowValidationError.keyBinding(conflict) {
+            reject(message(for: conflict), focus: label(for: conflict.field))
         } catch SettingsValidationError.corruptPayload,
                 SettingsValidationError.generationExhausted,
                 SettingsValidationError.readbackMismatch {
@@ -159,7 +172,8 @@ final class SettingsWindowController: NSWindowController {
             addCommonControls(to: view)
             return view
         case "按键":
-            labels = ["按键设置将在此页显示"]
+            addKeyControls(to: view)
+            return view
         case "外观":
             labels = ["候选纵向排列"]
             let stepper = NSStepper()
@@ -244,6 +258,50 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    private func addKeyControls(to view: NSView) {
+        let bindingRows: [(String, ModeSwitchBinding)] = [
+            ("中英文切换", draftSettings.keyBindings.languageSwitch),
+            ("简繁切换", draftSettings.keyBindings.scriptSwitch),
+            ("全半角切换", draftSettings.keyBindings.widthSwitch)
+        ]
+        for (index, row) in bindingRows.enumerated() {
+            let caption = NSTextField(labelWithString: row.0)
+            caption.frame = NSRect(x: 24, y: 340 - index * 44, width: 130, height: 24)
+            let popup = NSPopUpButton(frame: NSRect(x: 162, y: 334 - index * 44,
+                                                    width: 220, height: 30))
+            popup.addItems(withTitles: Self.bindingTitles)
+            popup.selectItem(at: bindingIndex(row.1))
+            register(popup, label: row.0)
+            popupsByLabel[row.0] = popup
+            view.addSubview(caption)
+            view.addSubview(popup)
+        }
+
+        let layoutCaption = NSTextField(labelWithString: "键盘布局")
+        layoutCaption.frame = NSRect(x: 24, y: 208, width: 130, height: 24)
+        let keyboardLayout = NSPopUpButton(frame: NSRect(x: 162, y: 202,
+                                                        width: 220, height: 30))
+        keyboardLayout.addItems(withTitles: ["美国 ANSI", "跟随系统布局"])
+        keyboardLayout.selectItem(at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1)
+        register(keyboardLayout, label: "键盘布局")
+        popupsByLabel["键盘布局"] = keyboardLayout
+        view.addSubview(layoutCaption)
+        view.addSubview(keyboardLayout)
+
+        let pageOptions = [
+            "逗号句号翻页", "减号等号翻页", "中括号翻页",
+            "Tab/Shift-Tab 翻页", "上下方向键翻页"
+        ]
+        for (index, title) in pageOptions.enumerated() {
+            let button = makeButton(title, action: nil)
+            let column = index / 3
+            let row = index % 3
+            button.frame = NSRect(x: 24 + column * 300, y: 150 - row * 40,
+                                  width: 285, height: 30)
+            view.addSubview(button)
+        }
+    }
+
     private func register(_ control: NSControl, label: String) {
         control.setAccessibilityLabel(label)
         control.setAccessibilityHelp("配置“\(label)”；更改仅在按下保存后生效。")
@@ -288,6 +346,15 @@ final class SettingsWindowController: NSWindowController {
         updated.defaultMode.script = selectedIndex("初始简繁体") == 0 ? .simplified : .traditional
         updated.defaultMode.width = selectedIndex("初始全半角") == 0 ? .half : .full
         updated.defaultMode.punctuation = selectedIndex("中文模式标点") == 0 ? .english : .chinese
+        var keyBindings = updated.keyBindings
+        keyBindings.languageSwitch = selectedBinding("中英文切换")
+        keyBindings.scriptSwitch = selectedBinding("简繁切换")
+        keyBindings.widthSwitch = selectedBinding("全半角切换")
+        keyBindings.pageKeyGroups = Set(CandidatePageKeyGroup.allCases.filter {
+            isOn(pageTitle(for: $0))
+        })
+        keyBindings.keyboardLayout = selectedIndex("键盘布局") == 0 ? .us : .followSystem
+        updated.keyBindings = keyBindings
         draftSettings = updated
         _ = validateAndApply(updated)
     }
@@ -296,6 +363,10 @@ final class SettingsWindowController: NSWindowController {
 
     private func selectedIndex(_ label: String) -> Int {
         popupsByLabel[label]?.indexOfSelectedItem ?? 0
+    }
+
+    private func selectedBinding(_ label: String) -> ModeSwitchBinding {
+        binding(at: selectedIndex(label))
     }
 
     private func isOn(_ title: String) -> Bool { controlsByTitle[title]?.state == .on }
@@ -309,6 +380,16 @@ final class SettingsWindowController: NSWindowController {
         case "开启编码提示": button.state = draftSettings.codeHintEnabled ? .on : .off
         case "分号和单引号候选快捷键":
             button.state = draftSettings.candidate2And3ShortcutsEnabled ? .on : .off
+        case "逗号句号翻页":
+            button.state = draftSettings.keyBindings.pageKeyGroups.contains(.commaPeriod) ? .on : .off
+        case "减号等号翻页":
+            button.state = draftSettings.keyBindings.pageKeyGroups.contains(.minusEquals) ? .on : .off
+        case "中括号翻页":
+            button.state = draftSettings.keyBindings.pageKeyGroups.contains(.bracketPair) ? .on : .off
+        case "Tab/Shift-Tab 翻页":
+            button.state = draftSettings.keyBindings.pageKeyGroups.contains(.tab) ? .on : .off
+        case "上下方向键翻页":
+            button.state = draftSettings.keyBindings.pageKeyGroups.contains(.arrows) ? .on : .off
         case "候选纵向排列": button.state = draftSettings.candidateLayout == .vertical ? .on : .off
         case "私密模式": button.state = PrivacyModeController.shared.privateMode ? .on : .off
         default: break
@@ -324,6 +405,18 @@ final class SettingsWindowController: NSWindowController {
         popupsByLabel["初始简繁体"]?.selectItem(at: draftSettings.defaultMode.script == .simplified ? 0 : 1)
         popupsByLabel["初始全半角"]?.selectItem(at: draftSettings.defaultMode.width == .half ? 0 : 1)
         popupsByLabel["中文模式标点"]?.selectItem(at: draftSettings.defaultMode.punctuation == .english ? 0 : 1)
+        popupsByLabel["中英文切换"]?.selectItem(
+            at: bindingIndex(draftSettings.keyBindings.languageSwitch)
+        )
+        popupsByLabel["简繁切换"]?.selectItem(
+            at: bindingIndex(draftSettings.keyBindings.scriptSwitch)
+        )
+        popupsByLabel["全半角切换"]?.selectItem(
+            at: bindingIndex(draftSettings.keyBindings.widthSwitch)
+        )
+        popupsByLabel["键盘布局"]?.selectItem(
+            at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1
+        )
     }
 
     private func announce(_ message: String) {
@@ -337,6 +430,9 @@ final class SettingsWindowController: NSWindowController {
         lastFocusedControlLabel = label
         if label == "每页候选数量 5 至 9" || label == "候选字号缩放" {
             tabView?.selectTabViewItem(withIdentifier: "外观")
+        } else if ["中英文切换", "简繁切换", "全半角切换", "键盘布局"]
+            .contains(label) {
+            tabView?.selectTabViewItem(withIdentifier: "按键")
         }
         if let control = accessibleControls.first(where: { $0.accessibilityLabel() == label }) {
             window?.makeFirstResponder(control)
@@ -369,14 +465,58 @@ final class SettingsWindowController: NSWindowController {
             _ = try LexiconArchiveCodec.decode($0)
         }
     }
-}
 
-private extension CandidatePageKeySet {
-    var index: Int {
-        switch self { case .minusEquals: return 0; case .commaPeriod: return 1; case .bracketPair: return 2 }
+    private static let bindingTitles = [
+        "Shift", "Control-Shift-F", "Shift-Space", "禁用", "旧版 Control-Shift-数字"
+    ]
+
+    private func bindingIndex(_ binding: ModeSwitchBinding) -> Int {
+        switch binding {
+        case .standaloneShift: return 0
+        case .controlShiftF: return 1
+        case .shiftSpace: return 2
+        case .disabled: return 3
+        case .legacyControlShiftDigits, .custom: return 4
+        }
     }
 
-    init(index: Int) {
-        switch index { case 1: self = .commaPeriod; case 2: self = .bracketPair; default: self = .minusEquals }
+    private func binding(at index: Int) -> ModeSwitchBinding {
+        switch index {
+        case 0: return .standaloneShift
+        case 1: return .controlShiftF
+        case 2: return .shiftSpace
+        case 4: return .legacyControlShiftDigits
+        default: return .disabled
+        }
+    }
+
+    private func pageTitle(for group: CandidatePageKeyGroup) -> String {
+        switch group {
+        case .commaPeriod: return "逗号句号翻页"
+        case .minusEquals: return "减号等号翻页"
+        case .bracketPair: return "中括号翻页"
+        case .tab: return "Tab/Shift-Tab 翻页"
+        case .arrows: return "上下方向键翻页"
+        }
+    }
+
+    private func label(for field: KeyBindingField) -> String {
+        switch field {
+        case .languageSwitch: return "中英文切换"
+        case .scriptSwitch: return "简繁切换"
+        case .widthSwitch: return "全半角切换"
+        case .keyboardLayout: return "键盘布局"
+        }
+    }
+
+    private func message(for conflict: KeyBindingConflict) -> String {
+        switch conflict.reason {
+        case .empty: return "按键设置无效：快捷键不能为空。"
+        case .duplicate: return "按键设置冲突：快捷键重复。"
+        case .rangeOverlap: return "按键设置冲突：快捷键范围重叠。"
+        case .systemReserved: return "按键设置无效：该组合由系统保留。"
+        case .unsupportedLegacy: return "按键设置无效：请替换旧版快捷键。"
+        case .layoutUnavailable: return "键盘布局不可用，请选择美国 ANSI 或恢复可用布局。"
+        }
     }
 }
