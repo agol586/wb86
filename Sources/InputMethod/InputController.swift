@@ -82,10 +82,12 @@ final class InputController: IMKInputController {
     override init!(server: IMKServer!, delegate: Any!, client inputClient: Any!) {
         super.init(server: server, delegate: delegate, client: inputClient)
         candidatePresenter = AccessibleCandidatePresenter()
+        let scriptConverter = Self.makeScriptConverter()
         inputSession = InputControllerSession(
             engine: InputEngine(
-                scriptConverter: Self.makeScriptConverter(),
-                policyQuery: Self.makeDictionaryQuery()
+                sequencePolicyQuery: Self.makeDictionaryQuery(
+                    scriptConverter: scriptConverter
+                )
             ),
             presenter: candidatePresenter,
             policyLearningHandler: PersonalizationCoordinator.shared.record
@@ -177,10 +179,17 @@ final class InputController: IMKInputController {
         SettingsCoordinator.shared?.applyPendingAtIdle()
     }
 
-    private static func makeDictionaryQuery() -> InputEngine.PolicyQuery {
-        return { code, pageIndex, policy in
-            try PersonalizationCoordinator.shared.page(for: code, pageIndex: pageIndex,
-                                                        policy: policy)
+    private static func makeDictionaryQuery(scriptConverter: ScriptConverter?)
+        -> InputEngine.SequencePolicyQuery {
+        return { sequence, pageIndex, policy, mode, mixedPinyinEnabled in
+            try PersonalizationCoordinator.shared.page(
+                for: sequence,
+                pageIndex: pageIndex,
+                policy: policy,
+                mode: mode,
+                mixedPinyinEnabled: mixedPinyinEnabled,
+                scriptConverter: scriptConverter
+            )
         }
     }
 

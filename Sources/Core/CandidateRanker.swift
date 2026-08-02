@@ -173,6 +173,10 @@ struct CandidateRanker: Sendable {
             var fixedRank: Int?
             var learnedScore: Int
         }
+        func score(for text: String, in scores: [String: Int]) -> Int {
+            let displayText = scriptConverter?.convert(text, to: outputScript) ?? text
+            return max(scores[text] ?? 0, scores[displayText] ?? 0)
+        }
 
         var wubiTier = [MixedValue]()
         if let code = sequence.wubiCode {
@@ -190,19 +194,20 @@ struct CandidateRanker: Sendable {
                 }
                 values[record.text] = WubiValue(
                     text: record.text, source: .baseWubi, baseRank: rank,
-                    fixedRank: nil, learnedScore: scores[record.text] ?? 0
+                    fixedRank: nil, learnedScore: score(for: record.text, in: scores)
                 )
             }
             for entry in userEntries {
                 if var existing = values[entry.text] {
                     existing.source = .userWubi
                     existing.fixedRank = entry.fixedRank
-                    existing.learnedScore = scores[entry.text] ?? 0
+                    existing.learnedScore = score(for: entry.text, in: scores)
                     values[entry.text] = existing
                 } else {
                     values[entry.text] = WubiValue(
                         text: entry.text, source: .userWubi, baseRank: Int.max,
-                        fixedRank: entry.fixedRank, learnedScore: scores[entry.text] ?? 0
+                        fixedRank: entry.fixedRank,
+                        learnedScore: score(for: entry.text, in: scores)
                     )
                 }
             }
@@ -229,14 +234,15 @@ struct CandidateRanker: Sendable {
         let pinyinScores = learningScores(for: pinyinKey, in: learningRecords,
                                           enabled: learningEnabled)
         let pinyinTier = pinyinCandidates.sorted { lhs, rhs in
-            let lhsScore = pinyinScores[lhs.text] ?? 0
-            let rhsScore = pinyinScores[rhs.text] ?? 0
+            let lhsScore = score(for: lhs.text, in: pinyinScores)
+            let rhsScore = score(for: rhs.text, in: pinyinScores)
             if lhsScore != rhsScore { return lhsScore > rhsScore }
             if lhs.baseRank != rhs.baseRank { return lhs.baseRank < rhs.baseRank }
             return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
         }.prefix(Self.maximumCandidatesPerTier).map {
             MixedValue(text: $0.text, queryKey: pinyinKey, source: .localPinyin,
-                       baseRank: $0.baseRank, learnedScore: pinyinScores[$0.text] ?? 0,
+                       baseRank: $0.baseRank,
+                       learnedScore: score(for: $0.text, in: pinyinScores),
                        wubiHint: $0.wubiHint)
         }
 

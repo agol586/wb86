@@ -38,6 +38,93 @@ final class DailyInputIntegrationTests: XCTestCase {
         XCTAssertEqual(engine.state, .idle)
     }
 
+    func testSharedMappedPinyinIndexKeepsSessionPoliciesAndRecordsPinyinSelection() throws {
+        let resources = try bundledMixedResources()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiMixedDaily-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let learning = try LearningStore(writer: SnapshotWriter(rootURL: root))
+        let coordinator = PersonalizationCoordinator(
+            index: resources.wubiIndex,
+            pinyinIndex: resources.pinyinIndex,
+            userStore: nil,
+            learningStore: learning
+        )
+        XCTAssertTrue(coordinator.hasLocalPinyin)
+        let sequenceQuery: InputEngine.SequencePolicyQuery = {
+            sequence, pageIndex, policy, mode, mixed in
+            try coordinator.page(
+                for: sequence, pageIndex: pageIndex, policy: policy, mode: mode,
+                mixedPinyinEnabled: mixed, scriptConverter: resources.converter
+            )
+        }
+        let compact = InputEngine(sequencePolicyQuery: sequenceQuery)
+        let roomy = InputEngine(sequencePolicyQuery: sequenceQuery)
+        var compactSettings = InputSettings.default
+        compactSettings.candidatePageSize = 5
+        compactSettings.autoCommitAtFour = false
+        compactSettings.mixedPinyinEnabled = true
+        compactSettings.automaticFrequency = true
+        var roomySettings = compactSettings
+        roomySettings.candidatePageSize = 9
+        compact.apply(settings: compactSettings, generation: 7)
+        roomy.apply(settings: roomySettings, generation: 8)
+
+        for letter in ["n", "i"] {
+            _ = compact.process(.letter(letter))
+            _ = roomy.process(.letter(letter))
+        }
+        XCTAssertEqual(compact.state.composition?.candidates.pageSize, 5)
+        XCTAssertEqual(roomy.state.composition?.candidates.pageSize, 9)
+        XCTAssertEqual(compact.rankingPolicy.settingsGeneration, 7)
+        XCTAssertEqual(roomy.rankingPolicy.settingsGeneration, 8)
+
+        compact.reset()
+        for letter in ["n", "i", "h", "a", "o"] {
+            _ = compact.process(.letter(letter))
+        }
+        let selectedText = try XCTUnwrap(compact.state.composition?.candidates.items.first?.text)
+        let selection = compact.process(.selectFirst)
+        let delta = try XCTUnwrap(selection.learningDelta)
+        XCTAssertEqual(delta.queryKey.kind, .pinyin)
+        XCTAssertEqual(delta.queryKey.normalizedCode, "nihao")
+        XCTAssertEqual(delta.candidateText, selectedText)
+        coordinator.record(delta, policy: compact.rankingPolicy)
+
+        let learningKey = try LearningKey(queryKey: delta.queryKey,
+                                          candidateText: delta.candidateText)
+        XCTAssertEqual(learning.score(key: learningKey), 1)
+    }
+
+    func testUnavailablePinyinResourceFallsBackToSharedWB86WithoutNetworkRecovery() throws {
+        let resources = try bundledMixedResources()
+        let coordinator = PersonalizationCoordinator(
+            index: resources.wubiIndex,
+            pinyinIndex: nil,
+            userStore: nil,
+            learningStore: nil
+        )
+        let engine = InputEngine(sequencePolicyQuery: {
+            sequence, pageIndex, policy, mode, mixed in
+            try coordinator.page(
+                for: sequence, pageIndex: pageIndex, policy: policy, mode: mode,
+                mixedPinyinEnabled: mixed, scriptConverter: resources.converter
+            )
+        })
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = true
+        settings.autoCommitAtFour = false
+        engine.apply(settings: settings)
+
+        _ = engine.process(.letter("w"))
+        let result = engine.process(.letter("q"))
+
+        XCTAssertFalse(coordinator.hasLocalPinyin)
+        XCTAssertEqual(result.state.composition?.route, .wubiOnly)
+        XCTAssertFalse(result.state.composition?.candidates.items.isEmpty ?? true)
+        XCTAssertEqual(result.state.composition?.candidates.items.first?.source, .baseWubi)
+    }
+
     private func makeTenMinuteScenario() -> Scenario {
         var events = [TimedEvent]()
         for cycle in 0..<20 {
@@ -67,6 +154,27 @@ final class DailyInputIntegrationTests: XCTestCase {
 
     private func code(_ value: String) -> [TimedEvent] {
         value.map { TimedEvent(second: 0, event: .letter(String($0))) }
+    }
+
+    private func bundledMixedResources() throws
+        -> (wubiIndex: DictionaryIndex, pinyinIndex: PinyinDictionaryIndex,
+            converter: ScriptConverter) {
+        let bundle = Bundle.main
+        let wb86URL = try XCTUnwrap(bundle.url(forResource: "wb86", withExtension: "bin"))
+        let pinyinURL = try XCTUnwrap(
+            bundle.url(forResource: "pinyin-simp", withExtension: "bin")
+        )
+        let conversionURL = try XCTUnwrap(
+            bundle.url(forResource: "script-conversion", withExtension: "bin")
+        )
+        let wb86Image = try DictionaryLoader.load(from: wb86URL)
+        let pinyinImage = try PinyinDictionaryLoader.load(from: pinyinURL,
+                                                          wb86Image: wb86Image)
+        return (
+            DictionaryIndex(image: wb86Image),
+            PinyinDictionaryIndex(image: pinyinImage),
+            try ScriptConverter(data: Data(contentsOf: conversionURL, options: .mappedIfSafe))
+        )
     }
 }
 

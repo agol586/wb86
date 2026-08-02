@@ -43,9 +43,21 @@ struct SequenceQueryResult: Equatable, Sendable {
 }
 
 struct LearningDelta: Equatable, Sendable {
-    let code: InputCode
+    let queryKey: CandidateQueryKey
     let candidateText: String
     let amount: Int
+
+    init(queryKey: CandidateQueryKey, candidateText: String, amount: Int) {
+        self.queryKey = queryKey
+        self.candidateText = candidateText
+        self.amount = amount
+    }
+
+    init(code: InputCode, candidateText: String, amount: Int) {
+        self.init(queryKey: .wubi(code), candidateText: candidateText, amount: amount)
+    }
+
+    var code: InputCode? { queryKey.wubiCode }
 }
 
 struct InputProcessingResult: Equatable, Sendable {
@@ -311,11 +323,9 @@ final class InputEngine {
 
         state = .idle
         let learning = secureInput || privateMode || !learningEnabled ? nil
-            : composition.code.map { LearningDelta(
-            code: $0,
-            candidateText: candidate.text,
-            amount: 1
-        ) }
+            : LearningDelta(queryKey: candidate.queryKey,
+                            candidateText: candidate.text,
+                            amount: 1)
         return result(
             state: .idle,
             clientAction: .commitText(candidate.text),
