@@ -61,7 +61,7 @@ Verified behavior:
 | InputMethodKit and signing boundary | PASS | Core remains free of AppKit/InputMethodKit; lifecycle integration remains in `Sources/InputMethod`, and release-contract signing tests pass. |
 | Failure safety and recovery | PASS | Invalid settings preserve the last valid snapshot; stale client proxies are rejected; deactivation clears composition before publishing idle. |
 | Local-data privacy | PASS | Settings use the existing private snapshot store; no network, global monitor, telemetry, text logging or new user-content persistence was introduced. |
-| Performance and release gates | PASS WITH LATER MEASUREMENT | Full regression includes the existing lookup budget test. Feature-wide memory, latency and eight-hour evidence remains assigned to T054-T056. |
+| Performance and release gates | PASS WITH LATER MEASUREMENT | Full regression includes the existing lookup budget test. Feature-wide memory, latency and monthly-volume evidence remains assigned to T054-T056 and subsequently passed. |
 
 The build continues to emit an existing Swift 6 actor-isolation migration warning for
 `PrivacySessionControlling`; the project compiles in Swift 5 mode and all tests pass. The warning is not

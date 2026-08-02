@@ -28,15 +28,15 @@ Result: **PASS**. The XCTest result contains 217 passed tests, zero failures and
 The script then rebuilt the pure-Swift Release dictionary compiler and reproduced the bounded WB86
 acceptance fixture successfully.
 
-## Development-signed arm64 Release
+## Locally signed arm64 Release
 
 ```bash
-MACWUBI_CODE_SIGN_IDENTITY='Apple Development: <configured identity>' Scripts/build-release.sh
+Scripts/build-release.sh
 ```
 
-Result: **PASS**. The output is a thin Mach-O arm64 executable with Hardened Runtime and the empty
-product entitlement dictionary. Executable SHA-256:
-`8cd9bb64a2a5132097c3da7610518de85ae25ff32c26523b007d2a14354a0c6f`.
+Result: **PASS**. The final automated-test artifact is locally ad-hoc signed, thin Mach-O arm64, with
+Hardened Runtime and the empty product entitlement dictionary. Executable SHA-256:
+`1c4d07988c6672b8d194e26ae0f180918855db4eaa210f44a0dee9afa92203cd`.
 
 ## Release and privacy verification
 
@@ -56,6 +56,18 @@ Results: **PASS**.
 - No embedded framework, package-manager runtime or non-system dynamic dependency.
 - No network/global-input APIs or symbols.
 - MWPY binary, manifest, pinned source record, AUTHORS and Apache-2.0 license are sealed resources.
+
+## Monthly-volume stability amendment
+
+```bash
+Scripts/run-long-stress.sh \
+  /Users/agol/repos/wb86/.worktrees/002-settings-experience/.build/xcode/Build/Products/Release/MacWubi.app \
+  1000000
+```
+
+Result: **PASS**. The same executable completed 30 logical input days and exactly 1,000,000 committed
+Chinese characters in 474.12 seconds. Peak physical footprint was 8,487,584 bytes and the first-to-last
+steady memory/latency growth gates passed. See `evidence/monthly-volume-stress.md` for the aggregate report.
 
 ## Explicitly deferred release/manual gates
 

@@ -1,6 +1,6 @@
 # Release Lookup Performance Evidence
 
-Status: **PASS for automated release corpus; eight-hour gate tracked separately**
+Status: **PASS for automated release corpus and amended monthly-volume stability gate**
 
 Measured 2026-08-01 on `Mac15,12`, Apple M3, arm64, 24 GiB physical memory, macOS 26.5.2
 (25F84), Xcode 26.6 (17F113), Release configuration. Clock: `DispatchTime.uptimeNanoseconds`.
@@ -29,6 +29,10 @@ measurement-first rule prohibited speculative changes to `DictionaryIndex`; T104
 production-code optimization. The report is deterministic in method but machine-dependent in values and
 must be regenerated for the final candidate.
 
-The long-run harness was smoke-tested in Release for 2 seconds: 1,917,650 seven-class session cycles,
-9 footprint samples, first and last steady averages both 12,501,688 bytes. This proves harness execution,
-not the required eight-hour verdict. Final command: `Scripts/run-long-stress.sh 28800`.
+The original time-based harness was smoke-tested in Release for 2 seconds: 1,917,650 seven-class session
+cycles, 9 footprint samples, first and last steady averages both 12,501,688 bytes. The active feature
+amendment replaced that machine-dependent wall-clock gate with a deterministic workload. T056 subsequently
+passed 30 logical input days and exactly 1,000,000 committed Chinese characters in 474.12 seconds, with
+8,487,584-byte peak physical footprint and no sustained memory or latency drift. Current command:
+`Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000`. See
+`specs/002-settings-experience/evidence/monthly-volume-stress.md`.

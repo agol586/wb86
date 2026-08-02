@@ -28,8 +28,9 @@ contract now separately checks the empty checked-in product entitlements while a
 test injection, and settings controls now expose explicit popup/stepper/slider values. Focused regression
 tests passed before the clean full run above.
 
-The default full suite includes a 2-second Release long-run harness smoke. It does not replace the final
-eight-hour run. XCTest against the current Xcode SDK warns that its test libraries require macOS 14 while
+The default full suite includes a bounded 30-logical-day monthly-volume harness. The full Release gate is
+executed separately with at least 1,000,000 committed Chinese characters and passed under T056. XCTest
+against the current Xcode SDK warns that its test libraries require macOS 14 while
 the product deployment target is macOS 13; this is a test-host SDK warning and reinforces the separate
 physical macOS 13 gate in T110.
 

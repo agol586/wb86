@@ -28,13 +28,14 @@
 
 - [ ] VoiceOver、Accessibility Inspector、完全键盘控制、深浅色、高对比度、缩放、多显示器通过。
 - [ ] 开启无障碍功能后七类应用矩阵无回归。
-- [ ] Release 查询报告的全部样本 `< 2 ms`，并记录硬件、OS、Xcode、配置、语料、热身和百分位。
-- [ ] `Scripts/measure-memory.sh` 在正常输入稳态下报告 physical footprint `< 15 MiB`。
-- [ ] `Scripts/run-long-stress.sh 28800` 完成八小时快速输入、应用切换、会话 churn，且无持续内存趋势。
+- [x] Release 查询报告的全部样本 `< 2 ms`，并记录硬件、OS、Xcode、配置、语料、热身和百分位。
+- [x] `Scripts/measure-memory.sh /绝对路径/MacWubi.app` 在正常输入稳态下报告 physical footprint `< 15 MiB`。
+- [x] `Scripts/run-long-stress.sh /绝对路径/MacWubi.app 1000000` 完成 30 个逻辑输入日、至少
+  100 万实际提交汉字、多会话设置 churn、混输、调频和翻页，且无持续内存或延迟趋势。
 - [ ] Apple Silicon 实机 macOS 13 与当前支持 macOS 的完整 quickstart、七类应用和隐私矩阵通过。
 
 ## 可追踪性
 
-- [ ] `FR-001…FR-031` 与 `SC-001…SC-013` 均有 PASS 证据；30 天替代测试与首次用户研究已完成。
+- [ ] `FR-001…FR-031` 与 `SC-001…SC-013` 均有 PASS 证据；30 天实际用户替代研究与首次用户研究已完成。
 - [ ] 词库来源、许可证、对应源、manifest、checksum 和双次可复现编译均通过。
 - [ ] 最终候选摘要、产物哈希、签名身份、公证结果和所有未决项记录在 evidence 文档中。

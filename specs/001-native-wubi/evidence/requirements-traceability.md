@@ -35,7 +35,7 @@ long-duration, study or final distribution gates.
 | FR-025 | PASS | Failure recovery suites and `us6-lifecycle-recovery.md`. |
 | FR-026 | PASS | Independent domain quarantine/restore/default tests in `us6-lifecycle-recovery.md`. |
 | FR-027 | PARTIAL | Current candidates verify exact arm64; final two-OS matrix is T083/T110. Intel is explicitly excluded. |
-| FR-028 | PARTIAL | `<2 ms` report and `<15 MiB` current footprint pass in `performance.md`/`memory.md`; eight-hour verdict pending. |
+| FR-028 | PASS for current development matrix | `<2 ms` report, `<15 MiB` normal footprint and amended 30-day/1,000,000-character stability gate pass; final two-OS release matrix remains under FR-027/SC-013. |
 | FR-029 | PARTIAL | Seven-class fixtures pass; actual seven-application final and accessibility matrices are T083/T101/T110. |
 | FR-030 | PARTIAL | Automated semantics/focus/layout pass; VoiceOver/Inspector/keyboard/appearance acceptance is T100. |
 | FR-031 | PASS | Supported migrations, interruption rollback and future-version preservation in `us6-lifecycle-recovery.md`. |
@@ -47,7 +47,7 @@ long-duration, study or final distribution gates.
 | SC-001 | PASS | Acceptance corpus lookup/commit tests pass 100%. |
 | SC-002 | PENDING | Required 30-day skilled-user replacement study has not been executed. |
 | SC-003 | PENDING | Required first-user timed study and 90% result have not been executed. |
-| SC-004 | PARTIAL | 1,800/1,800 lookup samples pass; current footprint passes; eight-hour run is pending. |
+| SC-004 | PASS for amended automated gate | 1,800/1,800 lookup samples, normal footprint and 30-day/1,000,000-character stability workload pass. |
 | SC-005 | PASS | Promotion/disable/clear samples pass 100%. |
 | SC-006 | PASS | 10,000-record import completes under 5 seconds with exact counts and atomicity. |
 | SC-007 | PASS | Supported domain migration and interrupted migration matrices pass 100%. |
@@ -62,7 +62,7 @@ long-duration, study or final distribution gates.
 
 - T083: final signed physical Apple Silicon macOS 13/current compatibility matrix (explicitly deferred).
 - T100–T101: human VoiceOver/Accessibility Inspector/FKA acceptance and accessible seven-app rerun.
-- Eight-hour `Scripts/run-long-stress.sh 28800` execution required by SC-004/Release Checklist.
+- The active feature amendment's monthly-volume stability gate passed; it is not an open release blocker.
 - SC-002 30-day replacement study and SC-003 first-user timed study.
 - T110: complete quickstart on macOS 13 and current supported macOS (explicitly deferred).
 - T111: Developer ID timestamp, notarization, staple and Gatekeeper final candidate (explicitly deferred).

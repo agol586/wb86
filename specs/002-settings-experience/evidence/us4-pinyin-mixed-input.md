@@ -100,7 +100,7 @@ Result: PASS.
 | InputMethodKit boundary | PASS | Dictionary and ranking logic remain in Core; the adapter only presents Core results and client actions. |
 | Failure safety and recovery | PASS | Invalid resources are rejected before publication; Pinyin failure leaves validated Wubi available and never guesses a commit. |
 | Local-data privacy | PASS | The resource is bundled and read-only, lookup is offline, learning honors private/disabled policy, and diagnostics contain no content or path. |
-| Performance | DEFERRED TO DEDICATED GATES | Lookup remains bounded, but every-sample latency, Release RSS, and eight-hour growth are measured by T054-T056. |
+| Performance | DEFERRED TO DEDICATED GATES | Lookup remains bounded, but every-sample latency, Release RSS, and monthly-volume growth are measured by T054-T056 and subsequently passed. |
 
 The build still emits the previously recorded Swift 6 actor-isolation migration warning for
 `PrivacySessionControlling`. The project compiles in Swift 5 mode and all tests pass; the warning did

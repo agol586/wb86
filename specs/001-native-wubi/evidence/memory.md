@@ -1,6 +1,6 @@
 # Normal Input Memory Evidence
 
-Status: **PASS on final development candidate; eight-hour/final matrix pending**
+Status: **PASS on development candidates; amended monthly-volume gate passes, final OS matrix pending**
 
 Measured 2026-08-01 after approximately 55 minutes of installed input-method process uptime on `Mac15,12`,
 Apple M3, arm64, macOS 26.5.2. Candidate: Apple Development-signed, Hardened Runtime, exact arm64 bundle at
@@ -20,7 +20,7 @@ pages. The product budget is assessed using `phys_footprint`, not the misleading
 
 The earlier long-running sample suggested the mapped 3,974,577-byte image could remain under budget, but it
 did not expose fresh-start allocator retention. Final release must measure both fresh and steady normal input
-during the eight-hour run on every declared hardware/OS target.
+on every declared hardware/OS target.
 
 On 2026-08-01 a fresh restart of the pre-remediation build reproducibly measured about 22.9 MiB, including
 roughly 9 MiB of `MALLOC_LARGE` retained after validation materialized all 136,233 records. T105 was reopened.
@@ -35,4 +35,6 @@ Final installed verification on process 67230 used the exact candidate hash abov
 samples were 9,831,024 bytes fresh, 13,779,760 bytes after dictionary initialization, 13,681,456 bytes
 immediately after the privacy-safe client smoke flow, and 14,074,696 bytes five seconds later. All four are
 strictly below 15,728,640 bytes. `footprint` showed no `MALLOC_LARGE` category. T105 therefore passes on this
-Apple M3/macOS 26.5.2 development matrix row; the eight-hour and final OS matrix requirements remain open.
+Apple M3/macOS 26.5.2 development matrix row. The active feature's amended 30-logical-day,
+1,000,000-committed-character gate later peaked at 8,487,584 bytes and passed sustained-growth checks; see
+`specs/002-settings-experience/evidence/monthly-volume-stress.md`. The final OS matrix remains open.

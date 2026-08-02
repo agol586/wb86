@@ -169,7 +169,7 @@
 - [X] T057 [P] 在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift`、`Tests/AccessibilityTests/CandidateAccessibilityTests.swift` 和 `Tests/AccessibilityTests/ManualAccessibilityScenarios.md` 完成全部新增控件、错误反馈、提示与键盘/VoiceOver 验收矩阵
 - [X] T058 [P] 在 `Tests/ReleaseContractTests/ReleaseContractTests.swift`、`Tests/ReleaseContractTests/PrivacyReleaseContractTests.swift` 和 `Scripts/verify-release.sh` 验证仅 arm64、无 Intel/Rosetta、无新包/动态库/网络权限、空最小 entitlements 及拼音许可/清单随包分发
 - [X] T059 按 `specs/002-settings-experience/quickstart.md` 运行 `Scripts/test.sh`、开发签名 arm64 build、release verification 和 privacy audit，并把命令与结果记录到 `specs/002-settings-experience/evidence/quickstart.md`；Developer ID 公证、staple 与 Gatekeeper 仍保留为最终发布门禁
-- [ ] T060 更新 `README.md`、`Docs/Validation.md` 和 `specs/002-settings-experience/spec.md` 的用户设置说明、FR-001...FR-031/SC-001...SC-012 追踪与实现状态，并确认 `git diff --check` 和独立 worktree 状态干净
+- [X] T060 更新 `README.md`、`Docs/Validation.md` 和 `specs/002-settings-experience/spec.md` 的用户设置说明、FR-001...FR-031/SC-001...SC-012 追踪与实现状态，并确认 `git diff --check` 和独立 worktree 状态干净
 
 **Checkpoint**: 功能实现完成；只有明确标记为最终发布阶段的 Developer ID 公证/Gatekeeper 操作可延后。
 

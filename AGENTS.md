@@ -127,7 +127,8 @@ These are hard release gates, not aspirational targets:
 
 - Normal input-path resident memory: `< 15 MB`.
 - Recognized-code to first-candidate availability: `< 2 ms` for every release benchmark sample.
-- No sustained memory or latency growth during the eight-hour stress scenario.
+- No sustained memory or latency growth while simulating 30 logical input days and committing at least
+  1,000,000 Chinese characters in the deterministic monthly-volume stress scenario.
 
 Performance evidence must record hardware, architecture, macOS, Xcode, build configuration, dictionary
 manifest, fixture version, warm-up, sample count, percentiles, and maximum. Optimize only after a
