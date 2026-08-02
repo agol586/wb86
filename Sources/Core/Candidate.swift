@@ -87,8 +87,8 @@ struct CandidatePage: Equatable, Sendable {
               pageStart.partialValue + items.count <= totalCount else {
             throw CandidateValidationError.invalidTotalCount
         }
-        if let queryKey = items.first?.queryKey,
-           items.contains(where: { $0.queryKey != queryKey }) {
+        if let normalizedCode = items.first?.queryKey.normalizedCode,
+           items.contains(where: { $0.queryKey.normalizedCode != normalizedCode }) {
             throw CandidateValidationError.inconsistentCode
         }
         guard items.enumerated().allSatisfy({ $0.element.ordinal == $0.offset + 1 }) else {

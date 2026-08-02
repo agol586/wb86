@@ -204,6 +204,103 @@ final class CandidateQueryTests: XCTestCase {
         }
     }
 
+    func testMixedRankingKeepsUserAndBaseWubiAheadAndLearningInsideEachTier() throws {
+        let code = try XCTUnwrap(InputCode("a"))
+        let sequence = try XCTUnwrap(CompositionKeySequence("a"))
+        let pinyinKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "a"))
+        let base = try [
+            DictionaryEntryRecord(code: code, rank: 0, text: "甲"),
+            DictionaryEntryRecord(code: code, rank: 1, text: "乙")
+        ]
+        let user = [UserCandidateRanking(code: code, text: "用户词", fixedRank: 0)]
+        let pinyin = [
+            PinyinLookupCandidate(text: "拼一", weight: 20, baseRank: 0, wubiHint: nil),
+            PinyinLookupCandidate(text: "拼二", weight: 10, baseRank: 1, wubiHint: nil)
+        ]
+        let learning = [
+            LearnedCandidateRanking(queryKey: .wubi(code), candidateText: "乙", score: 5),
+            LearnedCandidateRanking(queryKey: pinyinKey, candidateText: "拼二", score: 100),
+            LearnedCandidateRanking(
+                queryKey: try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "b")),
+                candidateText: "拼一", score: 1_000
+            )
+        ]
+
+        let page = try CandidateRanker(pageSize: 9).mixedPage(
+            for: sequence,
+            wubiRecords: base,
+            userEntries: user,
+            pinyinCandidates: pinyin,
+            learningRecords: learning,
+            learningEnabled: true,
+            scriptConverter: nil,
+            outputScript: .simplified,
+            pageIndex: 0
+        )
+
+        XCTAssertEqual(page.items.map(\.text), ["用户词", "乙", "甲", "拼二", "拼一"])
+        XCTAssertEqual(page.items.map(\.source),
+                       [.userWubi, .baseWubi, .baseWubi, .localPinyin, .localPinyin])
+        XCTAssertEqual(page.items.map(\.learnedScore), [0, 5, 0, 100, 0])
+        XCTAssertEqual(page.items.map(\.queryKey.kind), [.wubi, .wubi, .wubi, .pinyin, .pinyin])
+    }
+
+    func testMixedRankingConvertsBeforeStableDedupeAndRetainsFirstIdentity() throws {
+        let code = try XCTUnwrap(InputCode("a"))
+        let sequence = try XCTUnwrap(CompositionKeySequence("a"))
+        let converter = try bundledScriptConverter()
+        let page = try CandidateRanker(pageSize: 5).mixedPage(
+            for: sequence,
+            wubiRecords: [
+                try DictionaryEntryRecord(code: code, rank: 0, text: "后台"),
+                try DictionaryEntryRecord(code: code, rank: 1, text: "中国")
+            ],
+            userEntries: [],
+            pinyinCandidates: [
+                PinyinLookupCandidate(text: "後臺", weight: 100, baseRank: 0, wubiHint: nil),
+                PinyinLookupCandidate(text: "输入法", weight: 90, baseRank: 1,
+                                      wubiHint: InputCode("lwy"))
+            ],
+            learningRecords: [],
+            learningEnabled: false,
+            scriptConverter: converter,
+            outputScript: .traditional,
+            pageIndex: 0
+        )
+
+        XCTAssertEqual(page.items.map(\.text), ["後臺", "中國", "輸入法"])
+        XCTAssertEqual(page.totalCount, 3)
+        XCTAssertEqual(page.items.first?.source, .baseWubi)
+        XCTAssertEqual(page.items.first?.queryKey, .wubi(code))
+        XCTAssertEqual(page.items.last?.wubiHint?.letters, "lwy")
+    }
+
+    func testMixedRankingCapsEachSourceTierBeforeMerging() throws {
+        let sequence = try XCTUnwrap(CompositionKeySequence("shang"))
+        let candidates = (0..<70).map {
+            PinyinLookupCandidate(text: "词\($0)", weight: UInt64(70 - $0),
+                                  baseRank: $0, wubiHint: nil)
+        }
+        let ranker = CandidateRanker(pageSize: 9)
+
+        let first = try ranker.mixedPage(
+            for: sequence,
+            wubiRecords: [], userEntries: [], pinyinCandidates: candidates,
+            learningRecords: [], learningEnabled: true, scriptConverter: nil,
+            outputScript: .simplified, pageIndex: 0
+        )
+        let last = try ranker.mixedPage(
+            for: sequence,
+            wubiRecords: [], userEntries: [], pinyinCandidates: candidates,
+            learningRecords: [], learningEnabled: true, scriptConverter: nil,
+            outputScript: .simplified, pageIndex: 7
+        )
+
+        XCTAssertEqual(first.totalCount, CandidateRanker.maximumCandidatesPerTier)
+        XCTAssertEqual(last.items.count, 1)
+        XCTAssertEqual(last.items.first?.text, "词63")
+    }
+
     private func pinyinIndex() throws -> PinyinDictionaryIndex {
         let wb86Data = try DictionaryFormatV1.encode(records: [
             DictionaryEntryRecord(code: XCTUnwrap(InputCode("a")), rank: 0, text: "工")
@@ -260,5 +357,14 @@ final class CandidateQueryTests: XCTestCase {
         return PinyinDictionaryIndex(
             image: try PinyinDictionaryLoader.load(from: pinyinURL, wb86Image: wb86)
         )
+    }
+
+    private func bundledScriptConverter() throws -> ScriptConverter {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: "script-conversion", withExtension: "bin")
+                ?? Bundle(for: Self.self).url(forResource: "script-conversion",
+                                              withExtension: "bin")
+        )
+        return try ScriptConverter(data: Data(contentsOf: url))
     }
 }

@@ -41,6 +41,8 @@ struct LearnedCandidateRanking: Equatable, Sendable {
 }
 
 struct CandidateRanker: Sendable {
+    static let maximumCandidatesPerTier = 64
+
     let policy: CandidateRankingPolicy
     var pageSize: Int { policy.pageSize }
 
@@ -142,6 +144,140 @@ struct CandidateRanker: Sendable {
         try page(for: code, records: records, userEntries: userEntries,
                  learningRecords: learningRecords,
                  learningEnabled: policy.automaticFrequency, pageIndex: pageIndex)
+    }
+
+    func mixedPage(for sequence: CompositionKeySequence,
+                   wubiRecords: [DictionaryEntryRecord],
+                   userEntries: [UserCandidateRanking],
+                   pinyinCandidates: [PinyinLookupCandidate],
+                   learningRecords: [LearnedCandidateRanking],
+                   learningEnabled: Bool,
+                   scriptConverter: ScriptConverter?,
+                   outputScript: OutputScript,
+                   pageIndex: Int) throws -> CandidatePage {
+        guard (5...9).contains(pageSize) else { throw CandidateQueryError.invalidPageSize }
+        guard pageIndex >= 0 else { throw CandidateQueryError.pageOutOfRange }
+
+        struct MixedValue {
+            let text: String
+            let queryKey: CandidateQueryKey
+            let source: CandidateSource
+            let baseRank: Int
+            let learnedScore: Int
+            let wubiHint: InputCode?
+        }
+        struct WubiValue {
+            let text: String
+            var source: CandidateSource
+            var baseRank: Int
+            var fixedRank: Int?
+            var learnedScore: Int
+        }
+
+        var wubiTier = [MixedValue]()
+        if let code = sequence.wubiCode {
+            guard wubiRecords.allSatisfy({ $0.code == code }),
+                  userEntries.allSatisfy({ $0.code == code }) else {
+                throw CandidateQueryError.mismatchedCode
+            }
+            let queryKey = CandidateQueryKey.wubi(code)
+            let scores = learningScores(for: queryKey, in: learningRecords,
+                                        enabled: learningEnabled)
+            var values = [String: WubiValue]()
+            for record in wubiRecords {
+                guard let rank = Int(exactly: record.rank) else {
+                    throw CandidateQueryError.invalidRank
+                }
+                values[record.text] = WubiValue(
+                    text: record.text, source: .baseWubi, baseRank: rank,
+                    fixedRank: nil, learnedScore: scores[record.text] ?? 0
+                )
+            }
+            for entry in userEntries {
+                if var existing = values[entry.text] {
+                    existing.source = .userWubi
+                    existing.fixedRank = entry.fixedRank
+                    existing.learnedScore = scores[entry.text] ?? 0
+                    values[entry.text] = existing
+                } else {
+                    values[entry.text] = WubiValue(
+                        text: entry.text, source: .userWubi, baseRank: Int.max,
+                        fixedRank: entry.fixedRank, learnedScore: scores[entry.text] ?? 0
+                    )
+                }
+            }
+            let ordered = values.values.sorted { lhs, rhs in
+                if lhs.fixedRank != rhs.fixedRank {
+                    return (lhs.fixedRank ?? Int.max) < (rhs.fixedRank ?? Int.max)
+                }
+                if lhs.learnedScore != rhs.learnedScore {
+                    return lhs.learnedScore > rhs.learnedScore
+                }
+                if lhs.baseRank != rhs.baseRank { return lhs.baseRank < rhs.baseRank }
+                return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
+            }
+            wubiTier = ordered.prefix(Self.maximumCandidatesPerTier).map {
+                MixedValue(text: $0.text, queryKey: queryKey, source: $0.source,
+                           baseRank: $0.baseRank, learnedScore: $0.learnedScore,
+                           wubiHint: code)
+            }
+        } else if !wubiRecords.isEmpty || !userEntries.isEmpty {
+            throw CandidateQueryError.mismatchedCode
+        }
+
+        let pinyinKey = CandidateQueryKey(kind: .pinyin, code: sequence.letters)!
+        let pinyinScores = learningScores(for: pinyinKey, in: learningRecords,
+                                          enabled: learningEnabled)
+        let pinyinTier = pinyinCandidates.sorted { lhs, rhs in
+            let lhsScore = pinyinScores[lhs.text] ?? 0
+            let rhsScore = pinyinScores[rhs.text] ?? 0
+            if lhsScore != rhsScore { return lhsScore > rhsScore }
+            if lhs.baseRank != rhs.baseRank { return lhs.baseRank < rhs.baseRank }
+            return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
+        }.prefix(Self.maximumCandidatesPerTier).map {
+            MixedValue(text: $0.text, queryKey: pinyinKey, source: .localPinyin,
+                       baseRank: $0.baseRank, learnedScore: pinyinScores[$0.text] ?? 0,
+                       wubiHint: $0.wubiHint)
+        }
+
+        var seenDisplayText = Set<String>()
+        var merged = [MixedValue]()
+        merged.reserveCapacity(wubiTier.count + pinyinTier.count)
+        for value in wubiTier + pinyinTier {
+            let displayText = scriptConverter?.convert(value.text, to: outputScript) ?? value.text
+            guard seenDisplayText.insert(displayText).inserted else { continue }
+            merged.append(MixedValue(
+                text: displayText, queryKey: value.queryKey, source: value.source,
+                baseRank: value.baseRank, learnedScore: value.learnedScore,
+                wubiHint: value.wubiHint
+            ))
+        }
+
+        let start = pageIndex.multipliedReportingOverflow(by: pageSize)
+        guard !start.overflow, start.partialValue <= merged.count,
+              pageIndex == 0 || start.partialValue < merged.count else {
+            throw CandidateQueryError.pageOutOfRange
+        }
+        let end = min(start.partialValue + pageSize, merged.count)
+        let items = try merged[start.partialValue..<end].enumerated().map { offset, value in
+            try Candidate(text: value.text, queryKey: value.queryKey,
+                          source: value.source, baseRank: value.baseRank,
+                          learnedScore: value.learnedScore, ordinal: offset + 1,
+                          wubiHint: value.wubiHint)
+        }
+        return try CandidatePage(items: items, pageIndex: pageIndex,
+                                 pageSize: pageSize, totalCount: merged.count)
+    }
+
+    private func learningScores(for queryKey: CandidateQueryKey,
+                                in records: [LearnedCandidateRanking],
+                                enabled: Bool) -> [String: Int] {
+        guard enabled else { return [:] }
+        var scores = [String: Int]()
+        for record in records where record.queryKey == queryKey {
+            scores[record.candidateText] = max(scores[record.candidateText] ?? 0, record.score)
+        }
+        return scores
     }
 
     static func rank(candidates: [Candidate], learningEnabled: Bool) -> [Candidate] {
