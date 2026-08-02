@@ -16,6 +16,7 @@ final class SettingsWindowController: NSWindowController {
     private(set) var accessibleControls = [NSControl]()
     private(set) var focusOrderLabels = [String]()
     private(set) var lastValidationAnnouncement: String?
+    private(set) var lastFocusedControlLabel: String?
     private(set) var settings: InputSettings
     private(set) var draftSettings: InputSettings
     var savedSettings: InputSettings { settings }
@@ -26,6 +27,7 @@ final class SettingsWindowController: NSWindowController {
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
     private var popupsByLabel = [String: NSPopUpButton]()
+    private weak var tabView: NSTabView?
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
     private let privacyViewController = PrivacyViewController.makeDefault()
@@ -58,6 +60,7 @@ final class SettingsWindowController: NSWindowController {
         window.title = "Mac Wubi 设置"
         window.setAccessibilityLabel("Mac Wubi 设置")
         let tabs = NSTabView(frame: NSRect(x: 12, y: 54, width: 656, height: 434))
+        tabView = tabs
         tabs.autoresizingMask = [.width, .height]
         for title in groupTitles {
             let tab = NSTabViewItem(identifier: title)
@@ -67,10 +70,13 @@ final class SettingsWindowController: NSWindowController {
         }
         let applyButton = makeButton("保存", action: #selector(applyFromControls))
         applyButton.frame = NSRect(x: 560, y: 14, width: 96, height: 30)
+        let cancelButton = makeButton("取消", action: #selector(cancelFromControls))
+        cancelButton.frame = NSRect(x: 456, y: 14, width: 96, height: 30)
         let restoreButton = makeButton("恢复默认…", action: #selector(confirmRestoreDefaults))
-        restoreButton.frame = NSRect(x: 448, y: 14, width: 104, height: 30)
+        restoreButton.frame = NSRect(x: 336, y: 14, width: 112, height: 30)
         window.contentView?.addSubview(tabs)
         window.contentView?.addSubview(applyButton)
+        window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
         focusOrderLabels = accessibleControls.compactMap { $0.accessibilityLabel() }
         for (current, next) in zip(accessibleControls, accessibleControls.dropFirst()) {
@@ -92,16 +98,31 @@ final class SettingsWindowController: NSWindowController {
     func validateAndApply(_ value: InputSettings) -> Bool {
         do {
             try apply(value)
-            lastValidationAnnouncement = nil
+            lastFocusedControlLabel = nil
+            announce("设置已保存。")
             return true
         } catch SettingsValidationError.invalidPageSize {
-            announce("设置无效：候选数量必须为 5 至 9。")
+            reject("设置无效：候选数量必须为 5 至 9。", focus: "每页候选数量 5 至 9")
         } catch SettingsValidationError.invalidFontScale {
-            announce("设置无效：候选字号缩放必须为 0.8 至 2.0。")
+            reject("设置无效：候选字号缩放必须为 0.8 至 2.0。", focus: "候选字号缩放")
+        } catch SettingsValidationError.corruptPayload,
+                SettingsValidationError.generationExhausted,
+                SettingsValidationError.readbackMismatch {
+            reject("保存失败，最后有效设置保持不变。", focus: "初始语言")
         } catch {
-            announce("设置无效，请检查冲突按键和输入值。")
+            reject("保存失败，最后有效设置保持不变。", focus: "初始语言")
         }
         return false
+    }
+
+    @discardableResult
+    func saveDraft() -> Bool { validateAndApply(draftSettings) }
+
+    func cancelDraft() {
+        draftSettings = settings
+        lastValidationAnnouncement = nil
+        lastFocusedControlLabel = nil
+        refreshCommonControls()
     }
 
     @discardableResult
@@ -225,6 +246,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func register(_ control: NSControl, label: String) {
         control.setAccessibilityLabel(label)
+        control.setAccessibilityHelp("配置“\(label)”；更改仅在按下保存后生效。")
         switch control {
         case let popup as NSPopUpButton:
             control.setAccessibilityValue(popup.titleOfSelectedItem ?? "")
@@ -243,6 +265,7 @@ final class SettingsWindowController: NSWindowController {
             ? NSButton(checkboxWithTitle: title, target: nil, action: nil)
             : NSButton(title: title, target: self, action: action)
         button.setAccessibilityLabel(title)
+        button.setAccessibilityHelp("操作“\(title)”；可使用键盘聚焦并执行。")
         button.refusesFirstResponder = false
         accessibleControls.append(button)
         controlsByTitle[title] = button
@@ -268,6 +291,8 @@ final class SettingsWindowController: NSWindowController {
         draftSettings = updated
         _ = validateAndApply(updated)
     }
+
+    @objc private func cancelFromControls() { cancelDraft() }
 
     private func selectedIndex(_ label: String) -> Int {
         popupsByLabel[label]?.indexOfSelectedItem ?? 0
@@ -306,6 +331,17 @@ final class SettingsWindowController: NSWindowController {
         NSAccessibility.post(element: window ?? self,
                              notification: .announcementRequested,
                              userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
+    private func reject(_ message: String, focus label: String) {
+        lastFocusedControlLabel = label
+        if label == "每页候选数量 5 至 9" || label == "候选字号缩放" {
+            tabView?.selectTabViewItem(withIdentifier: "外观")
+        }
+        if let control = accessibleControls.first(where: { $0.accessibilityLabel() == label }) {
+            window?.makeFirstResponder(control)
+        }
+        announce(message)
     }
 
     @objc private func confirmRestoreDefaults() {
