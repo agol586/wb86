@@ -19,10 +19,13 @@ final class LexiconExporter {
         let users = userStore.snapshot.entries.map {
             LexiconTransferEntry(code: $0.code, text: $0.text, fixedRank: $0.fixedRank)
         }
-        let learning = includeLearning ? learningStore?.snapshot.records.map {
-            LexiconTransferLearning(code: $0.code.letters, candidateText: $0.candidateText,
+        let learning: [LexiconTransferLearning]? = includeLearning
+            ? learningStore?.snapshot.records.map {
+            LexiconTransferLearning(kind: $0.queryKey.kind,
+                                    code: $0.queryKey.normalizedCode,
+                                    candidateText: $0.candidateText,
                                     score: $0.score, decayEpoch: $0.decayEpoch)
-        } : nil
+            } : nil
         return try LexiconArchiveCodec.encode(MacWubiArchive(userLexicon: users,
                                                               learning: learning))
     }

@@ -19,11 +19,11 @@ final class DataMigrator {
     private let steps: [DataDomain: [UInt32: Step]]
 
     init(writer: SnapshotWriter,
-         currentVersions: [DataDomain: UInt32] = [.settings: 1, .userLexicon: 1, .learning: 1],
-         steps: [DataDomain: [UInt32: Step]] = [:]) {
+         currentVersions: [DataDomain: UInt32] = [.settings: 1, .userLexicon: 1, .learning: 2],
+         steps: [DataDomain: [UInt32: Step]]? = nil) {
         self.writer = writer
         self.currentVersions = currentVersions
-        self.steps = steps
+        self.steps = steps ?? [.learning: [1: LearningStore.migrateV1Payload]]
     }
 
     func migrate(_ domain: DataDomain) throws -> MigrationResult {

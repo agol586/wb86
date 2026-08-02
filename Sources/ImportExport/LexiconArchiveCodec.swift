@@ -1,10 +1,20 @@
 import Foundation
 
 struct LexiconTransferLearning: Equatable, Codable, Sendable {
+    let kind: CandidateQueryKind?
     let code: String
     let candidateText: String
     let score: Int
     let decayEpoch: UInt64
+
+    init(kind: CandidateQueryKind? = nil, code: String, candidateText: String,
+         score: Int, decayEpoch: UInt64) {
+        self.kind = kind
+        self.code = code
+        self.candidateText = candidateText
+        self.score = score
+        self.decayEpoch = decayEpoch
+    }
 }
 
 struct MacWubiArchive: Equatable, Sendable {
@@ -70,8 +80,11 @@ enum LexiconArchiveCodec {
             guard let decoded = try? JSONDecoder().decode([LexiconTransferLearning].self,
                                                           from: Data(learnData)),
                   decoded.count <= 50_000,
-                  decoded.allSatisfy({ InputCode($0.code) != nil && !$0.candidateText.isEmpty
-                      && $0.score > 0 && $0.score <= 1_000_000 }) else {
+                  decoded.allSatisfy({
+                      CandidateQueryKey(kind: $0.kind ?? .wubi, code: $0.code) != nil
+                          && !$0.candidateText.isEmpty
+                          && $0.score > 0 && $0.score <= 1_000_000
+                  }) else {
                 throw LexiconCodecError.invalidRecord
             }
             learning = decoded

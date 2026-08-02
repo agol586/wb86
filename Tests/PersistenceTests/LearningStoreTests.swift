@@ -36,6 +36,32 @@ final class LearningStoreTests: XCTestCase {
         XCTAssertGreaterThan(store.snapshot.generation, 1)
     }
 
+    func testTypedWubiAndPinyinLearningKeysRemainIndependentAcrossRestart() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiTypedLearning-\(UUID().uuidString)",
+                                   isDirectory: true)
+        let writer = try SnapshotWriter(rootURL: root)
+        let store = try LearningStore(writer: writer, maxRecords: 10, maximumScore: 100)
+        let wubiCode = try XCTUnwrap(InputCode("wqvb"))
+        let pinyinQuery = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "nihao"))
+        let wubiKey = try LearningKey(queryKey: .wubi(wubiCode), candidateText: "你好")
+        let pinyinKey = try LearningKey(queryKey: pinyinQuery, candidateText: "你好")
+
+        try store.recordSelection(key: wubiKey, amount: 2)
+        try store.recordSelection(key: pinyinKey, amount: 5)
+
+        XCTAssertEqual(store.score(key: wubiKey), 2)
+        XCTAssertEqual(store.score(key: pinyinKey), 5)
+        XCTAssertEqual(Set(store.snapshot.records.map(\.key)), [wubiKey, pinyinKey])
+
+        let restarted = try LearningStore(writer: SnapshotWriter(rootURL: root),
+                                          maxRecords: 10, maximumScore: 100)
+        XCTAssertEqual(restarted.score(key: wubiKey), 2)
+        XCTAssertEqual(restarted.score(key: pinyinKey), 5)
+        XCTAssertEqual(try writer.load(.learning)?.schemaVersion,
+                       LearningStore.schemaVersion)
+    }
+
     private func makeStore(maxRecords: Int, maximumScore: Int) throws -> LearningStore {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiLearningTests-\(UUID().uuidString)", isDirectory: true)

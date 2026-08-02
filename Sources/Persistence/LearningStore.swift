@@ -6,11 +6,37 @@ enum LearningStoreError: Error, Equatable {
     case corruptPayload
 }
 
+struct LearningKey: Equatable, Hashable, Sendable {
+    let candidateIdentity: CandidateIdentity
+
+    init(queryKey: CandidateQueryKey, candidateText: String) throws {
+        candidateIdentity = try CandidateIdentity(queryKey: queryKey, text: candidateText)
+    }
+
+    var queryKey: CandidateQueryKey { candidateIdentity.queryKey }
+    var candidateText: String { candidateIdentity.text }
+}
+
 struct LearningRecord: Equatable, Hashable, Sendable {
-    let code: InputCode
-    let candidateText: String
+    let key: LearningKey
     let score: Int
     let decayEpoch: UInt64
+
+    init(key: LearningKey, score: Int, decayEpoch: UInt64) {
+        self.key = key
+        self.score = score
+        self.decayEpoch = decayEpoch
+    }
+
+    init(code: InputCode, candidateText: String, score: Int, decayEpoch: UInt64) throws {
+        key = try LearningKey(queryKey: .wubi(code), candidateText: candidateText)
+        self.score = score
+        self.decayEpoch = decayEpoch
+    }
+
+    var queryKey: CandidateQueryKey { key.queryKey }
+    var code: InputCode? { queryKey.wubiCode }
+    var candidateText: String { key.candidateText }
 }
 
 struct LearningSnapshot: Equatable, Sendable {
@@ -19,7 +45,7 @@ struct LearningSnapshot: Equatable, Sendable {
 }
 
 final class LearningStore {
-    private static let schemaVersion: UInt32 = 1
+    static let schemaVersion: UInt32 = 2
     private let writer: SnapshotWriter
     private let maxRecords: Int
     private let maximumScore: Int
@@ -50,20 +76,23 @@ final class LearningStore {
     }
 
     func recordSelection(code: InputCode, candidateText: String, amount: Int = 1) throws {
+        try recordSelection(key: LearningKey(queryKey: .wubi(code), candidateText: candidateText),
+                            amount: amount)
+    }
+
+    func recordSelection(key: LearningKey, amount: Int = 1) throws {
         lock.lock(); defer { lock.unlock() }
         guard storedIsEnabled else { return }
         guard amount > 0 else { throw LearningStoreError.invalidAmount }
-        try Self.validate(candidateText)
+        try Self.validate(key.candidateText)
         var records = storedSnapshot.records
-        if let index = records.firstIndex(where: {
-            $0.code == code && $0.candidateText == candidateText
-        }) {
+        if let index = records.firstIndex(where: { $0.key == key }) {
             let existing = records[index]
-            records[index] = LearningRecord(code: code, candidateText: candidateText,
+            records[index] = LearningRecord(key: key,
                                             score: min(maximumScore, existing.score + amount),
                                             decayEpoch: existing.decayEpoch)
         } else {
-            records.append(LearningRecord(code: code, candidateText: candidateText,
+            records.append(LearningRecord(key: key,
                                           score: min(maximumScore, amount), decayEpoch: 0))
         }
         records = Self.ordered(records)
@@ -72,10 +101,15 @@ final class LearningStore {
     }
 
     func score(code: InputCode, candidateText: String) -> Int {
+        guard let key = try? LearningKey(queryKey: .wubi(code), candidateText: candidateText) else {
+            return 0
+        }
+        return score(key: key)
+    }
+
+    func score(key: LearningKey) -> Int {
         lock.lock(); defer { lock.unlock() }
-        return storedSnapshot.records.first {
-            $0.code == code && $0.candidateText == candidateText
-        }?.score ?? 0
+        return storedSnapshot.records.first { $0.key == key }?.score ?? 0
     }
 
     func isPromoted(code: InputCode, candidateText: String) -> Bool {
@@ -90,8 +124,7 @@ final class LearningStore {
             let steps = min(epoch - record.decayEpoch, 63)
             let score = record.score >> Int(steps)
             changed = true
-            return score > 0 ? LearningRecord(code: record.code,
-                                              candidateText: record.candidateText,
+            return score > 0 ? LearningRecord(key: record.key,
                                               score: score, decayEpoch: epoch) : nil
         }
         if changed { try publish(records) }
@@ -106,23 +139,21 @@ final class LearningStore {
         lock.lock(); defer { lock.unlock() }
         var records = storedSnapshot.records
         var indices = Dictionary(uniqueKeysWithValues: records.enumerated().map {
-            ($0.element.code.letters + "\0" + $0.element.candidateText, $0.offset)
+            ($0.element.key, $0.offset)
         })
         for item in proposed {
             try Self.validate(item.candidateText)
             guard item.score > 0, item.score <= maximumScore else {
                 throw LearningStoreError.invalidAmount
             }
-            let key = item.code.letters + "\0" + item.candidateText
-            if let index = indices[key] {
+            if let index = indices[item.key] {
                 let existing = records[index]
-                records[index] = LearningRecord(code: existing.code,
-                                                candidateText: existing.candidateText,
+                records[index] = LearningRecord(key: existing.key,
                                                 score: max(existing.score, item.score),
                                                 decayEpoch: max(existing.decayEpoch, item.decayEpoch))
             } else {
                 records.append(item)
-                indices[key] = records.count - 1
+                indices[item.key] = records.count - 1
             }
         }
         guard records.count <= maxRecords else { throw LearningStoreError.corruptPayload }
@@ -142,7 +173,12 @@ final class LearningStore {
     private static func ordered(_ records: [LearningRecord]) -> [LearningRecord] {
         records.sorted {
             if $0.score != $1.score { return $0.score > $1.score }
-            if $0.code != $1.code { return $0.code < $1.code }
+            if $0.queryKey.kind != $1.queryKey.kind {
+                return $0.queryKey.kind.rawValue < $1.queryKey.kind.rawValue
+            }
+            if $0.queryKey.normalizedCode != $1.queryKey.normalizedCode {
+                return $0.queryKey.normalizedCode < $1.queryKey.normalizedCode
+            }
             return $0.candidateText.utf8.lexicographicallyPrecedes($1.candidateText.utf8)
         }
     }
@@ -158,6 +194,17 @@ final class LearningStore {
     private struct Payload: Codable {
         let records: [Record]
         struct Record: Codable {
+            let kind: CandidateQueryKind
+            let normalizedCode: String
+            let candidateText: String
+            let score: Int
+            let decayEpoch: UInt64
+        }
+    }
+
+    private struct LegacyPayloadV1: Codable {
+        let records: [Record]
+        struct Record: Codable {
             let code: String
             let candidateText: String
             let score: Int
@@ -167,7 +214,9 @@ final class LearningStore {
 
     private static func encode(_ records: [LearningRecord]) throws -> Data {
         try JSONEncoder.sorted.encode(Payload(records: records.map {
-            Payload.Record(code: $0.code.letters, candidateText: $0.candidateText,
+            Payload.Record(kind: $0.queryKey.kind,
+                           normalizedCode: $0.queryKey.normalizedCode,
+                           candidateText: $0.candidateText,
                            score: $0.score, decayEpoch: $0.decayEpoch)
         }))
     }
@@ -176,18 +225,38 @@ final class LearningStore {
                                maxRecords: Int) throws -> LearningSnapshot {
         guard let payload = try? JSONDecoder().decode(Payload.self, from: snapshot.payload),
               payload.records.count <= maxRecords else { throw LearningStoreError.corruptPayload }
-        var unique = Set<String>()
+        var unique = Set<LearningKey>()
         let records = try payload.records.map { item -> LearningRecord in
-            guard let code = InputCode(item.code), (1...maximumScore).contains(item.score) else {
+            guard let queryKey = CandidateQueryKey(kind: item.kind,
+                                                   code: item.normalizedCode),
+                  (1...maximumScore).contains(item.score) else {
                 throw LearningStoreError.corruptPayload
             }
             try validate(item.candidateText)
-            guard unique.insert(code.letters + "\0" + item.candidateText).inserted else {
+            let key = try LearningKey(queryKey: queryKey, candidateText: item.candidateText)
+            guard unique.insert(key).inserted else {
                 throw LearningStoreError.corruptPayload
             }
-            return LearningRecord(code: code, candidateText: item.candidateText,
-                                  score: item.score, decayEpoch: item.decayEpoch)
+            return LearningRecord(key: key, score: item.score, decayEpoch: item.decayEpoch)
         }
         return LearningSnapshot(generation: snapshot.generation, records: ordered(records))
+    }
+
+    static func migrateV1Payload(_ data: Data) throws -> Data {
+        guard let legacy = try? JSONDecoder().decode(LegacyPayloadV1.self, from: data),
+              legacy.records.count <= 50_000 else {
+            throw LearningStoreError.corruptPayload
+        }
+        var unique = Set<LearningKey>()
+        let records = try legacy.records.map { item -> LearningRecord in
+            guard let code = InputCode(item.code), (1...1_000_000).contains(item.score) else {
+                throw LearningStoreError.corruptPayload
+            }
+            try validate(item.candidateText)
+            let key = try LearningKey(queryKey: .wubi(code), candidateText: item.candidateText)
+            guard unique.insert(key).inserted else { throw LearningStoreError.corruptPayload }
+            return LearningRecord(key: key, score: item.score, decayEpoch: item.decayEpoch)
+        }
+        return try encode(ordered(records))
     }
 }

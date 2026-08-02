@@ -38,9 +38,12 @@ final class LexiconImporter {
     func importArchive(_ data: Data) throws -> ImportReport {
         let archive = try LexiconArchiveCodec.decode(data)
         let learning = try archive.learning?.map { item -> LearningRecord in
-            guard let code = InputCode(item.code) else { throw LexiconCodecError.invalidRecord }
-            return LearningRecord(code: code, candidateText: item.candidateText,
-                                  score: item.score, decayEpoch: item.decayEpoch)
+            guard let queryKey = CandidateQueryKey(kind: item.kind ?? .wubi,
+                                                   code: item.code) else {
+                throw LexiconCodecError.invalidRecord
+            }
+            let key = try LearningKey(queryKey: queryKey, candidateText: item.candidateText)
+            return LearningRecord(key: key, score: item.score, decayEpoch: item.decayEpoch)
         }
         let result = try merge(archive.userLexicon)
         if let learning { try learningStore?.mergeImported(learning) }

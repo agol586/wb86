@@ -72,19 +72,23 @@ final class PersonalizationIntegrationTests: XCTestCase {
         let ranker = CandidateRanker(pageSize: 5)
         for _ in 0..<3 { try learningStore.recordSelection(code: code, candidateText: "乙") }
         var page = try ranker.page(for: code, records: baseRecords, userEntries: [],
-                                   learningRecords: learningStore.snapshot.records.map {
-                                       LearnedCandidateRanking(code: $0.code,
-                                                               candidateText: $0.candidateText,
-                                                               score: $0.score)
+                                   learningRecords: learningStore.snapshot.records.compactMap {
+                                       guard let code = $0.code else { return nil }
+                                       return LearnedCandidateRanking(
+                                           code: code, candidateText: $0.candidateText,
+                                           score: $0.score
+                                       )
                                    },
                                    learningEnabled: true, pageIndex: 0)
         XCTAssertEqual(page.items.map(\.text), ["乙", "甲"])
         try learningStore.clear()
         page = try ranker.page(for: code, records: baseRecords, userEntries: [],
-                               learningRecords: learningStore.snapshot.records.map {
-                                   LearnedCandidateRanking(code: $0.code,
-                                                           candidateText: $0.candidateText,
-                                                           score: $0.score)
+                               learningRecords: learningStore.snapshot.records.compactMap {
+                                   guard let code = $0.code else { return nil }
+                                   return LearnedCandidateRanking(
+                                       code: code, candidateText: $0.candidateText,
+                                       score: $0.score
+                                   )
                                },
                                learningEnabled: true, pageIndex: 0)
         XCTAssertEqual(page.items.map(\.text), ["甲", "乙"])

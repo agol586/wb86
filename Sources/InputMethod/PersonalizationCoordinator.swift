@@ -75,9 +75,10 @@ final class PersonalizationCoordinator {
             userEntries: userStore?.snapshot.entries.map {
                 UserCandidateRanking(code: $0.code, text: $0.text, fixedRank: $0.fixedRank)
             } ?? [],
-            learningRecords: learningStore?.snapshot.records.map {
-                LearnedCandidateRanking(code: $0.code, candidateText: $0.candidateText,
-                                        score: $0.score)
+            learningRecords: learningStore?.snapshot.records.compactMap {
+                guard let code = $0.code else { return nil }
+                return LearnedCandidateRanking(code: code, candidateText: $0.candidateText,
+                                               score: $0.score)
             } ?? [],
             pageIndex: pageIndex
         )
