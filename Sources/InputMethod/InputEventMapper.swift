@@ -91,7 +91,8 @@ enum InputEventMapper {
             return event.keyCode == 3 && flags == [.control, .shift]
         case .shiftSpace:
             return event.keyCode == 49 && flags == [.shift]
-        case .standaloneShift, .legacyControlShiftDigits, .custom, .disabled:
+        case .standaloneShift, .standaloneControl, .standaloneCapsLock,
+             .legacyControlShiftDigits, .custom, .disabled:
             return false
         }
     }

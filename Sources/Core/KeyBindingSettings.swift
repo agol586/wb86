@@ -29,6 +29,8 @@ enum KeyboardLayoutSelection: String, Codable, CaseIterable, Sendable {
 
 enum ModeSwitchBinding: Equatable, Codable, Sendable {
     case standaloneShift
+    case standaloneControl
+    case standaloneCapsLock
     case controlShiftF
     case shiftSpace
     case legacyControlShiftDigits
@@ -139,7 +141,8 @@ struct KeyBindingValidator {
             if normalized.isEmpty { return .empty }
             if Self.systemReserved.contains(normalized) { return .systemReserved }
             return nil
-        case .standaloneShift, .controlShiftF, .shiftSpace, .disabled:
+        case .standaloneShift, .standaloneControl, .standaloneCapsLock,
+             .controlShiftF, .shiftSpace, .disabled:
             return nil
         }
     }
@@ -161,6 +164,10 @@ struct KeyBindingValidator {
             switch binding {
             case .standaloneShift:
                 self = .exact("standalone-shift")
+            case .standaloneControl:
+                self = .exact("standalone-control")
+            case .standaloneCapsLock:
+                self = .exact("standalone-caps-lock")
             case .controlShiftF:
                 self = .exact("control-shift-f")
             case .shiftSpace:

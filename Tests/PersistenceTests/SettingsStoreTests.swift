@@ -89,6 +89,24 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
     }
 
+    func testStandaloneLanguageBindingsPersistAcrossStoreRestart() throws {
+        for binding: ModeSwitchBinding in [
+            .standaloneShift, .standaloneControl, .standaloneCapsLock, .disabled
+        ] {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("MacWubiModifierBinding-\(UUID().uuidString)")
+            let writer = try SnapshotWriter(rootURL: root)
+            let store = try SettingsStore(writer: writer)
+            var changed = InputSettings.default
+            changed.keyBindings.languageSwitch = binding
+
+            try store.save(changed)
+
+            let restarted = try SettingsStore(writer: SnapshotWriter(rootURL: root))
+            XCTAssertEqual(restarted.settings.keyBindings.languageSwitch, binding)
+        }
+    }
+
     func testFutureCurrentIsPreservedByteForByteAndMakesSettingsReadOnly() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiFutureSettings-\(UUID().uuidString)")

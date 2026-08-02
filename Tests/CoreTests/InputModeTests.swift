@@ -22,6 +22,18 @@ final class InputModeTests: XCTestCase {
                 expected: []
             ),
             ValidationCase(
+                name: "standalone control language preset",
+                language: .standaloneControl, script: .controlShiftF, width: .disabled,
+                layout: .us, layoutAvailable: true,
+                expected: []
+            ),
+            ValidationCase(
+                name: "standalone caps lock language preset",
+                language: .standaloneCapsLock, script: .controlShiftF, width: .disabled,
+                layout: .us, layoutAvailable: true,
+                expected: []
+            ),
+            ValidationCase(
                 name: "empty custom value",
                 language: .custom("  "), script: .controlShiftF, width: .shiftSpace,
                 layout: .us, layoutAvailable: true,
@@ -96,6 +108,25 @@ final class InputModeTests: XCTestCase {
             keyboardLayout: .followSystem
         )
         XCTAssertEqual(configured.pageKeyGroups.count, 2)
+    }
+
+    func testStandaloneLanguageBindingsRoundTripWithoutChangingShiftDefault() throws {
+        XCTAssertEqual(KeyBindingSettings.default.languageSwitch, .standaloneShift)
+
+        for binding: ModeSwitchBinding in [
+            .standaloneShift, .standaloneControl, .standaloneCapsLock, .disabled
+        ] {
+            let configured = try KeyBindingSettings(
+                languageSwitch: binding,
+                scriptSwitch: .controlShiftF,
+                widthSwitch: .disabled,
+                pageKeyGroups: [.tab],
+                keyboardLayout: .us
+            )
+            let encoded = try JSONEncoder().encode(configured)
+            XCTAssertEqual(try JSONDecoder().decode(KeyBindingSettings.self, from: encoded),
+                           configured, "binding: \(binding)")
+        }
     }
 
     func testLanguageSwitchIsSessionLocalAndDirectEnglishDoesNotQuery() {

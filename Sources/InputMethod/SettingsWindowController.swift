@@ -509,7 +509,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func bindingIndex(_ binding: ModeSwitchBinding) -> Int {
         switch binding {
-        case .standaloneShift: return 0
+        case .standaloneShift, .standaloneControl, .standaloneCapsLock: return 0
         case .controlShiftF: return 1
         case .shiftSpace: return 2
         case .disabled: return 3

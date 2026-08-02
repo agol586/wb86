@@ -80,18 +80,19 @@ prefix-exists 和 exact-key lookup；有效未完成前缀继续 marked text，e
 **Alternatives considered**: 第五码无条件提交四码首选（截断连续全拼）；拼音覆盖五笔排名（破坏熟练
 用户路径）；只允许单字拼音（不满足连续全拼）。
 
-## 6. Shift 单击和事件识别
+## 6. 独立修饰键单击和事件识别
 
-**Decision**: 每个 `IMKInputController` 旁增加 `StandaloneShiftRecognizer`，把 `recognizedEvents`
-扩展为 `super | flagsChanged`。只对配对的左/右 Shift press/release、无重复语义、无其他事件/修饰键、
-未超长按阈值的会话内手势切换一次；任何按键、第二个 Shift、会话切换、设置代次变化或 reset 使手势
-失效。press/release 均透传，release 只产生会话内副作用。不得在 `flagsChanged` 上读取 `isARepeat`，
-长按用可注入时钟和事件 timestamp 判定。
+**Decision**: 每个 `IMKInputController` 旁增加会话级 `StandaloneModifierRecognizer`，把
+`recognizedEvents` 扩展为 `super | flagsChanged`。语言切换可选择左/右 Shift、左/右 Control、
+Caps Lock 或禁用；只在配置的修饰键独立完成、无其他事件/修饰键且未超长按阈值时切换一次。
+任何普通按键、同类左右键交错、会话切换、设置代次变化或 reset 使待定手势失效。事件保持透传，
+只产生会话内模式副作用；不得在 `flagsChanged` 上读取 `isARepeat`，长按用可注入时钟和事件
+timestamp 判定。Caps Lock 按系统 toggle 型 flagsChanged 语义去重，不安装监听或 event tap。
 
-**Rationale**: 单独修饰键产生 flagsChanged 而非普通 keyDown；会话级配对可避免 Shift+字母、系统
+**Rationale**: 单独修饰键产生 flagsChanged 而非普通 keyDown；会话级状态可避免修饰键+字母、系统
 快捷键、遗留 release 和跨客户端串线，同时不采用隐私违规的全局监听。
 
-**Alternatives considered**: keyDown-only（无法识别单 Shift）；轮询 modifier flags（无法证明配对）；
+**Alternatives considered**: keyDown-only（无法识别独立修饰键）；轮询 modifier flags（无法证明配对）；
 global monitor/event tap（违反会话与隐私边界）；消费 release（可能让客户端认为 Shift 卡住）。
 
 **Platform caveat**: Apple SDK 说明，默认“点击组合区外”处理只在默认 recognizedEvents 恰为 keyDown

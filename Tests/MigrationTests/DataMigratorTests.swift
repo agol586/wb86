@@ -25,6 +25,8 @@ final class DataMigratorTests: XCTestCase {
         XCTAssertEqual(settings.keyBindings.widthSwitch, .custom("option-shift-space"))
         XCTAssertEqual(settings.keyBindings.pageKeyGroups, [.bracketPair])
         XCTAssertEqual(settings.keyBindings.keyboardLayout, .followSystem)
+        XCTAssertNotEqual(settings.keyBindings.languageSwitch, .standaloneControl)
+        XCTAssertNotEqual(settings.keyBindings.languageSwitch, .standaloneCapsLock)
         XCTAssertTrue(settings.autoCommitAtFour)
         XCTAssertFalse(settings.autoCommitFirstAtFive)
         XCTAssertEqual(settings.defaultMode,

@@ -36,4 +36,6 @@
   deterministic 30-logical-day, 1,000,000-committed-character workload gate.
 - Validation iteration 3 passed all items after explicitly removing VoiceOver/screen-reader support while
   preserving ordinary mouse/keyboard operation and failure safety.
+- Validation iteration 4 passed all items after aligning the language-switch selector with the supplied
+  Shift/Control/Caps Lock/disabled reference and prohibiting stale menu shortcuts or a duplicate status item.
 - No clarification markers remain; the specification is ready for `$speckit-plan`.

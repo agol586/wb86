@@ -35,8 +35,9 @@
 ## 3. KeyBinding
 
 `KeyBinding` 由 `physicalKey`、精确 `modifiers`、`triggerPhase` 和 `preset` 构成，不存任意用户字符串。
-语言、简繁、全半角分别选一个预设或禁用；翻页是五个独立组的集合。Shift 单击由会话级
-`ModifierTapState` 跟踪：`idle → eligible → disqualified/released`，重复、其他键或其他修饰键均使其失效。
+语言绑定限定为 Shift、Control、Caps Lock 或禁用；简繁和全半角分别选择其文档化预设或禁用；
+翻页是五个独立组的集合。独立修饰键由会话级 `ModifierTapState` 跟踪：
+`idle → eligible → disqualified/released`，重复、其他键或其他修饰键均使其失效。
 
 ## 4. CompositionKeySequence and Route
 
