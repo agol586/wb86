@@ -12,17 +12,20 @@ final class SettingsWindowController: NSWindowController {
         saveHandler: { try SettingsCoordinator.shared?.save($0) }
     )
 
-    let groupTitles = ["输入", "按键", "候选", "学习", "用户词库", "隐私"]
+    let groupTitles = ["常用", "按键", "外观", "高级"]
     private(set) var accessibleControls = [NSControl]()
     private(set) var focusOrderLabels = [String]()
     private(set) var lastValidationAnnouncement: String?
     private(set) var settings: InputSettings
+    private(set) var draftSettings: InputSettings
+    var savedSettings: InputSettings { settings }
     private let saveHandler: (InputSettings) throws -> Void
     private var controlsByTitle = [String: NSButton]()
     private var pageKeysPopup: NSPopUpButton?
     private var pageSizeStepper: NSStepper?
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
+    private var popupsByLabel = [String: NSPopUpButton]()
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
     private let privacyViewController = PrivacyViewController.makeDefault()
@@ -30,6 +33,7 @@ final class SettingsWindowController: NSWindowController {
     init(settings: InputSettings,
          saveHandler: @escaping (InputSettings) throws -> Void = { _ in }) {
         self.settings = settings
+        draftSettings = settings
         self.saveHandler = saveHandler
         super.init(window: nil)
     }
@@ -43,6 +47,7 @@ final class SettingsWindowController: NSWindowController {
     override func loadWindow() {
         accessibleControls.removeAll()
         controlsByTitle.removeAll()
+        popupsByLabel.removeAll()
         pageKeysPopup = nil
         pageSizeStepper = nil
         layoutPopup = nil
@@ -60,7 +65,7 @@ final class SettingsWindowController: NSWindowController {
             tab.view = groupView(title)
             tabs.addTabViewItem(tab)
         }
-        let applyButton = makeButton("应用设置", action: #selector(applyFromControls))
+        let applyButton = makeButton("保存", action: #selector(applyFromControls))
         applyButton.frame = NSRect(x: 560, y: 14, width: 96, height: 30)
         let restoreButton = makeButton("恢复默认…", action: #selector(confirmRestoreDefaults))
         restoreButton.frame = NSRect(x: 448, y: 14, width: 104, height: 30)
@@ -80,6 +85,7 @@ final class SettingsWindowController: NSWindowController {
         let validated = try value.validated()
         try saveHandler(validated)
         settings = validated
+        draftSettings = validated
     }
 
     @discardableResult
@@ -105,6 +111,11 @@ final class SettingsWindowController: NSWindowController {
         return true
     }
 
+    func updateDraft(_ update: (inout InputSettings) -> Void) {
+        update(&draftSettings)
+        refreshCommonControls()
+    }
+
     func confirmationMessage(for action: SettingsDestructiveAction) -> String {
         switch action {
         case .clearLearning: return "确认清除学习数据？用户词库不会改变。"
@@ -123,16 +134,12 @@ final class SettingsWindowController: NSWindowController {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 390))
         let labels: [String]
         switch title {
-        case "输入": labels = ["四码自动上屏", "默认中文输入", "默认中文标点", "默认半角", "默认简体"]
+        case "常用":
+            addCommonControls(to: view)
+            return view
         case "按键":
-            labels = ["启用 Control-Shift-1…4 模式键"]
-            let popup = NSPopUpButton(frame: NSRect(x: 24, y: 280, width: 260, height: 30))
-            popup.addItems(withTitles: ["翻页键 - 和 =", "翻页键 , 和 .", "翻页键 [ 和 ]"])
-            popup.selectItem(at: settings.keyBindings.pageKeys.index)
-            register(popup, label: "候选翻页键")
-            pageKeysPopup = popup
-            view.addSubview(popup)
-        case "候选":
+            labels = ["按键设置将在此页显示"]
+        case "外观":
             labels = ["候选纵向排列"]
             let stepper = NSStepper()
             stepper.frame = NSRect(x: 24, y: 280, width: 96, height: 30)
@@ -162,19 +169,16 @@ final class SettingsWindowController: NSWindowController {
             preview.frame = NSRect(x: 24, y: 120, width: 430, height: 40)
             preview.setAccessibilityLabel("无正文实时预览")
             view.addSubview(preview)
-        case "学习": labels = ["启用本地学习", "私密模式", "清除学习数据…"]
-        case "用户词库":
-            labels = ["搜索用户词条", "添加词条", "编辑词条", "删除词条…"]
+        case "高级":
+            labels = ["私密模式", "清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…"]
             let importButton = makeButton("导入用户词库…", action: #selector(importLexicon))
-            importButton.frame = NSRect(x: 24, y: 138, width: 150, height: 30)
+            importButton.frame = NSRect(x: 24, y: 42, width: 150, height: 30)
             view.addSubview(importButton)
             let exportButton = makeButton("导出用户词库…", action: #selector(exportLexicon))
-            exportButton.frame = NSRect(x: 184, y: 138, width: 150, height: 30)
+            exportButton.frame = NSRect(x: 184, y: 42, width: 150, height: 30)
             view.addSubview(exportButton)
         default:
-            privacyViewController.loadView()
-            accessibleControls.append(contentsOf: privacyViewController.controls)
-            return privacyViewController.view
+            labels = []
         }
         for (index, label) in labels.enumerated() {
             let control = makeButton(label, action: nil)
@@ -182,6 +186,41 @@ final class SettingsWindowController: NSWindowController {
             view.addSubview(control)
         }
         return view
+    }
+
+    private func addCommonControls(to view: NSView) {
+        let popupRows: [(String, [String], Int)] = [
+            ("初始语言", ["中文", "英文"], draftSettings.defaultMode.language == .chinese ? 0 : 1),
+            ("初始简繁体", ["简体", "繁体"], draftSettings.defaultMode.script == .simplified ? 0 : 1),
+            ("初始全半角", ["半角", "全角"], draftSettings.defaultMode.width == .half ? 0 : 1),
+            ("中文模式标点", ["英文标点", "中文标点"],
+             draftSettings.defaultMode.punctuation == .english ? 0 : 1)
+        ]
+        for (index, row) in popupRows.enumerated() {
+            let caption = NSTextField(labelWithString: row.0)
+            caption.frame = NSRect(x: 24, y: 340 - index * 44, width: 130, height: 24)
+            let popup = NSPopUpButton(frame: NSRect(x: 162, y: 334 - index * 44,
+                                                    width: 170, height: 30))
+            popup.addItems(withTitles: row.1)
+            popup.selectItem(at: row.2)
+            register(popup, label: row.0)
+            popupsByLabel[row.0] = popup
+            view.addSubview(caption)
+            view.addSubview(popup)
+        }
+
+        let options = [
+            "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
+            "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键"
+        ]
+        for (index, title) in options.enumerated() {
+            let button = makeButton(title, action: nil)
+            let column = index / 3
+            let row = index % 3
+            button.frame = NSRect(x: 24 + column * 300, y: 130 - row * 42,
+                                  width: 285, height: 30)
+            view.addSubview(button)
+        }
     }
 
     private func register(_ control: NSControl, label: String) {
@@ -212,42 +251,54 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func applyFromControls() {
-        var updated = settings
-        updated.autoCommitAtFour = isOn("四码自动上屏")
-        updated.learningEnabled = isOn("启用本地学习")
+        var updated = draftSettings
+        updated.autoCommitAtFour = isOn("四码唯一时直接上屏")
+        updated.autoCommitFirstAtFive = isOn("第五码将首选词上屏")
+        updated.automaticFrequency = isOn("五笔自动调频")
+        updated.mixedPinyinEnabled = isOn("五笔拼音混合输入")
+        updated.codeHintEnabled = isOn("开启编码提示")
+        updated.candidate2And3ShortcutsEnabled = isOn("分号和单引号候选快捷键")
         updated.candidatePageSize = Int(pageSizeStepper?.integerValue ?? 5)
         updated.candidateLayout = layoutPopup?.indexOfSelectedItem == 1 ? .horizontal : .vertical
         updated.candidateFontScale = fontScaleSlider?.doubleValue ?? 1
-        updated.defaultMode.language = isOn("默认中文输入") ? .chinese : .directEnglish
-        updated.defaultMode.punctuation = isOn("默认中文标点") ? .chinese : .english
-        updated.defaultMode.width = isOn("默认半角") ? .half : .full
-        updated.defaultMode.script = isOn("默认简体") ? .simplified : .traditional
-        updated.keyBindings = try! KeyBindingSettings(
-            modeSwitch: isOn("启用 Control-Shift-1…4 模式键") ? .controlShiftDigits : .disabled,
-            pageKeys: CandidatePageKeySet(index: pageKeysPopup?.indexOfSelectedItem ?? 0)
-        )
+        updated.defaultMode.language = selectedIndex("初始语言") == 0 ? .chinese : .directEnglish
+        updated.defaultMode.script = selectedIndex("初始简繁体") == 0 ? .simplified : .traditional
+        updated.defaultMode.width = selectedIndex("初始全半角") == 0 ? .half : .full
+        updated.defaultMode.punctuation = selectedIndex("中文模式标点") == 0 ? .english : .chinese
+        draftSettings = updated
         _ = validateAndApply(updated)
+    }
+
+    private func selectedIndex(_ label: String) -> Int {
+        popupsByLabel[label]?.indexOfSelectedItem ?? 0
     }
 
     private func isOn(_ title: String) -> Bool { controlsByTitle[title]?.state == .on }
 
     private func configureInitialState(_ button: NSButton, title: String) {
         switch title {
-        case "四码自动上屏": button.state = settings.autoCommitAtFour ? .on : .off
-        case "默认中文输入": button.state = settings.defaultMode.language == .chinese ? .on : .off
-        case "默认中文标点": button.state = settings.defaultMode.punctuation == .chinese ? .on : .off
-        case "默认半角": button.state = settings.defaultMode.width == .half ? .on : .off
-        case "默认简体": button.state = settings.defaultMode.script == .simplified ? .on : .off
-        case "启用 Control-Shift-1…4 模式键":
-            button.state = settings.keyBindings.modeSwitch == .disabled ? .off : .on
-        case "候选纵向排列": button.state = settings.candidateLayout == .vertical ? .on : .off
-        case "启用本地学习": button.state = settings.learningEnabled ? .on : .off
+        case "四码唯一时直接上屏": button.state = draftSettings.autoCommitAtFour ? .on : .off
+        case "第五码将首选词上屏": button.state = draftSettings.autoCommitFirstAtFive ? .on : .off
+        case "五笔自动调频": button.state = draftSettings.automaticFrequency ? .on : .off
+        case "五笔拼音混合输入": button.state = draftSettings.mixedPinyinEnabled ? .on : .off
+        case "开启编码提示": button.state = draftSettings.codeHintEnabled ? .on : .off
+        case "分号和单引号候选快捷键":
+            button.state = draftSettings.candidate2And3ShortcutsEnabled ? .on : .off
+        case "候选纵向排列": button.state = draftSettings.candidateLayout == .vertical ? .on : .off
         case "私密模式": button.state = PrivacyModeController.shared.privateMode ? .on : .off
         default: break
         }
         if button.target == nil {
             button.setAccessibilityValue(button.state == .on ? "已启用" : "未启用")
         }
+    }
+
+    private func refreshCommonControls() {
+        controlsByTitle.forEach { configureInitialState($0.value, title: $0.key) }
+        popupsByLabel["初始语言"]?.selectItem(at: draftSettings.defaultMode.language == .chinese ? 0 : 1)
+        popupsByLabel["初始简繁体"]?.selectItem(at: draftSettings.defaultMode.script == .simplified ? 0 : 1)
+        popupsByLabel["初始全半角"]?.selectItem(at: draftSettings.defaultMode.width == .half ? 0 : 1)
+        popupsByLabel["中文模式标点"]?.selectItem(at: draftSettings.defaultMode.punctuation == .english ? 0 : 1)
     }
 
     private func announce(_ message: String) {

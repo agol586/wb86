@@ -8,7 +8,7 @@ final class SettingsWindowTests: XCTestCase {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()
         XCTAssertEqual(controller.groupTitles,
-                       ["输入", "按键", "候选", "学习", "用户词库", "隐私"])
+                       ["常用", "按键", "外观", "高级"])
         XCTAssertTrue(controller.accessibleControls.allSatisfy {
             !($0.accessibilityLabel() ?? "").isEmpty
         })
@@ -17,11 +17,38 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(stepper?.minValue, 5)
         XCTAssertEqual(stepper?.maxValue, 9)
         let popups = controller.accessibleControls.compactMap { $0 as? NSPopUpButton }
-        XCTAssertTrue(popups.contains { $0.itemTitles == ["翻页键 - 和 =", "翻页键 , 和 .", "翻页键 [ 和 ]"] })
+        XCTAssertTrue(popups.contains { $0.itemTitles == ["中文", "英文"] })
+        XCTAssertTrue(popups.contains { $0.itemTitles == ["简体", "繁体"] })
+        XCTAssertTrue(popups.contains { $0.itemTitles == ["半角", "全角"] })
+        XCTAssertTrue(popups.contains { $0.itemTitles == ["英文标点", "中文标点"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["纵向候选", "横向候选"] })
         let slider = controller.accessibleControls.compactMap { $0 as? NSSlider }.first
         XCTAssertEqual(slider?.minValue, 0.8)
         XCTAssertEqual(slider?.maxValue, 2)
+    }
+
+    func testCommonPageUsesNewInstallDefaultsAndSeparatesSavedFromDraft() {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        XCTAssertEqual(controller.savedSettings, .newInstallDefault)
+        XCTAssertEqual(controller.draftSettings, .newInstallDefault)
+
+        let labels = Set(controller.accessibleControls.compactMap { $0.accessibilityLabel() })
+        XCTAssertTrue(labels.isSuperset(of: [
+            "初始语言", "初始简繁体", "初始全半角", "中文模式标点",
+            "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
+            "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键"
+        ]))
+
+        controller.updateDraft { draft in
+            draft.autoCommitAtFour = false
+            draft.autoCommitFirstAtFive = true
+            draft.automaticFrequency = true
+        }
+        XCTAssertTrue(controller.savedSettings.autoCommitAtFour)
+        XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
+        XCTAssertTrue(controller.draftSettings.autoCommitFirstAtFive)
+        XCTAssertTrue(controller.draftSettings.automaticFrequency)
     }
 
     func testAppearancePreviewContainsNoCandidateOrInputText() {

@@ -64,7 +64,7 @@
 
 - [X] T011 [US1] 先在 `Tests/CoreTests/TextConversionTests.swift` 覆盖“先标点映射、再转换剩余 ASCII”的简繁/半全角矩阵，再在 `Sources/Core/PunctuationConverter.swift` 和 `Sources/Core/InputMode.swift` 实现确定转换规则
 - [X] T012 [US1] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖初始模式仅用于新建/重新激活且普通保存不重置临时模式，再在 `Sources/Core/InputEngine.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 分离 runtime policy 应用与 mode 初始化
-- [ ] T013 [US1] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“常用”页 saved/draft、默认值和键盘焦点，再在 `Sources/InputMethod/SettingsWindowController.swift` 构建初始状态、四码/五码、调频、混输、提示和快捷选择控件
+- [X] T013 [US1] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“常用”页 saved/draft、默认值和键盘焦点，再在 `Sources/InputMethod/SettingsWindowController.swift` 构建初始状态、四码/五码、调频、混输、提示和快捷选择控件
 - [ ] T014 [US1] 先在 `Tests/AccessibilityTests/SettingsAccessibilityTests.swift` 覆盖 Save/Cancel 成功失败反馈、label/value/help 与焦点保持，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现完整 draft 校验、显式保存和取消零写入
 - [ ] T015 [US1] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖外观立即刷新、语义设置安全延迟和持久默认不覆盖会话临时状态，并在 `Sources/InputMethod/SettingsCoordinator.swift`、`Sources/InputMethod/CandidateAppearanceController.swift` 和 `Sources/InputMethod/InputControllerSession.swift` 完成区分应用
 - [ ] T016 [US1] 在 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 增加两个以上客户端分别组合、独立结束和重新激活的端到端测试，并在 `Sources/InputMethod/InputController.swift` 修正会话注册/失活/空闲通知次序
