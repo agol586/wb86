@@ -1,12 +1,76 @@
 import AppKit
 import InputMethodKit
 
+struct InputControllerEventRoute: Equatable {
+    let coreEvent: InputEvent?
+    let mustPassThrough: Bool
+}
+
+final class InputControllerEventRouter {
+    private let shiftRecognizer: StandaloneShiftRecognizer
+    private let layoutTranslator: KeyboardLayoutTranslator
+
+    init(shiftRecognizer: StandaloneShiftRecognizer = StandaloneShiftRecognizer(),
+         layoutTranslator: KeyboardLayoutTranslator = KeyboardLayoutTranslator()) {
+        self.shiftRecognizer = shiftRecognizer
+        self.layoutTranslator = layoutTranslator
+    }
+
+    static func extendingRecognizedEvents(_ mask: Int) -> Int {
+        mask | Int(NSEvent.EventTypeMask.flagsChanged.rawValue)
+    }
+
+    func route(_ event: NSEvent, settingsSnapshot: SettingsSnapshot,
+               isComposing: Bool) -> InputControllerEventRoute {
+        if event.type == .flagsChanged {
+            let triggered = shiftRecognizer.handle(
+                event,
+                settingsGeneration: settingsSnapshot.generation
+            )
+            return InputControllerEventRoute(
+                coreEvent: triggered
+                    ? standaloneShiftEvent(settingsSnapshot.settings.keyBindings) : nil,
+                mustPassThrough: true
+            )
+        }
+        guard event.type == .keyDown else {
+            return InputControllerEventRoute(coreEvent: nil, mustPassThrough: true)
+        }
+        shiftRecognizer.disqualifyForNonModifierKey()
+        let settings = settingsSnapshot.settings
+        let translated = layoutTranslator.character(
+            for: event,
+            layout: settings.keyBindings.keyboardLayout
+        )
+        return InputControllerEventRoute(
+            coreEvent: InputEventMapper.map(
+                event,
+                translatedCharacter: translated,
+                isComposing: isComposing,
+                keyBindings: settings.keyBindings,
+                candidate2And3ShortcutsEnabled: settings.candidate2And3ShortcutsEnabled
+            ),
+            mustPassThrough: false
+        )
+    }
+
+    func reset() { shiftRecognizer.reset() }
+
+    private func standaloneShiftEvent(_ bindings: KeyBindingSettings) -> InputEvent? {
+        if bindings.languageSwitch == .standaloneShift { return .switchLanguage }
+        if bindings.scriptSwitch == .standaloneShift { return .switchScript }
+        if bindings.widthSwitch == .standaloneShift { return .switchWidth }
+        return nil
+    }
+}
+
 @objc(InputController)
 @MainActor
 final class InputController: IMKInputController {
     private var inputSession: InputControllerSession!
     private var candidatePresenter: AccessibleCandidatePresenter!
     private var clientProxy: IMKClientProxy?
+    private let eventRouter = InputControllerEventRouter()
 
     private(set) var compositionState: CompositionState {
         get { inputSession?.state ?? .idle }
@@ -38,6 +102,7 @@ final class InputController: IMKInputController {
             resetSession()
             return
         }
+        eventRouter.reset()
         inputSession.reactivate()
         SettingsCoordinator.shared?.applyPendingAtIdle()
         InputModeController.shared.activate(mode: inputSession.mode) { [weak self] modeEvent in
@@ -50,17 +115,22 @@ final class InputController: IMKInputController {
             resetSession()
             return false
         }
-        let mappedEvent = InputEventMapper.map(
+        let route = eventRouter.route(
             event,
-            isComposing: compositionState.kind == .composing,
-            keyBindings: inputSession.settings.keyBindings
+            settingsSnapshot: inputSession.activeSnapshot,
+            isComposing: compositionState.kind == .composing
         )
+        guard let mappedEvent = route.coreEvent else { return false }
         let consumed = inputSession.handle(mappedEvent, client: client)
         SettingsCoordinator.shared?.applyPendingAtIdle()
         InputModeController.shared.activate(mode: inputSession.mode) { [weak self] modeEvent in
             self?.handleModeEvent(modeEvent)
         }
-        return consumed
+        return route.mustPassThrough ? false : consumed
+    }
+
+    override func recognizedEvents(_ sender: Any!) -> Int {
+        InputControllerEventRouter.extendingRecognizedEvents(super.recognizedEvents(sender))
     }
 
     override func deactivateServer(_ sender: Any!) {
@@ -79,6 +149,7 @@ final class InputController: IMKInputController {
     }
 
     func resetSession() {
+        eventRouter.reset()
         inputSession?.resetWithoutClient()
         candidatePresenter?.hide()
         clientProxy = nil
@@ -95,6 +166,7 @@ final class InputController: IMKInputController {
     }
 
     private func finishSession(sender: Any?) {
+        eventRouter.reset()
         if let client = proxy(for: sender) {
             inputSession.deactivate(client: client)
         } else {

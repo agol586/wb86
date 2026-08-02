@@ -86,7 +86,7 @@
 - [X] T020 [P] [US2] 先在 `Tests/AdapterContractTests/StandaloneShiftRecognizerTests.swift` 覆盖左右 Shift、长按、双 Shift、组合键、孤立 release、reset 与代次变化，再在 `Sources/InputMethod/StandaloneShiftRecognizer.swift` 实现会话级 timestamp 状态机且不读取 flagsChanged 的 `isARepeat`
 - [X] T021 [US2] 先在 `Tests/CoreTests/InputModeTests.swift` 覆盖精确 modifiers、非重复 Control-Shift-F、宽度预设和应用快捷键优先级，再在 `Sources/InputMethod/InputEventMapper.swift` 实现“模式绑定→系统快捷键透传→候选控制→普通输入”的确定映射
 - [X] T022 [US2] 在 `Tests/CoreTests/InputModeTests.swift` 覆盖五组翻页的启用集合、双向、空闲、修饰键、页边界及分号/单引号缺失目标，并在 `Sources/InputMethod/InputEventMapper.swift` 和 `Sources/Core/InputEngine.swift` 实现单事件动作与活动组合边界消费
-- [ ] T023 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖 flagsChanged 两端透传、release 副作用、失活和 reset，再在 `Sources/InputMethod/InputController.swift` 以 `super.recognizedEvents | flagsChanged` 接入 Shift recognizer 和布局 translator
+- [X] T023 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖 flagsChanged 两端透传、release 副作用、失活和 reset，再在 `Sources/InputMethod/InputController.swift` 以 `super.recognizedEvents | flagsChanged` 接入 Shift recognizer 和布局 translator
 - [ ] T024 [US2] 在 `Tests/CoreTests/InputEngineTests.swift` 覆盖语言/简繁/全半角快捷键安全取消 marked text、隐藏候选且不提交原始编码，并在 `Sources/Core/InputEngine.swift` 完成当前会话模式切换语义
 - [ ] T025 [US2] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“按键”页三个切换预设、五组复选、布局和冲突定位，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现按键页及布局不可用反馈
 - [ ] T026 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 和 `Tests/IntegrationTests/ModeInputIntegrationTests.swift` 增加完整事件矩阵，验证候选控制、应用快捷键、translator 快照与每事件最多一次动作

@@ -4,6 +4,22 @@ enum InputEventMapper {
     static func map(_ event: NSEvent, isComposing: Bool,
                     keyBindings: KeyBindingSettings = .default,
                     candidate2And3ShortcutsEnabled: Bool = false) -> InputEvent {
+        map(event, resolvedCharacters: event.charactersIgnoringModifiers,
+            isComposing: isComposing, keyBindings: keyBindings,
+            candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
+    }
+
+    static func map(_ event: NSEvent, translatedCharacter: String?, isComposing: Bool,
+                    keyBindings: KeyBindingSettings,
+                    candidate2And3ShortcutsEnabled: Bool) -> InputEvent {
+        map(event, resolvedCharacters: translatedCharacter,
+            isComposing: isComposing, keyBindings: keyBindings,
+            candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
+    }
+
+    private static func map(_ event: NSEvent, resolvedCharacters: String?, isComposing: Bool,
+                            keyBindings: KeyBindingSettings,
+                            candidate2And3ShortcutsEnabled: Bool) -> InputEvent {
         guard event.type == .keyDown else { return .passThrough }
         let exactModeFlags = event.modifierFlags.intersection([.command, .control, .option, .shift])
         if !event.isARepeat {
@@ -50,7 +66,7 @@ enum InputEventMapper {
                 return .passThrough
             }
         }
-        guard let characters = event.charactersIgnoringModifiers, characters.count == 1 else {
+        guard let characters = resolvedCharacters, characters.count == 1 else {
             return .passThrough
         }
         switch characters {

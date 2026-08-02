@@ -4,6 +4,66 @@ import XCTest
 
 @MainActor
 final class InputControllerContractTests: XCTestCase {
+    func testFlagsChangedEdgesPassThroughAndReleasePerformsOneModeSideEffect() throws {
+        let baseMask = Int(NSEvent.EventTypeMask.keyDown.rawValue)
+        let extended = InputControllerEventRouter.extendingRecognizedEvents(baseMask)
+        XCTAssertNotEqual(extended & Int(NSEvent.EventTypeMask.keyDown.rawValue), 0)
+        XCTAssertNotEqual(extended & Int(NSEvent.EventTypeMask.flagsChanged.rawValue), 0)
+
+        let router = InputControllerEventRouter()
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        let press = router.route(
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 1),
+            settingsSnapshot: snapshot,
+            isComposing: false
+        )
+        XCTAssertNil(press.coreEvent)
+        XCTAssertTrue(press.mustPassThrough)
+
+        let release = router.route(
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      timestamp: 1.1),
+            settingsSnapshot: snapshot,
+            isComposing: false
+        )
+        XCTAssertEqual(release.coreEvent, .switchLanguage)
+        XCTAssertTrue(release.mustPassThrough)
+
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: RecordingCandidatePresenter())
+        session.stage(settingsSnapshot: snapshot)
+        XCTAssertTrue(session.handle(try XCTUnwrap(release.coreEvent),
+                                     client: RecordingInputClient()))
+        XCTAssertEqual(session.mode.language, .directEnglish)
+    }
+
+    func testKeyDownDisqualifiesShiftAndResetDropsOrphanRelease() throws {
+        let router = InputControllerEventRouter()
+        let snapshot = SettingsSnapshot(generation: 2, settings: .default)
+        _ = router.route(try event(type: .flagsChanged, keyCode: 56, characters: "",
+                                   flags: [.shift], timestamp: 1),
+                         settingsSnapshot: snapshot, isComposing: false)
+        let keyDown = router.route(try event(type: .keyDown, keyCode: 0, characters: "x",
+                                             flags: [.shift], timestamp: 1.05),
+                                   settingsSnapshot: snapshot, isComposing: false)
+        XCTAssertEqual(keyDown.coreEvent, .letter("A"))
+        XCTAssertFalse(keyDown.mustPassThrough)
+        XCTAssertNil(router.route(
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
+            settingsSnapshot: snapshot, isComposing: false
+        ).coreEvent)
+
+        _ = router.route(try event(type: .flagsChanged, keyCode: 60, characters: "",
+                                   flags: [.shift], timestamp: 2),
+                         settingsSnapshot: snapshot, isComposing: false)
+        router.reset()
+        XCTAssertNil(router.route(
+            try event(type: .flagsChanged, keyCode: 60, characters: "", timestamp: 2.1),
+            settingsSnapshot: snapshot, isComposing: false
+        ).coreEvent)
+    }
+
     func testSessionUsesDefaultModeOnlyOnFirstSnapshotAndReactivation() throws {
         let session = InputControllerSession(engine: InputEngine(query: query),
                                              presenter: RecordingCandidatePresenter())
@@ -149,6 +209,23 @@ final class InputControllerContractTests: XCTestCase {
         }
         return try CandidatePage(items: candidates, pageIndex: pageIndex,
                                  pageSize: 5, totalCount: 2)
+    }
+
+    private func event(type: NSEvent.EventType, keyCode: UInt16, characters: String,
+                       flags: NSEvent.ModifierFlags = [],
+                       timestamp: TimeInterval) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.keyEvent(
+            with: type,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: timestamp,
+            windowNumber: 0,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
+        ))
     }
 }
 
