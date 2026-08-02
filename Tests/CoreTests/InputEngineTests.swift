@@ -2,6 +2,19 @@ import XCTest
 @testable import MacWubi
 
 final class InputEngineTests: XCTestCase {
+    func testOrderedClientActionBatchPreservesOrderAndDropsNoOp() {
+        let batch = ClientTextActionBatch([
+            .commitText("旧候选"),
+            .none,
+            .setMarkedText("a")
+        ])
+
+        XCTAssertEqual(batch.actions, [.commitText("旧候选"), .setMarkedText("a")])
+        XCTAssertEqual(ClientTextActionBatch.none.actions, [])
+        XCTAssertEqual(ClientTextActionBatch.single(.clearMarkedText).actions,
+                       [.clearMarkedText])
+    }
+
     func testLettersBuildMarkedCodeAndRefreshFromFirstPage() throws {
         let engine = InputEngine(query: query)
 

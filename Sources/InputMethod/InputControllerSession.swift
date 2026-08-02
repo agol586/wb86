@@ -40,8 +40,16 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     func handle(_ event: InputEvent, client: InputClientProxy) -> Bool {
         activeClient = client
         let result = engine.process(event)
+        return apply(result, client: client)
+    }
+
+    @discardableResult
+    func apply(_ result: InputProcessingResult, client: InputClientProxy) -> Bool {
+        activeClient = client
         do {
-            try apply(result.clientAction, to: client)
+            for action in result.clientActions.actions {
+                try apply(action, to: client)
+            }
         } catch {
             recover(client: client)
             return true

@@ -5,6 +5,20 @@ enum ClientTextAction: Equatable, Sendable {
     case clearMarkedText
 }
 
+struct ClientTextActionBatch: Equatable, Sendable {
+    let actions: [ClientTextAction]
+
+    init(_ actions: [ClientTextAction]) {
+        self.actions = actions.filter { $0 != .none }
+    }
+
+    static let none = ClientTextActionBatch([])
+
+    static func single(_ action: ClientTextAction) -> ClientTextActionBatch {
+        ClientTextActionBatch([action])
+    }
+}
+
 enum CandidateWindowAction: Equatable, Sendable {
     case none
     case show(CandidatePage)
@@ -24,10 +38,26 @@ struct LearningDelta: Equatable, Sendable {
 
 struct InputProcessingResult: Equatable, Sendable {
     let state: CompositionState
-    let clientAction: ClientTextAction
+    let clientActions: ClientTextActionBatch
     let candidateAction: CandidateWindowAction
     let consumed: Bool
     let learningDelta: LearningDelta?
+
+    init(state: CompositionState, clientActions: ClientTextActionBatch,
+         candidateAction: CandidateWindowAction, consumed: Bool,
+         learningDelta: LearningDelta?) {
+        self.state = state
+        self.clientActions = clientActions
+        self.candidateAction = candidateAction
+        self.consumed = consumed
+        self.learningDelta = learningDelta
+    }
+
+    /// Compatibility view for existing single-action consumers. Compound batches
+    /// must use `clientActions` so no operation can be silently discarded.
+    var clientAction: ClientTextAction {
+        clientActions.actions.count == 1 ? clientActions.actions[0] : .none
+    }
 }
 
 final class InputEngine {
@@ -235,12 +265,13 @@ final class InputEngine {
 
     private func result(state: CompositionState,
                         clientAction: ClientTextAction = .none,
+                        clientActions: ClientTextActionBatch? = nil,
                         candidateAction: CandidateWindowAction = .none,
                         consumed: Bool,
                         learningDelta: LearningDelta? = nil) -> InputProcessingResult {
         InputProcessingResult(
             state: state,
-            clientAction: clientAction,
+            clientActions: clientActions ?? .single(clientAction),
             candidateAction: candidateAction,
             consumed: consumed,
             learningDelta: learningDelta

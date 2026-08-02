@@ -4,6 +4,37 @@ import XCTest
 
 @MainActor
 final class InputControllerContractTests: XCTestCase {
+    func testOrderedClientActionBatchExecutesOnceAndStopsAfterFailure() throws {
+        var learned = [LearningDelta]()
+        let client = RecordingInputClient()
+        client.failureAttempt = 2
+        let presenter = RecordingCandidatePresenter()
+        presenter.isVisible = true
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter) {
+            learned.append($0)
+        }
+        let code = try XCTUnwrap(InputCode("wqvb"))
+        let result = InputProcessingResult(
+            state: .idle,
+            clientActions: ClientTextActionBatch([
+                .commitText("旧候选"),
+                .setMarkedText("a"),
+                .commitText("不应执行")
+            ]),
+            candidateAction: .hide,
+            consumed: true,
+            learningDelta: LearningDelta(code: code, candidateText: "旧候选", amount: 1)
+        )
+
+        XCTAssertTrue(session.apply(result, client: client))
+        XCTAssertEqual(client.actions, [.committed("旧候选"), .cleared])
+        XCTAssertEqual(client.attemptCount, 3)
+        XCTAssertTrue(learned.isEmpty)
+        XCTAssertFalse(presenter.isVisible)
+        XCTAssertEqual(session.state, .idle)
+    }
+
     func testMarkedTextCommitAndMouseSelectionUseTheSameEnginePath() throws {
         let client = RecordingInputClient()
         let presenter = RecordingCandidatePresenter()
@@ -102,19 +133,26 @@ private final class RecordingInputClient: InputClientProxy {
     enum Action: Equatable { case marked(String), committed(String), cleared }
     var actions = [Action]()
     var shouldFail = false
+    var failureAttempt: Int?
+    private(set) var attemptCount = 0
+
+    private func checkFailure() throws {
+        attemptCount += 1
+        if shouldFail || attemptCount == failureAttempt { throw ClientError.failed }
+    }
 
     func setMarkedText(_ text: String) throws {
-        if shouldFail { throw ClientError.failed }
+        try checkFailure()
         actions.append(.marked(text))
     }
 
     func commitText(_ text: String) throws {
-        if shouldFail { throw ClientError.failed }
+        try checkFailure()
         actions.append(.committed(text))
     }
 
     func clearMarkedText() throws {
-        if shouldFail { throw ClientError.failed }
+        try checkFailure()
         actions.append(.cleared)
     }
 
