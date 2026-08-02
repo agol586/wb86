@@ -153,6 +153,60 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(unavailable.lastValidationAnnouncement?.contains("不可用") == true)
     }
 
+    func testFieldErrorAndSaveFailureKeepLastValidBaseline() {
+        let baseline = InputSettings.default
+        let controller = SettingsWindowController(settings: baseline) { _ in
+            throw SettingsWindowTestError.writeFailed
+        }
+        controller.loadWindow()
+
+        controller.updateDraft { $0.candidatePageSize = 99 }
+        XCTAssertFalse(controller.saveDraft())
+        XCTAssertEqual(controller.lastFocusedControlLabel, "每页候选数量 5 至 9")
+        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("5 至 9") == true)
+        XCTAssertEqual(controller.savedSettings, baseline)
+
+        controller.updateDraft { draft in
+            draft.candidatePageSize = 7
+            draft.autoCommitAtFour.toggle()
+        }
+        XCTAssertFalse(controller.saveDraft())
+        XCTAssertEqual(controller.lastFocusedControlLabel, "初始语言")
+        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("最后有效设置") == true)
+        XCTAssertEqual(controller.savedSettings, baseline)
+        controller.cancelDraft()
+        XCTAssertEqual(controller.draftSettings, baseline)
+    }
+
+    func testFutureSchemaShowsReadOnlyStatusAndFocusesAccessibleFeedback() throws {
+        let controller = SettingsWindowController(
+            settings: .default,
+            access: .readOnlyFuture(schemaVersion: 99)
+        )
+        controller.loadWindow()
+
+        XCTAssertTrue(controller.isReadOnly)
+        XCTAssertTrue(controller.readOnlyMessage?.contains("版本 99") == true)
+        XCTAssertEqual(controller.lastFocusedControlLabel, "设置状态")
+        let status = try XCTUnwrap(controller.accessibleControls.first {
+            $0.accessibilityLabel() == "设置状态"
+        })
+        XCTAssertEqual(status.accessibilityValue() as? String, controller.readOnlyMessage)
+        XCTAssertTrue(controller.accessibleControls.filter {
+            $0.accessibilityLabel() != "设置状态" && $0.accessibilityLabel() != "取消"
+        }.allSatisfy { !$0.isEnabled })
+
+        var changed = InputSettings.default
+        changed.candidatePageSize = 9
+        XCTAssertFalse(controller.validateAndApply(changed))
+        XCTAssertEqual(controller.lastFocusedControlLabel, "设置状态")
+        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("只读") == true)
+        XCTAssertThrowsError(try controller.restoreDefaults(confirmed: true)) { error in
+            XCTAssertEqual(error as? SettingsValidationError, .unsupportedSchema)
+        }
+        XCTAssertEqual(controller.savedSettings, .default)
+    }
+
     func testAppearancePreviewContainsNoCandidateOrInputText() {
         let preview = CandidateAppearanceController().preview(settings: .default)
         XCTAssertEqual(preview.items, ["1  示例", "2  示例", "3  示例"])
@@ -178,3 +232,5 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.confirmationMessage(for: .deleteAllPersonalization).contains("全部个性化"))
     }
 }
+
+private enum SettingsWindowTestError: Error { case writeFailed }

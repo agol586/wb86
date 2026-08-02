@@ -34,6 +34,7 @@ final class SettingsCoordinator {
     }
 
     var settings: InputSettings { store.settings }
+    var access: SettingsStoreAccess { store.access }
 
     func register(_ session: SettingsSessionControlling) {
         sessions.removeAll { $0.value == nil || $0.value === session }

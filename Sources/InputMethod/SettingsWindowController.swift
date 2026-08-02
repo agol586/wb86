@@ -13,6 +13,7 @@ private enum SettingsWindowValidationError: Error {
 final class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController(
         settings: SettingsCoordinator.shared?.settings ?? .default,
+        access: SettingsCoordinator.shared?.access ?? .writable,
         saveHandler: { try SettingsCoordinator.shared?.save($0) },
         layoutAvailability: { selection in
             selection == .us || KeyboardLayoutTranslator.isCurrentSystemLayoutAvailable
@@ -27,6 +28,12 @@ final class SettingsWindowController: NSWindowController {
     private(set) var settings: InputSettings
     private(set) var draftSettings: InputSettings
     var savedSettings: InputSettings { settings }
+    let access: SettingsStoreAccess
+    var isReadOnly: Bool { access != .writable }
+    var readOnlyMessage: String? {
+        guard case let .readOnlyFuture(schemaVersion) = access else { return nil }
+        return "设置由更高版本（版本 \(schemaVersion)）创建。当前版本以安全默认值只读运行，不会覆盖原设置。"
+    }
     private let saveHandler: (InputSettings) throws -> Void
     private let keyBindingValidator: KeyBindingValidator
     private var controlsByTitle = [String: NSButton]()
@@ -40,10 +47,12 @@ final class SettingsWindowController: NSWindowController {
     private let privacyViewController = PrivacyViewController.makeDefault()
 
     init(settings: InputSettings,
+         access: SettingsStoreAccess = .writable,
          saveHandler: @escaping (InputSettings) throws -> Void = { _ in },
          layoutAvailability: @escaping KeyBindingValidator.LayoutAvailability = { _ in true }) {
         self.settings = settings
         draftSettings = settings
+        self.access = access
         self.saveHandler = saveHandler
         keyBindingValidator = KeyBindingValidator(isLayoutAvailable: layoutAvailability)
         super.init(window: nil)
@@ -86,16 +95,34 @@ final class SettingsWindowController: NSWindowController {
         window.contentView?.addSubview(applyButton)
         window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
+        var initialResponder: NSView? = accessibleControls.first
+        if let message = readOnlyMessage {
+            let status = NSTextField(wrappingLabelWithString: message)
+            status.frame = NSRect(x: 12, y: 4, width: 316, height: 46)
+            status.isSelectable = true
+            register(status, label: "设置状态")
+            status.setAccessibilityValue(message)
+            status.setAccessibilityHelp("当前设置文件来自更高版本，因此只能查看，不能保存或恢复默认。")
+            window.contentView?.addSubview(status)
+            accessibleControls.forEach { control in
+                let label = control.accessibilityLabel()
+                if label != "取消" && label != "设置状态" { control.isEnabled = false }
+            }
+            lastValidationAnnouncement = message
+            lastFocusedControlLabel = "设置状态"
+            initialResponder = status
+        }
         focusOrderLabels = accessibleControls.compactMap { $0.accessibilityLabel() }
         for (current, next) in zip(accessibleControls, accessibleControls.dropFirst()) {
             current.nextKeyView = next
         }
         accessibleControls.last?.nextKeyView = accessibleControls.first
-        window.initialFirstResponder = accessibleControls.first
+        window.initialFirstResponder = initialResponder
         self.window = window
     }
 
     func apply(_ value: InputSettings) throws {
+        guard access == .writable else { throw SettingsValidationError.unsupportedSchema }
         let validated = try value.validated()
         if let conflict = keyBindingValidator.validate(validated.keyBindings).conflicts.first {
             throw SettingsWindowValidationError.keyBinding(conflict)
@@ -116,6 +143,8 @@ final class SettingsWindowController: NSWindowController {
             reject("设置无效：候选数量必须为 5 至 9。", focus: "每页候选数量 5 至 9")
         } catch SettingsValidationError.invalidFontScale {
             reject("设置无效：候选字号缩放必须为 0.8 至 2.0。", focus: "候选字号缩放")
+        } catch SettingsValidationError.unsupportedSchema {
+            reject(readOnlyMessage ?? "当前设置为只读，无法保存或恢复默认。", focus: "设置状态")
         } catch let SettingsWindowValidationError.keyBinding(conflict) {
             reject(message(for: conflict), focus: label(for: conflict.field))
         } catch SettingsValidationError.corruptPayload,
