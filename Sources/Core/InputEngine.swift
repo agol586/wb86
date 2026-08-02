@@ -74,6 +74,7 @@ final class InputEngine {
     var privateMode = false
     var learningEnabled = true
     private var autoCommitAtFour = false
+    private var autoCommitFirstAtFive = false
     private(set) var rankingPolicy = CandidateRankingPolicy(
         settingsGeneration: 0, pageSize: 5, automaticFrequency: true
     )
@@ -152,6 +153,7 @@ final class InputEngine {
         guard state == .idle else { return }
         learningEnabled = settings.learningEnabled
         autoCommitAtFour = settings.autoCommitAtFour
+        autoCommitFirstAtFive = settings.autoCommitFirstAtFive
         rankingPolicy = CandidateRankingPolicy(
             settingsGeneration: generation,
             pageSize: settings.candidatePageSize,
@@ -166,10 +168,64 @@ final class InputEngine {
 
     private func processLetter(_ rawLetter: String) -> InputProcessingResult {
         let existing = state.composition?.sequence.letters ?? ""
+        if existing.utf8.count == 4, autoCommitFirstAtFive {
+            return processFifthLetter(rawLetter)
+        }
         guard existing.utf8.count < 4, let code = InputCode(existing + rawLetter) else {
             return recoverFromError()
         }
         return queryAndCompose(code: code, pageIndex: 0)
+    }
+
+    private func processFifthLetter(_ rawLetter: String) -> InputProcessingResult {
+        guard let previous = state.composition,
+              previous.route == .wubiOnly,
+              let previousCode = previous.code,
+              let nextCode = InputCode(rawLetter) else {
+            return recoverFromError()
+        }
+
+        do {
+            let queriedNextPage = try policyQuery(nextCode, 0, rankingPolicy)
+            let nextPage = try scriptConverter?.convert(queriedNextPage, to: mode.script)
+                ?? queriedNextPage
+            let nextState = try CompositionState.composing(
+                code: nextCode,
+                candidates: nextPage,
+                pageIndex: 0,
+                selectionIndex: nextPage.items.isEmpty ? nil : 0
+            )
+
+            var actions = [ClientTextAction]()
+            var learning: LearningDelta?
+            if previous.pageIndex == 0, let shownFirst = previous.candidates.items.first {
+                let queriedCurrentPage = try policyQuery(previousCode, 0, rankingPolicy)
+                let currentPage = try scriptConverter?.convert(queriedCurrentPage, to: mode.script)
+                    ?? queriedCurrentPage
+                if currentPage.pageIndex == 0,
+                   let currentFirst = currentPage.items.first,
+                   currentFirst.queryKey == shownFirst.queryKey,
+                   currentFirst.text == shownFirst.text {
+                    actions.append(.commitText(shownFirst.text))
+                    if !secureInput, !privateMode, learningEnabled {
+                        learning = LearningDelta(code: previousCode,
+                                                 candidateText: shownFirst.text,
+                                                 amount: 1)
+                    }
+                }
+            }
+            actions.append(.setMarkedText(nextCode.letters))
+            state = nextState
+            return result(
+                state: nextState,
+                clientActions: ClientTextActionBatch(actions),
+                candidateAction: nextPage.items.isEmpty ? .hide : .show(nextPage),
+                consumed: true,
+                learningDelta: learning
+            )
+        } catch {
+            return recoverFromError()
+        }
     }
 
     private func processText(_ text: String) -> InputProcessingResult {

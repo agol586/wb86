@@ -207,6 +207,113 @@ final class InputEngineTests: XCTestCase {
         }
     }
 
+    func testFifthCodeCommitsOldFirstCandidateThenStartsNewCompositionAtomically() throws {
+        let engine = InputEngine { code, pageIndex in
+            let texts = code.letters == "wqvb" ? ["旧首选", "旧次选"] : ["新候选"]
+            let candidates = try texts.enumerated().map { offset, text in
+                try Candidate(text: text, code: code, source: .base, baseRank: offset,
+                              learnedScore: 0, ordinal: offset + 1)
+            }
+            return try CandidatePage(items: candidates, pageIndex: pageIndex,
+                                     pageSize: 5, totalCount: candidates.count)
+        }
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = false
+        settings.autoCommitFirstAtFive = true
+        settings.automaticFrequency = true
+        engine.apply(settings: settings)
+
+        for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
+        let result = engine.process(.letter("a"))
+
+        XCTAssertEqual(result.clientActions.actions,
+                       [.commitText("旧首选"), .setMarkedText("a")])
+        XCTAssertEqual(result.state.composition?.code, InputCode("a"))
+        XCTAssertEqual(result.candidateAction.page?.items.map(\.text), ["新候选"])
+        XCTAssertEqual(result.learningDelta?.candidateText, "旧首选")
+        XCTAssertEqual(result.clientActions.actions.filter {
+            if case .commitText = $0 { return true }
+            return false
+        }.count, 1)
+    }
+
+    func testFifthCodeWithoutOldCandidateStartsNewCompositionWithoutEmptyCommit() throws {
+        let engine = InputEngine { code, pageIndex in
+            let candidates: [Candidate]
+            if code.letters == "wqvb" {
+                candidates = []
+            } else {
+                candidates = [try Candidate(text: "新候选", code: code, source: .base,
+                                            baseRank: 0, learnedScore: 0, ordinal: 1)]
+            }
+            return try CandidatePage(items: candidates, pageIndex: pageIndex,
+                                     pageSize: 5, totalCount: candidates.count)
+        }
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = false
+        settings.autoCommitFirstAtFive = true
+        engine.apply(settings: settings)
+
+        for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
+        let result = engine.process(.letter("a"))
+
+        XCTAssertEqual(result.clientActions.actions, [.setMarkedText("a")])
+        XCTAssertEqual(result.state.composition?.code, InputCode("a"))
+        XCTAssertNil(result.learningDelta)
+    }
+
+    func testFifthCodeDoesNotCommitAChangedFirstCandidateSnapshot() throws {
+        var fourCodeQueries = 0
+        let engine = InputEngine { code, pageIndex in
+            let text: String
+            if code.letters == "wqvb" {
+                fourCodeQueries += 1
+                text = fourCodeQueries == 1 ? "已显示首选" : "已变化首选"
+            } else {
+                text = "新候选"
+            }
+            let candidate = try Candidate(text: text, code: code, source: .base,
+                                          baseRank: 0, learnedScore: 0, ordinal: 1)
+            return try CandidatePage(items: [candidate], pageIndex: pageIndex,
+                                     pageSize: 5, totalCount: 1)
+        }
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = false
+        settings.autoCommitFirstAtFive = true
+        engine.apply(settings: settings)
+
+        for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
+        let result = engine.process(.letter("a"))
+
+        XCTAssertEqual(result.clientActions.actions, [.setMarkedText("a")])
+        XCTAssertFalse(result.clientActions.actions.contains(.commitText("已显示首选")))
+        XCTAssertFalse(result.clientActions.actions.contains(.commitText("已变化首选")))
+        XCTAssertEqual(result.state.composition?.code, InputCode("a"))
+    }
+
+    func testFourAndFiveCodeAutoCommitSwitchesDoNotDuplicateOrLoseNextKey() throws {
+        let engine = InputEngine { code, pageIndex in
+            let candidate = try Candidate(text: "候选-\(code.letters)", code: code,
+                                          source: .base, baseRank: 0,
+                                          learnedScore: 0, ordinal: 1)
+            return try CandidatePage(items: [candidate], pageIndex: pageIndex,
+                                     pageSize: 5, totalCount: 1)
+        }
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = true
+        settings.autoCommitFirstAtFive = true
+        engine.apply(settings: settings)
+
+        for letter in ["w", "q", "v"] { _ = engine.process(.letter(letter)) }
+        let fourth = engine.process(.letter("b"))
+        let fifth = engine.process(.letter("a"))
+
+        XCTAssertEqual(fourth.clientActions.actions, [.commitText("候选-wqvb")])
+        XCTAssertEqual(fifth.clientActions.actions, [.setMarkedText("a")])
+        XCTAssertEqual(fifth.state.composition?.code, InputCode("a"))
+        XCTAssertFalse(fifth.clientActions.actions.contains(.commitText("候选-wqvb")))
+    }
+
     private func query(code: InputCode, pageIndex: Int) throws -> CandidatePage {
         let items = try [1, 2].map {
             try Candidate(text: "候选\($0)", code: code, source: .base,
