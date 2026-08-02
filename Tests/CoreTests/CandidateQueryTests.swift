@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import MacWubi
 
@@ -145,5 +146,119 @@ final class CandidateQueryTests: XCTestCase {
         XCTAssertEqual(CandidateRanker.rank(candidates: [pinyin, wubi],
                                             learningEnabled: true).map(\.text),
                        ["五笔", "拼音"])
+    }
+
+    func testPinyinIndexAnswersOneThroughThirtyTwoBytePrefixesAndExactKeys() throws {
+        let index = try pinyinIndex()
+        let maximum = String(repeating: "a", count: 32)
+
+        for raw in ["n", "ni", "nih", "niha", "nihao", "nim", "nimen", maximum] {
+            XCTAssertTrue(index.prefixExists(try XCTUnwrap(CompositionKeySequence(raw))), raw)
+        }
+        for raw in ["b", "niz", "zhonga"] {
+            XCTAssertFalse(index.prefixExists(try XCTUnwrap(CompositionKeySequence(raw))), raw)
+        }
+        XCTAssertNil(CompositionKeySequence(maximum + "a"))
+
+        XCTAssertEqual(
+            try index.page(for: XCTUnwrap(CompositionKeySequence("nihao")),
+                           pageIndex: 0, pageSize: 5).items.map(\.text),
+            ["你好"]
+        )
+        XCTAssertTrue(
+            try index.page(for: XCTUnwrap(CompositionKeySequence("nih")),
+                           pageIndex: 0, pageSize: 5).items.isEmpty
+        )
+    }
+
+    func testPinyinExactLookupDecodesRequestedPageAndResolvesWB86References() throws {
+        let index = try pinyinIndex()
+        let code = try XCTUnwrap(CompositionKeySequence("ni"))
+
+        let first = try index.page(for: code, pageIndex: 0, pageSize: 5)
+        let second = try index.page(for: code, pageIndex: 1, pageSize: 5)
+        let third = try index.page(for: code, pageIndex: 2, pageSize: 5)
+
+        XCTAssertEqual(first.items.map(\.text), ["工", "词01", "词02", "词03", "词04"])
+        XCTAssertEqual(first.items.first?.wubiHint?.letters, "a")
+        XCTAssertEqual(first.items.map(\.baseRank), [0, 1, 2, 3, 4])
+        XCTAssertEqual(second.items.count, 5)
+        XCTAssertEqual(third.items.map(\.text), ["词10", "词11"])
+        XCTAssertEqual(first.totalCount, 12)
+        XCTAssertTrue(first.hasNext)
+        XCTAssertTrue(third.hasPrevious)
+        XCTAssertFalse(third.hasNext)
+    }
+
+    func testPinyinLookupKeepsTheValidatedSixtyFourCandidateBound() throws {
+        let index = try pinyinIndex()
+        let code = try XCTUnwrap(CompositionKeySequence("shi"))
+        let last = try index.page(for: code, pageIndex: 7, pageSize: 9)
+
+        XCTAssertEqual(last.totalCount, 64)
+        XCTAssertEqual(last.items.count, 1)
+        XCTAssertEqual(last.items.first?.baseRank, 63)
+        XCTAssertFalse(last.hasNext)
+        XCTAssertThrowsError(try index.page(for: code, pageIndex: 8, pageSize: 9)) {
+            XCTAssertEqual($0 as? PinyinDictionaryQueryError, .pageOutOfRange)
+        }
+    }
+
+    private func pinyinIndex() throws -> PinyinDictionaryIndex {
+        let wb86Data = try DictionaryFormatV1.encode(records: [
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("a")), rank: 0, text: "工")
+        ], buildIdentifier: 91)
+        let niCandidates = (0..<12).map { index in
+            if index == 0 {
+                return PinyinDictionaryCandidate(
+                    text: "工", weight: 100, wubiRecordIndex: 0,
+                    wubiHint: InputCode("a")
+                )
+            }
+            return PinyinDictionaryCandidate(
+                text: String(format: "词%02d", index),
+                weight: UInt64(100 - index)
+            )
+        }
+        let sixtyFour = (0..<64).map {
+            PinyinDictionaryCandidate(text: "候选\($0)", weight: UInt64(64 - $0))
+        }
+        let pinyinData = try PinyinDictionaryFormatV1.encode(
+            entries: [
+                PinyinDictionaryEntry(
+                    key: String(repeating: "a", count: 32),
+                    candidates: [PinyinDictionaryCandidate(text: "长键", weight: 1)]
+                ),
+                PinyinDictionaryEntry(key: "ni", candidates: niCandidates),
+                PinyinDictionaryEntry(
+                    key: "nihao",
+                    candidates: [PinyinDictionaryCandidate(text: "你好", weight: 1)]
+                ),
+                PinyinDictionaryEntry(
+                    key: "nimen",
+                    candidates: [PinyinDictionaryCandidate(text: "你们", weight: 1)]
+                ),
+                PinyinDictionaryEntry(key: "shi", candidates: sixtyFour),
+                PinyinDictionaryEntry(
+                    key: "zhong",
+                    candidates: [PinyinDictionaryCandidate(text: "中", weight: 1)]
+                )
+            ],
+            wb86BuildIdentifier: 91,
+            sourceIdentifier: 1
+        )
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let wb86URL = directory.appendingPathComponent("wb86.bin")
+        let pinyinURL = directory.appendingPathComponent("pinyin.bin")
+        try wb86Data.write(to: wb86URL)
+        try pinyinData.write(to: pinyinURL)
+        let wb86 = try DictionaryLoader.load(from: wb86URL)
+        return PinyinDictionaryIndex(
+            image: try PinyinDictionaryLoader.load(from: pinyinURL, wb86Image: wb86)
+        )
     }
 }
