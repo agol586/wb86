@@ -81,7 +81,7 @@
 **Independent Test**: 在有候选、无候选、第一页、末页、目标候选缺失和系统快捷键场景逐项运行所有
 绑定；配置动作准确且每事件一次，未配置/带意外修饰键事件透传，单 Shift 只切换一次。
 
-- [ ] T018 [P] [US2] 先在 `Tests/CoreTests/InputModeTests.swift` 建立合法、空值、重复、范围重叠、系统保留和布局不可用表格，再在 `Sources/Core/KeyBindingSettings.swift` 实现字段级 `KeyBindingValidator` 与冲突结果
+- [X] T018 [P] [US2] 先在 `Tests/CoreTests/InputModeTests.swift` 建立合法、空值、重复、范围重叠、系统保留和布局不可用表格，再在 `Sources/Core/KeyBindingSettings.swift` 实现字段级 `KeyBindingValidator` 与冲突结果
 - [ ] T019 [P] [US2] 先在 `Tests/AdapterContractTests/KeyboardLayoutTranslatorTests.swift` 覆盖固定 ANSI-US、模拟 QWERTY/Dvorak、dead key、nil/多 scalar 和布局中途变化，再在 `Sources/InputMethod/KeyboardLayoutTranslator.swift` 实现 US 映射及 ASCII-capable 系统布局快照
 - [ ] T020 [P] [US2] 先在 `Tests/AdapterContractTests/StandaloneShiftRecognizerTests.swift` 覆盖左右 Shift、长按、双 Shift、组合键、孤立 release、reset 与代次变化，再在 `Sources/InputMethod/StandaloneShiftRecognizer.swift` 实现会话级 timestamp 状态机且不读取 flagsChanged 的 `isARepeat`
 - [ ] T021 [US2] 先在 `Tests/CoreTests/InputModeTests.swift` 覆盖精确 modifiers、非重复 Control-Shift-F、宽度预设和应用快捷键优先级，再在 `Sources/InputMethod/InputEventMapper.swift` 实现“模式绑定→系统快捷键透传→候选控制→普通输入”的确定映射

@@ -3,6 +3,77 @@ import XCTest
 @testable import MacWubi
 
 final class InputModeTests: XCTestCase {
+    func testKeyBindingValidatorReportsFieldLevelConflicts() {
+        struct ValidationCase {
+            let name: String
+            let language: ModeSwitchBinding
+            let script: ModeSwitchBinding
+            let width: ModeSwitchBinding
+            let layout: KeyboardLayoutSelection
+            let layoutAvailable: Bool
+            let expected: [KeyBindingConflict]
+        }
+
+        let cases = [
+            ValidationCase(
+                name: "legal presets",
+                language: .standaloneShift, script: .controlShiftF, width: .shiftSpace,
+                layout: .us, layoutAvailable: true,
+                expected: []
+            ),
+            ValidationCase(
+                name: "empty custom value",
+                language: .custom("  "), script: .controlShiftF, width: .shiftSpace,
+                layout: .us, layoutAvailable: true,
+                expected: [.init(field: .languageSwitch, reason: .empty)]
+            ),
+            ValidationCase(
+                name: "duplicate exact mapping",
+                language: .controlShiftF, script: .controlShiftF, width: .disabled,
+                layout: .us, layoutAvailable: true,
+                expected: [.init(field: .scriptSwitch,
+                                 reason: .duplicate(existing: .languageSwitch))]
+            ),
+            ValidationCase(
+                name: "legacy range overlaps exact mapping",
+                language: .legacyControlShiftDigits,
+                script: .custom("control-shift-2"), width: .disabled,
+                layout: .us, layoutAvailable: true,
+                expected: [
+                    .init(field: .languageSwitch, reason: .unsupportedLegacy),
+                    .init(field: .scriptSwitch,
+                          reason: .rangeOverlap(existing: .languageSwitch))
+                ]
+            ),
+            ValidationCase(
+                name: "system reserved mapping",
+                language: .custom("command-space"), script: .disabled, width: .disabled,
+                layout: .us, layoutAvailable: true,
+                expected: [.init(field: .languageSwitch, reason: .systemReserved)]
+            ),
+            ValidationCase(
+                name: "unavailable current layout",
+                language: .standaloneShift, script: .controlShiftF, width: .disabled,
+                layout: .followSystem, layoutAvailable: false,
+                expected: [.init(field: .keyboardLayout, reason: .layoutUnavailable)]
+            )
+        ]
+
+        for item in cases {
+            let validator = KeyBindingValidator { selection in
+                selection == .us || item.layoutAvailable
+            }
+            XCTAssertEqual(
+                validator.validate(languageSwitch: item.language,
+                                   scriptSwitch: item.script,
+                                   widthSwitch: item.width,
+                                   keyboardLayout: item.layout).conflicts,
+                item.expected,
+                item.name
+            )
+        }
+    }
+
     func testStructuredBindingDefaultsAndIndependentPagingGroups() throws {
         let fresh = KeyBindingSettings.default
         XCTAssertEqual(fresh.languageSwitch, .standaloneShift)
