@@ -4,25 +4,25 @@ import XCTest
 
 @MainActor
 final class SettingsWindowTests: XCTestCase {
-    func testAllGroupsAndKeyboardAccessibleControlsExist() {
+    func testAllGroupsAndKeyboardControlsExist() {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()
         XCTAssertEqual(controller.groupTitles,
                        ["常用", "按键", "外观", "高级"])
-        XCTAssertTrue(controller.accessibleControls.allSatisfy {
-            !($0.accessibilityLabel() ?? "").isEmpty
+        XCTAssertTrue(controller.registeredControls.allSatisfy {
+            !($0.identifier?.rawValue ?? "").isEmpty
         })
-        XCTAssertTrue(controller.accessibleControls.allSatisfy(\.acceptsFirstResponder))
-        let stepper = controller.accessibleControls.compactMap { $0 as? NSStepper }.first
+        XCTAssertTrue(controller.registeredControls.allSatisfy(\.acceptsFirstResponder))
+        let stepper = controller.registeredControls.compactMap { $0 as? NSStepper }.first
         XCTAssertEqual(stepper?.minValue, 5)
         XCTAssertEqual(stepper?.maxValue, 9)
-        let popups = controller.accessibleControls.compactMap { $0 as? NSPopUpButton }
+        let popups = controller.registeredControls.compactMap { $0 as? NSPopUpButton }
         XCTAssertTrue(popups.contains { $0.itemTitles == ["中文", "英文"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["简体", "繁体"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["半角", "全角"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["英文标点", "中文标点"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["纵向候选", "横向候选"] })
-        let slider = controller.accessibleControls.compactMap { $0 as? NSSlider }.first
+        let slider = controller.registeredControls.compactMap { $0 as? NSSlider }.first
         XCTAssertEqual(slider?.minValue, 0.8)
         XCTAssertEqual(slider?.maxValue, 2)
     }
@@ -33,7 +33,7 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(controller.savedSettings, .newInstallDefault)
         XCTAssertEqual(controller.draftSettings, .newInstallDefault)
 
-        let labels = Set(controller.accessibleControls.compactMap { $0.accessibilityLabel() })
+        let labels = Set(controller.registeredControls.compactMap { $0.identifier?.rawValue })
         XCTAssertTrue(labels.isSuperset(of: [
             "初始语言", "初始简繁体", "初始全半角", "中文模式标点",
             "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
@@ -58,33 +58,30 @@ final class SettingsWindowTests: XCTestCase {
         }
         controller.loadWindow()
 
-        let fourCode = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
-            .first { $0.accessibilityLabel() == "四码唯一时直接上屏" })
-        let fiveCode = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
-            .first { $0.accessibilityLabel() == "第五码将首选词上屏" })
-        let frequency = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
-            .first { $0.accessibilityLabel() == "五笔自动调频" })
+        let fourCode = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "四码唯一时直接上屏" })
+        let fiveCode = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "第五码将首选词上屏" })
+        let frequency = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "五笔自动调频" })
 
         fourCode.performClick(nil)
         XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
         XCTAssertFalse(controller.draftSettings.autoCommitFirstAtFive)
         XCTAssertFalse(controller.draftSettings.automaticFrequency)
-        XCTAssertEqual(fourCode.accessibilityValue() as? String, "未启用")
 
         fiveCode.performClick(nil)
         XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
         XCTAssertTrue(controller.draftSettings.autoCommitFirstAtFive)
         XCTAssertFalse(controller.draftSettings.automaticFrequency)
-        XCTAssertEqual(fiveCode.accessibilityValue() as? String, "已启用")
 
         frequency.performClick(nil)
         XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
         XCTAssertTrue(controller.draftSettings.autoCommitFirstAtFive)
         XCTAssertTrue(controller.draftSettings.automaticFrequency)
-        XCTAssertEqual(frequency.accessibilityValue() as? String, "已启用")
 
-        let save = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
-            .first { $0.accessibilityLabel() == "保存" })
+        let save = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "保存" })
         save.performClick(nil)
         let saved = try XCTUnwrap(persisted.last)
         XCTAssertFalse(saved.autoCommitAtFour)
@@ -94,9 +91,12 @@ final class SettingsWindowTests: XCTestCase {
 
         let restarted = SettingsWindowController(settings: saved)
         restarted.loadWindow()
-        let restartedButtons = Dictionary(uniqueKeysWithValues: restarted.accessibleControls
-            .compactMap { $0 as? NSButton }
-            .compactMap { button in button.accessibilityLabel().map { ($0, button) } })
+        let restartedButtons = Dictionary(uniqueKeysWithValues: restarted.registeredControls
+            .compactMap { control -> (String, NSButton)? in
+                guard let button = control as? NSButton,
+                      let identifier = button.identifier?.rawValue else { return nil }
+                return (identifier, button)
+            })
         XCTAssertEqual(restartedButtons["四码唯一时直接上屏"]?.state, .off)
         XCTAssertEqual(restartedButtons["第五码将首选词上屏"]?.state, .on)
         XCTAssertEqual(restartedButtons["五笔自动调频"]?.state, .on)
@@ -105,28 +105,28 @@ final class SettingsWindowTests: XCTestCase {
     func testKeyPageShowsThreeBindingsFivePageGroupsAndKeyboardLayout() {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()
-        let labels = Set(controller.accessibleControls.compactMap { $0.accessibilityLabel() })
+        let labels = Set(controller.registeredControls.compactMap { $0.identifier?.rawValue })
         XCTAssertTrue(labels.isSuperset(of: [
             "中英文切换", "简繁切换", "全半角切换", "键盘布局",
             "逗号句号翻页", "减号等号翻页", "中括号翻页",
             "Tab/Shift-Tab 翻页", "上下方向键翻页"
         ]))
 
-        let popups = controller.accessibleControls.compactMap { $0 as? NSPopUpButton }
-        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "中英文切换"
+        let popups = controller.registeredControls.compactMap { $0 as? NSPopUpButton }
+        XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "中英文切换"
             && $0.titleOfSelectedItem == "Shift" })
-        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "简繁切换"
+        XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "简繁切换"
             && $0.titleOfSelectedItem == "Control-Shift-F" })
-        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "全半角切换"
+        XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "全半角切换"
             && $0.titleOfSelectedItem == "禁用" })
-        XCTAssertTrue(popups.contains { $0.accessibilityLabel() == "键盘布局"
+        XCTAssertTrue(popups.contains { $0.identifier?.rawValue == "键盘布局"
             && $0.itemTitles == ["美国 ANSI", "跟随系统布局"] })
 
-        let pageButtons = controller.accessibleControls.compactMap { $0 as? NSButton }
-            .filter { ($0.accessibilityLabel() ?? "").hasSuffix("翻页") }
+        let pageButtons = controller.registeredControls.compactMap { $0 as? NSButton }
+            .filter { ($0.identifier?.rawValue ?? "").hasSuffix("翻页") }
         XCTAssertEqual(pageButtons.count, 5)
         XCTAssertEqual(pageButtons.filter { $0.state == .on }.count, 4)
-        XCTAssertEqual(pageButtons.first { $0.accessibilityLabel() == "上下方向键翻页" }?.state,
+        XCTAssertEqual(pageButtons.first { $0.identifier?.rawValue == "上下方向键翻页" }?.state,
                        .off)
     }
 
@@ -137,8 +137,8 @@ final class SettingsWindowTests: XCTestCase {
             draft.keyBindings.scriptSwitch = .standaloneShift
         }
         XCTAssertFalse(conflict.saveDraft())
-        XCTAssertEqual(conflict.lastFocusedControlLabel, "简繁切换")
-        XCTAssertTrue(conflict.lastValidationAnnouncement?.contains("重复") == true)
+        XCTAssertEqual(conflict.lastFocusedControlTitle, "简繁切换")
+        XCTAssertTrue(conflict.lastValidationMessage?.contains("重复") == true)
 
         let unavailable = SettingsWindowController(
             settings: .default,
@@ -149,8 +149,8 @@ final class SettingsWindowTests: XCTestCase {
             draft.keyBindings.keyboardLayout = .followSystem
         }
         XCTAssertFalse(unavailable.saveDraft())
-        XCTAssertEqual(unavailable.lastFocusedControlLabel, "键盘布局")
-        XCTAssertTrue(unavailable.lastValidationAnnouncement?.contains("不可用") == true)
+        XCTAssertEqual(unavailable.lastFocusedControlTitle, "键盘布局")
+        XCTAssertTrue(unavailable.lastValidationMessage?.contains("不可用") == true)
     }
 
     func testFieldErrorAndSaveFailureKeepLastValidBaseline() {
@@ -162,8 +162,8 @@ final class SettingsWindowTests: XCTestCase {
 
         controller.updateDraft { $0.candidatePageSize = 99 }
         XCTAssertFalse(controller.saveDraft())
-        XCTAssertEqual(controller.lastFocusedControlLabel, "每页候选数量 5 至 9")
-        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("5 至 9") == true)
+        XCTAssertEqual(controller.lastFocusedControlTitle, "每页候选数量 5 至 9")
+        XCTAssertTrue(controller.lastValidationMessage?.contains("5 至 9") == true)
         XCTAssertEqual(controller.savedSettings, baseline)
 
         controller.updateDraft { draft in
@@ -171,14 +171,14 @@ final class SettingsWindowTests: XCTestCase {
             draft.autoCommitAtFour.toggle()
         }
         XCTAssertFalse(controller.saveDraft())
-        XCTAssertEqual(controller.lastFocusedControlLabel, "初始语言")
-        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("最后有效设置") == true)
+        XCTAssertEqual(controller.lastFocusedControlTitle, "初始语言")
+        XCTAssertTrue(controller.lastValidationMessage?.contains("最后有效设置") == true)
         XCTAssertEqual(controller.savedSettings, baseline)
         controller.cancelDraft()
         XCTAssertEqual(controller.draftSettings, baseline)
     }
 
-    func testFutureSchemaShowsReadOnlyStatusAndFocusesAccessibleFeedback() throws {
+    func testFutureSchemaShowsReadOnlyStatusAndFocusesVisibleFeedback() throws {
         let controller = SettingsWindowController(
             settings: .default,
             access: .readOnlyFuture(schemaVersion: 99)
@@ -187,20 +187,20 @@ final class SettingsWindowTests: XCTestCase {
 
         XCTAssertTrue(controller.isReadOnly)
         XCTAssertTrue(controller.readOnlyMessage?.contains("版本 99") == true)
-        XCTAssertEqual(controller.lastFocusedControlLabel, "设置状态")
-        let status = try XCTUnwrap(controller.accessibleControls.first {
-            $0.accessibilityLabel() == "设置状态"
+        XCTAssertEqual(controller.lastFocusedControlTitle, "设置状态")
+        let status = try XCTUnwrap(controller.registeredControls.first {
+            $0.identifier?.rawValue == "设置状态"
         })
-        XCTAssertEqual(status.accessibilityValue() as? String, controller.readOnlyMessage)
-        XCTAssertTrue(controller.accessibleControls.filter {
-            $0.accessibilityLabel() != "设置状态" && $0.accessibilityLabel() != "取消"
+        XCTAssertEqual((status as? NSTextField)?.stringValue, controller.readOnlyMessage)
+        XCTAssertTrue(controller.registeredControls.filter {
+            $0.identifier?.rawValue != "设置状态" && $0.identifier?.rawValue != "取消"
         }.allSatisfy { !$0.isEnabled })
 
         var changed = InputSettings.default
         changed.candidatePageSize = 9
         XCTAssertFalse(controller.validateAndApply(changed))
-        XCTAssertEqual(controller.lastFocusedControlLabel, "设置状态")
-        XCTAssertTrue(controller.lastValidationAnnouncement?.contains("只读") == true)
+        XCTAssertEqual(controller.lastFocusedControlTitle, "设置状态")
+        XCTAssertTrue(controller.lastValidationMessage?.contains("只读") == true)
         XCTAssertThrowsError(try controller.restoreDefaults(confirmed: true)) { error in
             XCTAssertEqual(error as? SettingsValidationError, .unsupportedSchema)
         }

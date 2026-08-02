@@ -25,7 +25,6 @@ final class PrivacyModeController: NSObject {
         self.policyHandler = policyHandler
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        statusItem.button?.setAccessibilityLabel("Mac Wubi 隐私状态")
         updateIndicator()
         statusItem.menu = makeMenu()
     }
@@ -65,7 +64,6 @@ final class PrivacyModeController: NSObject {
     private func updateIndicator() {
         statusItem.button?.title = privateMode ? "五·私" : "五·学"
         statusItem.button?.toolTip = indicatorLabel
-        statusItem.button?.setAccessibilityValue(indicatorLabel)
         statusItem.menu = makeMenu()
     }
 
@@ -75,13 +73,11 @@ final class PrivacyModeController: NSObject {
                                      keyEquivalent: "")
         privateItem.target = self
         privateItem.state = privateMode ? .on : .off
-        privateItem.setAccessibilityValue(privateMode ? "已启用" : "未启用")
         menu.addItem(privateItem)
         let learningItem = NSMenuItem(title: "本地学习", action: #selector(toggleLearning),
                                       keyEquivalent: "")
         learningItem.target = self
         learningItem.state = learningEnabled ? .on : .off
-        learningItem.setAccessibilityValue(learningEnabled ? "已启用" : "未启用")
         menu.addItem(learningItem)
         return menu
     }

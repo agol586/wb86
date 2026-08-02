@@ -184,7 +184,7 @@
 鼠标/键盘选择、布局、设置保存/取消/校验测试和完整发布回归全部通过；文档明确列出不支持范围。
 
 - [X] T061 [US6] 在 `specs/002-settings-experience/spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md` 和 `tasks.md` 明确 VoiceOver/旁白实用工具/Accessibility Inspector/屏幕阅读器不支持边界及普通鼠标键盘保留范围
-- [ ] T062 [US6] 先在 `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift`、`SettingsWindowTests.swift` 和 `UnsupportedAssistiveTechnologyTests.swift` 覆盖普通候选/设置回归与零专用辅助源码，再删除 `Sources/InputMethod/AccessibilityAdapter.swift`、`Tests/AccessibilityTests/`，将 `AccessibleCandidatePresenter.swift` 重构为无辅助树/公告/焦点的普通候选面板，并移除其他 `Sources/InputMethod/` 中显式辅助语义
+- [X] T062 [US6] 先在 `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift`、`SettingsWindowTests.swift` 和 `UnsupportedAssistiveTechnologyTests.swift` 覆盖普通候选/设置回归与零专用辅助源码，再删除 `Sources/InputMethod/AccessibilityAdapter.swift`、`Tests/AccessibilityTests/`，将 `AccessibleCandidatePresenter.swift` 重构为无辅助树/公告/焦点的普通候选面板，并移除其他 `Sources/InputMethod/` 中显式辅助语义
 - [ ] T063 [US6] 更新 `README.md`、`Docs/UserGuide.md`、`Docs/Validation.md`、`Docs/ReleaseChecklist.md`、`Docs/ReleaseMatrix.md`、`AGENTS.md` 和相关基础规格/证据，运行 `Scripts/test.sh`、Release build/verify/privacy、月度量压冒烟与源码审计，把结果记录到 `specs/002-settings-experience/evidence/us6-unsupported-assistive-technology.md`
 
 **Checkpoint**: 产品不再包含或声明 VoiceOver/屏幕阅读器专用支持；普通输入和设置行为保持通过。

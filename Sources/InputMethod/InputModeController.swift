@@ -10,7 +10,6 @@ final class InputModeController: NSObject {
     private override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        statusItem.button?.setAccessibilityLabel("Mac Wubi 输入模式")
         update(mode: .default)
     }
 
@@ -30,8 +29,7 @@ final class InputModeController: NSObject {
         precondition(Thread.isMainThread)
         currentMode = mode
         statusItem.button?.title = Self.label(for: mode)
-        statusItem.button?.toolTip = Self.accessibleDescription(for: mode)
-        statusItem.button?.setAccessibilityValue(Self.accessibleDescription(for: mode))
+        statusItem.button?.toolTip = Self.modeDescription(for: mode)
         statusItem.menu = makeMenu()
     }
 
@@ -54,7 +52,6 @@ final class InputModeController: NSObject {
         let settings = NSMenuItem(title: "设置…", action: #selector(showSettings),
                                   keyEquivalent: ",")
         settings.target = self
-        settings.setAccessibilityLabel("打开 Mac Wubi 设置")
         menu.addItem(settings)
         return menu
     }
@@ -67,8 +64,6 @@ final class InputModeController: NSObject {
         item.representedObject = EventBox(event)
         item.state = checked ? .on : .off
         item.isEnabled = true
-        item.setAccessibilityLabel(title)
-        item.setAccessibilityValue(checked ? "已启用" : "未启用")
         return item
     }
 
@@ -87,7 +82,7 @@ final class InputModeController: NSObject {
         return "五·\(language)·\(punctuation)·\(width)·\(script)"
     }
 
-    private static func accessibleDescription(for mode: InputMode) -> String {
+    private static func modeDescription(for mode: InputMode) -> String {
         let language = mode.language == .chinese ? "中文输入" : "直接英文"
         let punctuation = mode.punctuation == .chinese ? "中文标点" : "英文标点"
         let width = mode.width == .half ? "半角" : "全角"

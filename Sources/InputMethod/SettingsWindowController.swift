@@ -21,10 +21,10 @@ final class SettingsWindowController: NSWindowController {
     )
 
     let groupTitles = ["常用", "按键", "外观", "高级"]
-    private(set) var accessibleControls = [NSControl]()
-    private(set) var focusOrderLabels = [String]()
-    private(set) var lastValidationAnnouncement: String?
-    private(set) var lastFocusedControlLabel: String?
+    private(set) var registeredControls = [NSControl]()
+    private(set) var focusOrderTitles = [String]()
+    private(set) var lastValidationMessage: String?
+    private(set) var lastFocusedControlTitle: String?
     private(set) var settings: InputSettings
     private(set) var draftSettings: InputSettings
     var savedSettings: InputSettings { settings }
@@ -47,6 +47,7 @@ final class SettingsWindowController: NSWindowController {
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
     private var popupsByLabel = [String: NSPopUpButton]()
+    private var titlesByControl = [ObjectIdentifier: String]()
     private weak var tabView: NSTabView?
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
@@ -71,7 +72,8 @@ final class SettingsWindowController: NSWindowController {
     }
 
     override func loadWindow() {
-        accessibleControls.removeAll()
+        registeredControls.removeAll()
+        titlesByControl.removeAll()
         controlsByTitle.removeAll()
         popupsByLabel.removeAll()
         pageSizeStepper = nil
@@ -81,7 +83,6 @@ final class SettingsWindowController: NSWindowController {
                               styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
         window.title = "Mac Wubi 设置"
-        window.setAccessibilityLabel("Mac Wubi 设置")
         let tabs = NSTabView(frame: NSRect(x: 12, y: 54, width: 656, height: 434))
         tabView = tabs
         tabs.autoresizingMask = [.width, .height]
@@ -101,28 +102,26 @@ final class SettingsWindowController: NSWindowController {
         window.contentView?.addSubview(applyButton)
         window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
-        var initialResponder: NSView? = accessibleControls.first
+        var initialResponder: NSView? = registeredControls.first
         if let message = readOnlyMessage {
             let status = NSTextField(wrappingLabelWithString: message)
             status.frame = NSRect(x: 12, y: 4, width: 316, height: 46)
             status.isSelectable = true
             register(status, label: "设置状态")
-            status.setAccessibilityValue(message)
-            status.setAccessibilityHelp("当前设置文件来自更高版本，因此只能查看，不能保存或恢复默认。")
             window.contentView?.addSubview(status)
-            accessibleControls.forEach { control in
-                let label = control.accessibilityLabel()
-                if label != "取消" && label != "设置状态" { control.isEnabled = false }
+            registeredControls.forEach { control in
+                let title = title(for: control)
+                if title != "取消" && title != "设置状态" { control.isEnabled = false }
             }
-            lastValidationAnnouncement = message
-            lastFocusedControlLabel = "设置状态"
+            lastValidationMessage = message
+            lastFocusedControlTitle = "设置状态"
             initialResponder = status
         }
-        focusOrderLabels = accessibleControls.compactMap { $0.accessibilityLabel() }
-        for (current, next) in zip(accessibleControls, accessibleControls.dropFirst()) {
+        focusOrderTitles = registeredControls.compactMap { title(for: $0) }
+        for (current, next) in zip(registeredControls, registeredControls.dropFirst()) {
             current.nextKeyView = next
         }
-        accessibleControls.last?.nextKeyView = accessibleControls.first
+        registeredControls.last?.nextKeyView = registeredControls.first
         window.initialFirstResponder = initialResponder
         self.window = window
     }
@@ -142,8 +141,8 @@ final class SettingsWindowController: NSWindowController {
     func validateAndApply(_ value: InputSettings) -> Bool {
         do {
             try apply(value)
-            lastFocusedControlLabel = nil
-            announce("设置已保存。")
+            lastFocusedControlTitle = nil
+            publishMessage("设置已保存。")
             return true
         } catch SettingsValidationError.invalidPageSize {
             reject("设置无效：候选数量必须为 5 至 9。", focus: "每页候选数量 5 至 9")
@@ -168,8 +167,8 @@ final class SettingsWindowController: NSWindowController {
 
     func cancelDraft() {
         draftSettings = settings
-        lastValidationAnnouncement = nil
-        lastFocusedControlLabel = nil
+        lastValidationMessage = nil
+        lastFocusedControlTitle = nil
         refreshCommonControls()
     }
 
@@ -237,7 +236,6 @@ final class SettingsWindowController: NSWindowController {
 
             let preview = NSTextField(labelWithString: "1  示例    2  示例    3  示例")
             preview.frame = NSRect(x: 24, y: 120, width: 430, height: 40)
-            preview.setAccessibilityLabel("无正文实时预览")
             view.addSubview(preview)
         case "高级":
             labels = ["私密模式", "清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…"]
@@ -340,29 +338,19 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func register(_ control: NSControl, label: String) {
-        control.setAccessibilityLabel(label)
-        control.setAccessibilityHelp("配置“\(label)”；更改仅在按下保存后生效。")
-        switch control {
-        case let popup as NSPopUpButton:
-            control.setAccessibilityValue(popup.titleOfSelectedItem ?? "")
-        case let stepper as NSStepper:
-            control.setAccessibilityValue(String(stepper.integerValue))
-        case let slider as NSSlider:
-            control.setAccessibilityValue(slider.doubleValue)
-        default:
-            break
-        }
-        accessibleControls.append(control)
+        control.identifier = NSUserInterfaceItemIdentifier(label)
+        titlesByControl[ObjectIdentifier(control)] = label
+        registeredControls.append(control)
     }
 
     private func makeButton(_ title: String, action: Selector?) -> NSButton {
         let button = action == nil
             ? NSButton(checkboxWithTitle: title, target: nil, action: nil)
             : NSButton(title: title, target: self, action: action)
-        button.setAccessibilityLabel(title)
-        button.setAccessibilityHelp("操作“\(title)”；可使用键盘聚焦并执行。")
+        button.identifier = NSUserInterfaceItemIdentifier(title)
+        titlesByControl[ObjectIdentifier(button)] = title
         button.refusesFirstResponder = false
-        accessibleControls.append(button)
+        registeredControls.append(button)
         controlsByTitle[title] = button
         configureInitialState(button, title: title)
         return button
@@ -398,7 +386,7 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func commonOptionChanged(_ sender: NSButton) {
         let enabled = sender.state == .on
-        switch sender.accessibilityLabel() ?? sender.title {
+        switch sender.title {
         case "四码唯一时直接上屏": draftSettings.autoCommitAtFour = enabled
         case "第五码将首选词上屏": draftSettings.autoCommitFirstAtFive = enabled
         case "五笔自动调频": draftSettings.automaticFrequency = enabled
@@ -408,7 +396,6 @@ final class SettingsWindowController: NSWindowController {
             draftSettings.candidate2And3ShortcutsEnabled = enabled
         default: return
         }
-        sender.setAccessibilityValue(enabled ? "已启用" : "未启用")
     }
 
     @objc private func cancelFromControls() { cancelDraft() }
@@ -446,9 +433,6 @@ final class SettingsWindowController: NSWindowController {
         case "私密模式": button.state = PrivacyModeController.shared.privateMode ? .on : .off
         default: break
         }
-        if button.target == nil {
-            button.setAccessibilityValue(button.state == .on ? "已启用" : "未启用")
-        }
     }
 
     private func refreshCommonControls() {
@@ -471,25 +455,26 @@ final class SettingsWindowController: NSWindowController {
         )
     }
 
-    private func announce(_ message: String) {
-        lastValidationAnnouncement = message
-        NSAccessibility.post(element: window ?? self,
-                             notification: .announcementRequested,
-                             userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    private func publishMessage(_ message: String) {
+        lastValidationMessage = message
     }
 
     private func reject(_ message: String, focus label: String) {
-        lastFocusedControlLabel = label
+        lastFocusedControlTitle = label
         if label == "每页候选数量 5 至 9" || label == "候选字号缩放" {
             tabView?.selectTabViewItem(withIdentifier: "外观")
         } else if ["中英文切换", "简繁切换", "全半角切换", "键盘布局"]
             .contains(label) {
             tabView?.selectTabViewItem(withIdentifier: "按键")
         }
-        if let control = accessibleControls.first(where: { $0.accessibilityLabel() == label }) {
+        if let control = registeredControls.first(where: { title(for: $0) == label }) {
             window?.makeFirstResponder(control)
         }
-        announce(message)
+        publishMessage(message)
+    }
+
+    private func title(for control: NSControl) -> String? {
+        titlesByControl[ObjectIdentifier(control)] ?? control.identifier?.rawValue
     }
 
     @objc private func confirmRestoreDefaults() {

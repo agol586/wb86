@@ -68,7 +68,7 @@ final class InputControllerEventRouter {
 @MainActor
 final class InputController: IMKInputController {
     private var inputSession: InputControllerSession!
-    private var candidatePresenter: AccessibleCandidatePresenter!
+    private var candidatePresenter: CandidatePanelPresenter!
     private var clientProxy: IMKClientProxy?
     private let eventRouter = InputControllerEventRouter()
 
@@ -81,7 +81,7 @@ final class InputController: IMKInputController {
 
     override init!(server: IMKServer!, delegate: Any!, client inputClient: Any!) {
         super.init(server: server, delegate: delegate, client: inputClient)
-        candidatePresenter = AccessibleCandidatePresenter()
+        candidatePresenter = CandidatePanelPresenter()
         let scriptConverter = Self.makeScriptConverter()
         inputSession = InputControllerSession(
             engine: InputEngine(

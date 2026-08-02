@@ -30,7 +30,6 @@ final class PrivacyViewController: NSViewController {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 380))
         let promise = NSTextField(labelWithString: "完全本地处理，不建立网络连接")
         promise.frame = NSRect(x: 20, y: 340, width: 500, height: 24)
-        promise.setAccessibilityLabel("无网络承诺")
         root.addSubview(promise)
 
         for (index, status) in (statusProvider?.status() ?? []).enumerated() {
@@ -38,25 +37,21 @@ final class PrivacyViewController: NSViewController {
             let label = NSTextField(labelWithString: text)
             label.frame = NSRect(x: 20, y: 290 - index * 70, width: 470, height: 42)
             label.maximumNumberOfLines = 2
-            label.setAccessibilityLabel("\(status.domain.directoryName) 本地数据")
             root.addSubview(label)
             let button = NSButton(title: "删除 \(status.domain.directoryName)…",
                                   target: self, action: #selector(deleteDomain(_:)))
             button.tag = Int(status.domain.rawValue)
             button.frame = NSRect(x: 500, y: 294 - index * 70, width: 110, height: 30)
-            button.setAccessibilityLabel("删除 \(status.domain.directoryName) 数据")
             controls.append(button); root.addSubview(button)
         }
         let privateMode = NSButton(checkboxWithTitle: "私密模式", target: self,
                                    action: #selector(togglePrivateMode(_:)))
         privateMode.state = PrivacyModeController.shared.privateMode ? .on : .off
         privateMode.frame = NSRect(x: 20, y: 55, width: 140, height: 30)
-        privateMode.setAccessibilityLabel("私密模式")
         controls.append(privateMode); root.addSubview(privateMode)
         let deleteAll = NSButton(title: "删除全部个性化…", target: self,
                                  action: #selector(deleteAllData))
         deleteAll.frame = NSRect(x: 440, y: 20, width: 170, height: 30)
-        deleteAll.setAccessibilityLabel("删除全部个性化数据")
         controls.append(deleteAll); root.addSubview(deleteAll)
         view = root
     }
