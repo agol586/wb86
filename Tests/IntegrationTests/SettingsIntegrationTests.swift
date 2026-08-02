@@ -232,7 +232,63 @@ final class SettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .userLexicon)), userBefore)
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
     }
+
+    func testRestoreConfirmationCancelFailureAndSuccessAreSettingsOnly() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiRestoreTransaction-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        let code = try XCTUnwrap(InputCode("wqvb"))
+        try UserLexiconStore(writer: writer).upsert(code: code, text: "用户词",
+                                                  fixedRank: 2, createdBy: .manual)
+        try LearningStore(writer: writer).recordSelection(code: code,
+                                                          candidateText: "学习词", amount: 2)
+        let store = try SettingsStore(writer: writer)
+        var changed = InputSettings.default
+        changed.candidatePageSize = 9
+        changed.defaultMode.script = .traditional
+        try store.save(changed)
+        let coordinator = SettingsCoordinator(store: store)
+        let session = SettingsIntegrationSession()
+        coordinator.register(session)
+        session.applied.removeAll()
+        let controller = SettingsWindowController(settings: store.settings) {
+            try coordinator.save($0)
+        }
+        controller.loadWindow()
+
+        let settingsBefore = try Data(contentsOf: writer.currentURL(for: .settings))
+        let userBefore = try Data(contentsOf: writer.currentURL(for: .userLexicon))
+        let learningBefore = try Data(contentsOf: writer.currentURL(for: .learning))
+        let userGeneration = try writer.load(.userLexicon)?.generation
+        let learningGeneration = try writer.load(.learning)?.generation
+
+        XCTAssertFalse(try controller.restoreDefaults(confirmed: false))
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), settingsBefore)
+        XCTAssertTrue(session.applied.isEmpty)
+
+        writer.failureInjector = { stage in
+            if stage == .afterCurrentReplacement { throw SettingsIntegrationError.interrupted }
+        }
+        XCTAssertThrowsError(try controller.restoreDefaults(confirmed: true))
+        XCTAssertEqual(controller.savedSettings, changed)
+        XCTAssertEqual(store.settings, changed)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), settingsBefore)
+        XCTAssertTrue(session.applied.isEmpty)
+
+        writer.failureInjector = nil
+        XCTAssertTrue(try controller.restoreDefaults(confirmed: true))
+        XCTAssertEqual(controller.savedSettings, .default)
+        XCTAssertEqual(store.settings, .default)
+        XCTAssertEqual(store.generation, 2)
+        XCTAssertEqual(session.applied, [.default])
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .userLexicon)), userBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
+        XCTAssertEqual(try writer.load(.userLexicon)?.generation, userGeneration)
+        XCTAssertEqual(try writer.load(.learning)?.generation, learningGeneration)
+    }
 }
+
+private enum SettingsIntegrationError: Error { case interrupted }
 
 private final class SettingsAppearancePresenter: CandidateAppearanceApplying {
     var applied = [InputSettings]()

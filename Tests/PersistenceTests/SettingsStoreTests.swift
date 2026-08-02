@@ -129,6 +129,36 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try writer.loadPrevious(.settings), supported)
     }
 
+    func testRestoreIOFailureKeepsPublishedSettingsAndOtherDomainsUnchanged() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiRestoreFailure-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        try writer.commit(try DataSnapshot(domain: .userLexicon, schemaVersion: 1,
+                                           generation: 4, payload: Data("user stable".utf8)))
+        try writer.commit(try DataSnapshot(domain: .learning, schemaVersion: 2,
+                                           generation: 5, payload: Data("learning stable".utf8)))
+        let store = try SettingsStore(writer: writer)
+        var changed = InputSettings.default
+        changed.candidatePageSize = 9
+        try store.save(changed)
+        let published = store.snapshot
+        let settingsBefore = try Data(contentsOf: writer.currentURL(for: .settings))
+        let userBefore = try Data(contentsOf: writer.currentURL(for: .userLexicon))
+        let learningBefore = try Data(contentsOf: writer.currentURL(for: .learning))
+
+        writer.failureInjector = { stage in
+            if stage == .afterTemporaryValidation { throw TestError.interrupted }
+        }
+        XCTAssertThrowsError(try store.restoreDefaults())
+
+        XCTAssertEqual(store.snapshot, published)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), settingsBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .userLexicon)), userBefore)
+        XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .learning)), learningBefore)
+        XCTAssertEqual(try writer.load(.userLexicon)?.generation, 4)
+        XCTAssertEqual(try writer.load(.learning)?.generation, 5)
+    }
+
     func testCoordinatorDefersApplicationUntilEverySessionIsIdle() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiSettingsApply-\(UUID().uuidString)")
