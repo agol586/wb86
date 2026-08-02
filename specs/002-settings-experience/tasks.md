@@ -305,7 +305,7 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
 ## Phase 11: Convergence
 
 - [X] T069 [US2] 在 `specs/001-native-wubi/spec.md`、`specs/002-settings-experience/plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md`、`README.md` 与 `Docs/UserGuide.md` 同步私密模式和本地学习集中到高级设置页、零独立状态栏项目的产品契约 per FR-034/SC-015 (partial)
-- [ ] T070 [US2] 先在 `Tests/PrivacyTests/PrivateModeTests.swift` 添加零 `NSStatusItem` 生命周期和四种策略状态回归，再从 `Sources/InputMethod/PrivacyModeController.swift` 删除“`五·学`/`五·私`”状态栏项目及其重复菜单，同时保留活动会话的原子策略应用 per FR-034/SC-015 (contradicts)
+- [X] T070 [US2] 先在 `Tests/PrivacyTests/PrivateModeTests.swift` 添加零 `NSStatusItem` 生命周期和四种策略状态回归，再从 `Sources/InputMethod/PrivacyModeController.swift` 删除“`五·学`/`五·私`”状态栏项目及其重复菜单，同时保留活动会话的原子策略应用 per FR-034/SC-015 (contradicts)
 - [ ] T071 [US2] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖高级页“私密模式”和“本地学习”的显示、即时切换、重新打开回显及设置取消互不干扰，再在 `Sources/InputMethod/SettingsWindowController.swift` 接通 `PrivacyModeController` 并移除无效占位控件 per FR-034/US2-AC7/SC-015 (partial)
 
 **Checkpoint**: 私密模式和本地学习只通过高级设置页查看与控制，运行期间不创建额外状态栏项目。

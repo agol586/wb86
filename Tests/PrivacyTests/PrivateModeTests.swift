@@ -23,16 +23,40 @@ final class PrivateModeTests: XCTestCase {
     func testControllerAtomicallyUpdatesEveryRegisteredSession() {
         let first = PrivacySessionSpy()
         let second = PrivacySessionSpy()
-        let controller = PrivacyModeController(policyHandler: { _, _ in })
+        var published = [(privateMode: Bool, learningEnabled: Bool)]()
+        let controller = PrivacyModeController {
+            published.append((privateMode: $0, learningEnabled: $1))
+        }
         controller.register(first)
         controller.register(second)
-        controller.setPrivateMode(true)
-        controller.setLearningEnabled(false)
-        XCTAssertTrue(first.privateMode && second.privateMode)
-        XCTAssertFalse(first.learningEnabled || second.learningEnabled)
-        XCTAssertTrue(controller.indicatorLabel.contains("私密"))
-        XCTAssertEqual(controller.commandMenu.items.map(\.title), ["私密模式", "本地学习"])
-        XCTAssertEqual(controller.commandMenu.items.map(\.state), [.on, .off])
+
+        for state in [(false, false), (true, false), (true, true), (false, true)] {
+            controller.setPrivateMode(state.0)
+            controller.setLearningEnabled(state.1)
+            XCTAssertEqual(first.privateMode, state.0)
+            XCTAssertEqual(second.privateMode, state.0)
+            XCTAssertEqual(first.learningEnabled, state.1)
+            XCTAssertEqual(second.learningEnabled, state.1)
+            XCTAssertEqual(controller.privateMode, state.0)
+            XCTAssertEqual(controller.learningEnabled, state.1)
+        }
+
+        XCTAssertEqual(published.last?.privateMode, false)
+        XCTAssertEqual(published.last?.learningEnabled, true)
+    }
+
+    func testControllerCreatesNoStandaloneStatusItemOrDuplicateMenu() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Sources/InputMethod/PrivacyModeController.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertFalse(source.contains("NSStatusBar.system.statusItem"))
+        XCTAssertFalse(source.contains("NSStatusItem"))
+        XCTAssertFalse(source.contains("五·学"))
+        XCTAssertFalse(source.contains("五·私"))
+        XCTAssertFalse(source.contains("commandMenu"))
     }
 
     func testDisabledPrivateAndFrozenOffPoliciesIgnoreScoresAndWriteNothing() throws {
