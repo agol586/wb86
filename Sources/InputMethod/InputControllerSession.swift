@@ -16,6 +16,7 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     private(set) var activeSnapshot = SettingsSnapshot(generation: 0, settings: .default)
     private(set) var pendingSnapshot: SettingsSnapshot?
     private var hasAppliedSettingsSnapshot = false
+    private var hasInitializedMode = false
 
     var settings: InputSettings { activeSnapshot.settings }
 
@@ -97,12 +98,24 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
         applyPendingSettingsIfIdle()
     }
 
+    func reactivate() {
+        engine.reset()
+        presenter.hide()
+        applyPendingSettingsIfIdle()
+        engine.initializeMode(from: activeSnapshot.settings.defaultMode)
+        hasInitializedMode = true
+    }
+
     func apply(settings: InputSettings) {
         guard state == .idle else { return }
         activeSnapshot = SettingsSnapshot(generation: activeSnapshot.generation,
                                           settings: settings)
         hasAppliedSettingsSnapshot = true
-        engine.apply(settings: settings)
+        engine.applyRuntimePolicy(settings: settings, generation: activeSnapshot.generation)
+        if !hasInitializedMode {
+            engine.initializeMode(from: settings.defaultMode)
+            hasInitializedMode = true
+        }
         (presenter as? AccessibleCandidatePresenter)?.apply(settings: settings)
     }
 
@@ -129,7 +142,11 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
     private func applySnapshot(_ snapshot: SettingsSnapshot) {
         activeSnapshot = snapshot
         hasAppliedSettingsSnapshot = true
-        engine.apply(settings: snapshot.settings, generation: snapshot.generation)
+        engine.applyRuntimePolicy(settings: snapshot.settings, generation: snapshot.generation)
+        if !hasInitializedMode {
+            engine.initializeMode(from: snapshot.settings.defaultMode)
+            hasInitializedMode = true
+        }
         (presenter as? AccessibleCandidatePresenter)?.apply(settings: snapshot.settings)
     }
 

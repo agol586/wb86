@@ -2,6 +2,32 @@ import XCTest
 @testable import MacWubi
 
 final class InputEngineTests: XCTestCase {
+    func testInitialModeIsSeparateFromRuntimePolicyApplication() throws {
+        let engine = InputEngine(query: query)
+        var first = InputSettings.default
+        first.defaultMode = InputMode(language: .directEnglish, punctuation: .english,
+                                      width: .full, script: .traditional)
+        engine.applyRuntimePolicy(settings: first, generation: 1)
+        XCTAssertEqual(engine.mode, .default)
+
+        engine.initializeMode(from: first.defaultMode)
+        XCTAssertEqual(engine.mode, first.defaultMode)
+        _ = engine.process(.switchLanguage)
+        XCTAssertEqual(engine.mode.language, .chinese)
+
+        var changed = first
+        changed.defaultMode = InputMode(language: .directEnglish, punctuation: .english,
+                                        width: .half, script: .simplified)
+        changed.candidatePageSize = 9
+        engine.applyRuntimePolicy(settings: changed, generation: 2)
+        XCTAssertEqual(engine.mode.language, .chinese)
+        XCTAssertEqual(engine.mode.width, .full)
+        XCTAssertEqual(engine.rankingPolicy.settingsGeneration, 2)
+
+        engine.initializeMode(from: changed.defaultMode)
+        XCTAssertEqual(engine.mode, changed.defaultMode)
+    }
+
     func testOrderedClientActionBatchPreservesOrderAndDropsNoOp() {
         let batch = ClientTextActionBatch([
             .commitText("旧候选"),

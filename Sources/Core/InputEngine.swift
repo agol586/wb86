@@ -141,12 +141,15 @@ final class InputEngine {
     }
 
     func apply(settings: InputSettings) {
-        apply(settings: settings, generation: rankingPolicy.settingsGeneration)
+        applyRuntimePolicy(settings: settings, generation: rankingPolicy.settingsGeneration)
     }
 
     func apply(settings: InputSettings, generation: UInt64) {
+        applyRuntimePolicy(settings: settings, generation: generation)
+    }
+
+    func applyRuntimePolicy(settings: InputSettings, generation: UInt64) {
         guard state == .idle else { return }
-        mode = settings.defaultMode
         learningEnabled = settings.learningEnabled
         autoCommitAtFour = settings.autoCommitAtFour
         rankingPolicy = CandidateRankingPolicy(
@@ -154,6 +157,11 @@ final class InputEngine {
             pageSize: settings.candidatePageSize,
             automaticFrequency: settings.automaticFrequency
         )
+    }
+
+    func initializeMode(from defaultMode: InputMode) {
+        guard state == .idle else { return }
+        mode = defaultMode
     }
 
     private func processLetter(_ rawLetter: String) -> InputProcessingResult {
@@ -168,14 +176,7 @@ final class InputEngine {
         if state.kind == .composing {
             return clearIfComposing(consumedWhenComposing: false)
         }
-        guard mode.language == .chinese else {
-            return result(state: .idle, consumed: false)
-        }
-        guard let converted = punctuationConverter.convert(
-            text,
-            punctuation: mode.punctuation,
-            width: mode.width
-        ) else {
+        guard let converted = punctuationConverter.convert(text, mode: mode) else {
             return result(state: .idle, consumed: false)
         }
         return result(state: .idle, clientAction: .commitText(converted), consumed: true)

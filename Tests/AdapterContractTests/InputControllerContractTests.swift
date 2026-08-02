@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class InputControllerContractTests: XCTestCase {
+    func testSessionUsesDefaultModeOnlyOnFirstSnapshotAndReactivation() throws {
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: RecordingCandidatePresenter())
+        var settings = InputSettings.default
+        settings.defaultMode = InputMode(language: .directEnglish, punctuation: .english,
+                                         width: .full, script: .traditional)
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: settings))
+        XCTAssertEqual(session.mode, settings.defaultMode)
+
+        _ = session.handle(.switchLanguage, client: RecordingInputClient())
+        XCTAssertEqual(session.mode.language, .chinese)
+
+        var saved = settings
+        saved.defaultMode.width = .half
+        saved.defaultMode.script = .simplified
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 2, settings: saved))
+        XCTAssertEqual(session.mode.language, .chinese)
+        XCTAssertEqual(session.mode.width, .full)
+
+        session.reactivate()
+        XCTAssertEqual(session.mode, saved.defaultMode)
+    }
+
     func testOrderedClientActionBatchExecutesOnceAndStopsAfterFailure() throws {
         var learned = [LearningDelta]()
         let client = RecordingInputClient()
