@@ -18,6 +18,11 @@ architectures="$(lipo -archs "$executable")"
   echo "expected exactly arm64, got: $architectures" >&2
   exit 65
 }
+file_description="$(file -b "$executable")"
+[[ "$file_description" == *"arm64"* && "$file_description" != *"x86_64"* ]] || {
+  echo "release must be native arm64 with no Intel/Rosetta slice" >&2
+  exit 65
+}
 
 plutil -lint "$info_plist"
 bundle_identifier="$(plutil -extract CFBundleIdentifier raw -o - "$info_plist")"
@@ -68,4 +73,27 @@ if otool -L "$executable" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/System/
   exit 65
 fi
 
-echo "release verification passed: arm64, signed, hardened, non-sandboxed, offline"
+if [[ -d "$app_path/Contents/Frameworks" ]] && \
+   find "$app_path/Contents/Frameworks" -mindepth 1 -print -quit | grep -q .; then
+  echo "embedded frameworks or dynamic libraries are not allowed" >&2
+  exit 65
+fi
+
+resources="$app_path/Contents/Resources"
+for relative_path in \
+  pinyin-simp.bin \
+  pinyin-simp.manifest.json \
+  rime-pinyin-simp/LICENSE \
+  rime-pinyin-simp/AUTHORS \
+  rime-pinyin-simp/SOURCE.md; do
+  [[ -s "$resources/$relative_path" ]] || {
+    echo "missing bundled pinyin provenance resource: $relative_path" >&2
+    exit 65
+  }
+done
+[[ "$(plutil -extract format raw -o - "$resources/pinyin-simp.manifest.json")" == "MWPY" ]]
+[[ "$(plutil -extract licenseIdentifier raw -o - "$resources/pinyin-simp.manifest.json")" == \
+  "Apache-2.0" ]]
+grep -q 'Apache License' "$resources/rime-pinyin-simp/LICENSE"
+
+echo "release verification passed: native arm64, signed, hardened, dependency-free, non-sandboxed, offline, licensed"

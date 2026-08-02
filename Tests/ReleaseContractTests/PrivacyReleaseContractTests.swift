@@ -23,6 +23,13 @@ final class PrivacyReleaseContractTests: XCTestCase {
                            "temporary-exception.mach"] {
             XCTAssertFalse(declaredEntitlements.contains(prohibited), prohibited)
         }
+        let declaredData = try Data(contentsOf: repositoryRoot().appendingPathComponent(
+            "Sources/Supporting/MacWubi.entitlements"
+        ))
+        let declaredDictionary = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: declaredData, format: nil) as? [String: Any]
+        )
+        XCTAssertTrue(declaredDictionary.isEmpty, "product entitlements must remain an empty dictionary")
         // Xcode injects testmanager Mach exceptions into its hosted XCTest copy. Those are not
         // product entitlements; the checked-in declaration and standalone release audit remain empty.
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {

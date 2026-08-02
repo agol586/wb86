@@ -26,6 +26,52 @@ final class ReleaseContractTests: XCTestCase {
         XCTAssertNotNil(NSClassFromString("MacWubi.InputController"))
     }
 
+    func testProjectSupportsOnlyNativeArm64AndHasNoPackageManagerDependency() throws {
+        let root = repositoryRoot()
+        let project = try String(
+            contentsOf: root.appendingPathComponent("MacWubi.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(project.contains("ARCHS = arm64;"))
+        XCTAssertFalse(project.contains("x86_64"))
+        XCTAssertFalse(project.contains("XCRemoteSwiftPackageReference"))
+        XCTAssertFalse(project.contains("XCSwiftPackageProductDependency"))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("Package.swift").path
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("MacWubi.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved").path
+        ))
+    }
+
+    func testPinyinManifestProvenanceAndLicenseShipInBundle() throws {
+        let resources = try XCTUnwrap(Bundle.main.resourceURL)
+        for path in [
+            "pinyin-simp.bin", "pinyin-simp.manifest.json",
+            "rime-pinyin-simp/LICENSE", "rime-pinyin-simp/AUTHORS",
+            "rime-pinyin-simp/SOURCE.md"
+        ] {
+            XCTAssertTrue(FileManager.default.fileExists(
+                atPath: resources.appendingPathComponent(path).path
+            ), "missing bundled resource: \(path)")
+        }
+        let manifestData = try Data(
+            contentsOf: resources.appendingPathComponent("pinyin-simp.manifest.json")
+        )
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: manifestData) as? [String: Any]
+        )
+        XCTAssertEqual(manifest["format"] as? String, "MWPY")
+        XCTAssertEqual(manifest["licenseIdentifier"] as? String, "Apache-2.0")
+        XCTAssertEqual(manifest["sourceRevision"] as? String,
+                       "0c6861ef7420ee780270ca6d993d18d4101049d0")
+        let license = try String(
+            contentsOf: resources.appendingPathComponent("rime-pinyin-simp/LICENSE"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(license.contains("Apache License"))
+    }
+
     func testBundleIsSignedAndUsesOnlyApprovedEntitlements() throws {
         let bundleURL = Bundle.main.bundleURL
         _ = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", bundleURL.path])
@@ -82,5 +128,10 @@ final class ReleaseContractTests: XCTestCase {
         (0..<4).reduce(UInt32(0)) { value, byteIndex in
             value | (UInt32(data[offset + byteIndex]) << UInt32(byteIndex * 8))
         }
+    }
+
+    private func repositoryRoot() -> URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }
