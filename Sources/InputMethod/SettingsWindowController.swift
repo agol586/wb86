@@ -42,6 +42,7 @@ final class SettingsWindowController: NSWindowController {
     }
     private let saveHandler: (InputSettings) throws -> Void
     private let keyBindingValidator: KeyBindingValidator
+    private let privacyController: PrivacyModeController
     private var controlsByTitle = [String: NSButton]()
     private var pageSizeStepper: NSStepper?
     private var layoutPopup: NSPopUpButton?
@@ -52,15 +53,16 @@ final class SettingsWindowController: NSWindowController {
     private weak var tabView: NSTabView?
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
-    private let privacyViewController = PrivacyViewController.makeDefault()
 
     init(settings: InputSettings,
          access: SettingsStoreAccess = .writable,
+         privacyController: PrivacyModeController = .shared,
          saveHandler: @escaping (InputSettings) throws -> Void = { _ in },
          layoutAvailability: @escaping KeyBindingValidator.LayoutAvailability = { _ in true }) {
         self.settings = settings
         draftSettings = settings
         self.access = access
+        self.privacyController = privacyController
         self.saveHandler = saveHandler
         keyBindingValidator = KeyBindingValidator(isLayoutAvailable: layoutAvailability)
         super.init(window: nil)
@@ -196,6 +198,7 @@ final class SettingsWindowController: NSWindowController {
 
     func show() {
         showWindow(nil)
+        refreshRuntimePolicyControls()
         window?.center()
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -240,13 +243,25 @@ final class SettingsWindowController: NSWindowController {
             preview.frame = NSRect(x: 24, y: 120, width: 430, height: 40)
             view.addSubview(preview)
         case "高级":
-            labels = ["私密模式", "清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…"]
+            for (index, title) in ["私密模式", "本地学习"].enumerated() {
+                let control = makeButton(title, action: nil)
+                control.target = self
+                control.action = #selector(runtimePolicyChanged(_:))
+                control.frame = NSRect(x: 24, y: 330 - index * 48, width: 430, height: 30)
+                view.addSubview(control)
+            }
+            for (index, title) in ["清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…"].enumerated() {
+                let control = makeButton(title, action: nil)
+                control.frame = NSRect(x: 24, y: 234 - index * 38, width: 430, height: 30)
+                view.addSubview(control)
+            }
             let importButton = makeButton("导入用户词库…", action: #selector(importLexicon))
             importButton.frame = NSRect(x: 24, y: 42, width: 150, height: 30)
             view.addSubview(importButton)
             let exportButton = makeButton("导出用户词库…", action: #selector(exportLexicon))
             exportButton.frame = NSRect(x: 184, y: 42, width: 150, height: 30)
             view.addSubview(exportButton)
+            return view
         default:
             labels = []
         }
@@ -402,6 +417,15 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    @objc private func runtimePolicyChanged(_ sender: NSButton) {
+        switch sender.title {
+        case "私密模式": privacyController.setPrivateMode(sender.state == .on)
+        case "本地学习": privacyController.setLearningEnabled(sender.state == .on)
+        default: return
+        }
+        refreshRuntimePolicyControls()
+    }
+
     @objc private func cancelFromControls() { cancelDraft() }
 
     private func selectedIndex(_ label: String) -> Int {
@@ -436,7 +460,8 @@ final class SettingsWindowController: NSWindowController {
         case "上下方向键翻页":
             button.state = draftSettings.keyBindings.pageKeyGroups.contains(.arrows) ? .on : .off
         case "候选纵向排列": button.state = draftSettings.candidateLayout == .vertical ? .on : .off
-        case "私密模式": button.state = PrivacyModeController.shared.privateMode ? .on : .off
+        case "私密模式": button.state = privacyController.privateMode ? .on : .off
+        case "本地学习": button.state = privacyController.learningEnabled ? .on : .off
         default: break
         }
     }
@@ -453,6 +478,12 @@ final class SettingsWindowController: NSWindowController {
         popupsByLabel["键盘布局"]?.selectItem(
             at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1
         )
+        refreshRuntimePolicyControls()
+    }
+
+    private func refreshRuntimePolicyControls() {
+        controlsByTitle["私密模式"]?.state = privacyController.privateMode ? .on : .off
+        controlsByTitle["本地学习"]?.state = privacyController.learningEnabled ? .on : .off
     }
 
     private func publishMessage(_ message: String) {

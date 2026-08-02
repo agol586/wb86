@@ -27,6 +27,53 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual(slider?.maxValue, 2)
     }
 
+    func testAdvancedPageControlsPrivacyAndLearningImmediatelyAndReopensCurrentState() throws {
+        var published = [(privateMode: Bool, learningEnabled: Bool)]()
+        let privacy = PrivacyModeController {
+            published.append((privateMode: $0, learningEnabled: $1))
+        }
+        privacy.setPrivateMode(true)
+        privacy.setLearningEnabled(false)
+        let controller = SettingsWindowController(settings: .default,
+                                                  privacyController: privacy)
+        controller.loadWindow()
+
+        let privateMode = try XCTUnwrap(controller.registeredControls
+            .compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "私密模式" })
+        let localLearning = try XCTUnwrap(controller.registeredControls
+            .compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "本地学习" })
+        XCTAssertEqual(privateMode.state, .on)
+        XCTAssertEqual(localLearning.state, .off)
+        let draftBefore = controller.draftSettings
+
+        privateMode.performClick(nil)
+        localLearning.performClick(nil)
+
+        XCTAssertFalse(privacy.privateMode)
+        XCTAssertTrue(privacy.learningEnabled)
+        XCTAssertEqual(controller.draftSettings, draftBefore)
+        controller.cancelDraft()
+        XCTAssertEqual(privateMode.state, .off)
+        XCTAssertEqual(localLearning.state, .on)
+
+        let reopened = SettingsWindowController(settings: .default,
+                                                privacyController: privacy)
+        reopened.loadWindow()
+        let reopenedStates = Dictionary(uniqueKeysWithValues: reopened.registeredControls
+            .compactMap { control -> (String, NSControl.StateValue)? in
+                guard let button = control as? NSButton,
+                      ["私密模式", "本地学习"].contains(button.identifier?.rawValue ?? "")
+                else { return nil }
+                return (button.identifier!.rawValue, button.state)
+            })
+        XCTAssertEqual(reopenedStates["私密模式"], .off)
+        XCTAssertEqual(reopenedStates["本地学习"], .on)
+        XCTAssertEqual(published.last?.privateMode, false)
+        XCTAssertEqual(published.last?.learningEnabled, true)
+    }
+
     func testCommonPageUsesNewInstallDefaultsAndSeparatesSavedFromDraft() {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()
