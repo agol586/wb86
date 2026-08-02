@@ -1,0 +1,77 @@
+# Data Model: 设置体验增强
+
+## 1. SettingsSnapshot v2
+
+`SettingsSnapshot` 是设置域唯一可发布单元：
+
+| Field | Type / values | Validation |
+|-------|---------------|------------|
+| schemaVersion | UInt32 = 2 | 仅支持 2；未来版本只读保留 |
+| generation | UInt64 | 成功替换时单调递增 |
+| initialMode | language, script, width, punctuation | 每个枚举必须为已知值 |
+| autoCommit | uniqueAtFour, firstAtFive | Bool |
+| ranking | automaticFrequency | Bool；私密/禁止学习为更严格覆盖 |
+| assistance | mixedPinyin, codeHint, candidate2And3 | Bool |
+| bindings | language, script, width | 结构化预设，范围冲突时拒绝 |
+| pageKeyGroups | Set<PageKeyGroup> | 五个已知组的任意集合 |
+| keyboardLayout | followSystem / us | 保存时必须可用 |
+| appearance | 既有页大小、布局、字号缩放 | 延续既有边界 |
+
+全新安装或“恢复默认”使用规格中的 `newInstallDefault`；v1 升级使用单独的
+`migrationCompatibilityDefault`，绝不以新安装默认覆盖旧习惯。
+
+## 2. SessionSettingsState
+
+每个输入会话保存：
+
+- `activeSnapshot`: 当前组合完整使用的不可变设置快照。
+- `pendingSnapshot`: 组合期间收到的最新快照；只保留最高代次。
+- `sessionMode`: 当前会话语言、脚本、宽度和标点临时状态，不因普通设置保存而重置。
+- `compositionGeneration`: 组合开始时捕获的代次；组合结束前查询、排序、按键和学习决策均使用它。
+
+状态转换：空闲会话立即采纳最新语义快照；组合会话将其置为 pending，并在提交、取消或故障
+复位完成后独立采纳。新会话获得最新快照。外观字段可立即刷新，但不得改变组合语义。
+
+## 3. KeyBinding
+
+`KeyBinding` 由 `physicalKey`、精确 `modifiers`、`triggerPhase` 和 `preset` 构成，不存任意用户字符串。
+语言、简繁、全半角分别选一个预设或禁用；翻页是五个独立组的集合。Shift 单击由会话级
+`ModifierTapState` 跟踪：`idle → eligible → disqualified/released`，重复、其他键或其他修饰键均使其失效。
+
+## 4. CompositionKeySequence and Route
+
+- `CompositionKeySequence`: 1...32 个归一化 ASCII `a...z`；不保存到磁盘。
+- `wubiCode`: 当长度 1...4 且全部位于 `a...y` 时可构造。
+- `pinyinState`: `invalid / viablePrefix / exactMatch`，由只读拼音索引给出。
+- `route`: `wubiOnly / pinyinOnly / mixed`，由设置、编码范围和拼音可行性确定。
+
+混输开启时，有效拼音前缀优先继续组合；第五码首选上屏只在路由已确定为五笔时触发。
+序列非法、超过 32 字节或资源损坏时有界复位，不提交原始输入。
+
+## 5. Candidate and CandidatePage
+
+候选包含 `text`、`source`（baseWubi/userWubi/localPinyin）、`queryKey`、基础次序、可选
+`wubiHint`。合并器按“五笔候选、拼音候选”顺序稳定拼接，再以最终脚本转换后的显示文本去重；
+第一个来源保留。编码提示是展示元数据，不参与身份、排序、选择或提交。
+
+分页在完整合并结果上执行。选择事件产生至多一个提交和一个允许的学习增量。
+
+## 6. LearningKey v2
+
+学习键是 `kind + normalizedCode + candidateIdentity`。v1 五笔记录迁移为 `kind=wubi`；拼音选择可用
+`kind=pinyin` 记录同码排序。关闭自动调频、私密模式或禁止学习时，既不读取分数参与排名也不写入。
+记录继续有界衰减、可按学习域独立清除，且不含应用、文档、时间线或上下文。
+
+## 7. ResourceManifest
+
+拼音资源清单记录格式版本、固定上游来源与提交、许可、规范化规则、条目数、源文件校验和和
+编译产物校验和。运行时只映射已通过 magic/version/长度/边界/校验验证的包内只读资源；失败时
+禁用拼音来源并保持五笔可用，绝不尝试联网恢复。
+
+## 8. Persistence invariants
+
+- 设置和学习分别迁移、验证、暂存、原子替换并最多保留一个已验证 previous。
+- 未知未来设置版本保留原始 current，进入只读兼容状态，Save/Restore 均拒绝。
+- 保存或恢复失败不改变内存中的有效代次。
+- 恢复默认只替换 Settings；UserLexicon、Learning、Base Dictionary 的内容和代次不变。
+- 所有可变文件保持目录 `0700`、文件 `0600`。
