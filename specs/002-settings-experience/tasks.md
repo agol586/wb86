@@ -89,7 +89,7 @@
 - [X] T023 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖 flagsChanged 两端透传、release 副作用、失活和 reset，再在 `Sources/InputMethod/InputController.swift` 以 `super.recognizedEvents | flagsChanged` 接入 Shift recognizer 和布局 translator
 - [X] T024 [US2] 在 `Tests/CoreTests/InputEngineTests.swift` 覆盖语言/简繁/全半角快捷键安全取消 marked text、隐藏候选且不提交原始编码，并在 `Sources/Core/InputEngine.swift` 完成当前会话模式切换语义
 - [X] T025 [US2] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“按键”页三个切换预设、五组复选、布局和冲突定位，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现按键页及布局不可用反馈
-- [ ] T026 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 和 `Tests/IntegrationTests/ModeInputIntegrationTests.swift` 增加完整事件矩阵，验证候选控制、应用快捷键、translator 快照与每事件最多一次动作
+- [X] T026 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 和 `Tests/IntegrationTests/ModeInputIntegrationTests.swift` 增加完整事件矩阵，验证候选控制、应用快捷键、translator 快照与每事件最多一次动作
 - [ ] T027 [US2] 在签名 arm64 开发构建上验证单 Shift、无卡键、点击组合区内外、候选鼠标选择、失活与跨应用透传，并将可复现步骤和结果记录到 `specs/002-settings-experience/evidence/us2-inputmethodkit-events.md`
 
 **Checkpoint**: User Story 2 的全部键位可以独立配置，键盘和 InputMethodKit 边界已自动化并真机验证。

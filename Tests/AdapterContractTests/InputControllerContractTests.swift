@@ -64,6 +64,34 @@ final class InputControllerContractTests: XCTestCase {
         ).coreEvent)
     }
 
+    func testEventMatrixProducesOneCoreEventAndOneFrozenLayoutSnapshotPerKeyDown() throws {
+        let provider = ContractKeyboardSnapshotProvider()
+        let router = InputControllerEventRouter(
+            layoutTranslator: KeyboardLayoutTranslator(systemSnapshotProvider: provider.snapshot)
+        )
+        var settings = InputSettings.default
+        settings.keyBindings.keyboardLayout = .followSystem
+        settings.candidate2And3ShortcutsEnabled = true
+        let snapshot = SettingsSnapshot(generation: 3, settings: settings)
+        let cases: [(NSEvent, Bool, InputEvent)] = [
+            (try event(type: .keyDown, keyCode: 0, characters: "x", timestamp: 1),
+             false, .letter("a")),
+            (try event(type: .keyDown, keyCode: 43, characters: "x", timestamp: 2),
+             true, .pagePrevious),
+            (try event(type: .keyDown, keyCode: 41, characters: "x", timestamp: 3),
+             true, .select(2)),
+            (try event(type: .keyDown, keyCode: 18, characters: "x", flags: [.command],
+                       timestamp: 4), true, .passThrough)
+        ]
+
+        for (event, composing, expected) in cases {
+            let route = router.route(event, settingsSnapshot: snapshot, isComposing: composing)
+            XCTAssertEqual(route.coreEvent, expected)
+            XCTAssertFalse(route.mustPassThrough)
+        }
+        XCTAssertEqual(provider.snapshotCount, cases.count)
+    }
+
     func testSessionUsesDefaultModeOnlyOnFirstSnapshotAndReactivation() throws {
         let session = InputControllerSession(engine: InputEngine(query: query),
                                              presenter: RecordingCandidatePresenter())
@@ -226,6 +254,28 @@ final class InputControllerContractTests: XCTestCase {
             isARepeat: false,
             keyCode: keyCode
         ))
+    }
+}
+
+private struct ContractKeyboardSnapshot: KeyboardLayoutSnapshot {
+    let identifier = "contract-layout"
+    func translate(keyCode: UInt16,
+                   modifiers: NSEvent.ModifierFlags) -> KeyboardLayoutTranslation {
+        switch keyCode {
+        case 0: return .character("a")
+        case 43: return .character(",")
+        case 41: return .character(";")
+        case 18: return .character("1")
+        default: return .unavailable
+        }
+    }
+}
+
+private final class ContractKeyboardSnapshotProvider {
+    private(set) var snapshotCount = 0
+    func snapshot() -> (any KeyboardLayoutSnapshot)? {
+        snapshotCount += 1
+        return ContractKeyboardSnapshot()
     }
 }
 
