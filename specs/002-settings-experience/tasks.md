@@ -126,7 +126,7 @@
 - [X] T036 [US4] 先在 `Tests/DictionaryTests/PinyinDictionaryFormatTests.swift` 覆盖 MWPY header、offset/count overflow、checksum、restart/front-code 和 WB86 build ID，再在 `Sources/Core/PinyinDictionaryFormat.swift` 定义纯 Swift 版本化二进制格式与严格 envelope 验证
 - [X] T037 [US4] 先在 `Tests/DictionaryTests/PinyinDictionaryCompilerTests.swift` 覆盖 NFC、连续键、非法行、权重、去重、确定排序、64 项上限和提示选择，再在 `Sources/DictionaryCompiler/PinyinDictionaryCompiler.swift` 与 `Sources/DictionaryCompiler/main.swift` 实现可复现编译
 - [X] T038 [US4] 运行纯 Swift 编译器两次验证字节一致，提交 `Sources/Resources/pinyin-simp.bin`、`Sources/Resources/pinyin-simp.manifest.json` 和固定 fixture `Tests/Fixtures/Pinyin/pinyin-acceptance.tsv`
-- [ ] T039 [US4] 先在 `Tests/DictionaryTests/PinyinDictionaryFormatTests.swift` 覆盖截断、乱序、坏 UTF-8、坏引用和错误 WB86 ID 的原子禁用，再在 `Sources/Core/PinyinDictionaryLoader.swift` 实现只读映射、完整边界验证和脱敏结构错误
+- [X] T039 [US4] 先在 `Tests/DictionaryTests/PinyinDictionaryFormatTests.swift` 覆盖截断、乱序、坏 UTF-8、坏引用和错误 WB86 ID 的原子禁用，再在 `Sources/Core/PinyinDictionaryLoader.swift` 实现只读映射、完整边界验证和脱敏结构错误
 - [ ] T040 [US4] 先在 `Tests/CoreTests/CandidateQueryTests.swift` 覆盖 1...32 位 prefix-exists、exact lookup、分页与每键上限，再在 `Sources/Core/PinyinDictionaryIndex.swift` 实现范围缩小、checkpoint 二分和按页解码
 - [ ] T041 [US4] 在 `Tests/CoreTests/CandidateQueryTests.swift` 覆盖 user/base Wubi 优先、pinyin 随后、脚本转换后稳定去重及 tier 内学习，再在 `Sources/Core/CandidateRanker.swift` 实现有界混输合并器
 - [ ] T042 [US4] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖 `shang` 等有效拼音前缀不触发五码截断、混输关闭兼容和损坏资源复位，再在 `Sources/Core/InputEngine.swift` 接入 prefix/exact 路由与五笔优先规则

@@ -116,6 +116,7 @@ enum PinyinDictionaryFormatV1 {
     private static let magic = Data("MWPY".utf8)
     private static let restartFlag: UInt8 = 1
     private static let wb86TextFlag: UInt8 = 1
+    static let maximumFileByteCount = 16 * 1_024 * 1_024
 
     static func encode(entries: [PinyinDictionaryEntry], wb86BuildIdentifier: UInt64,
                        sourceIdentifier: UInt64) throws -> Data {
@@ -312,6 +313,96 @@ enum PinyinDictionaryFormatV1 {
                                          entries: entries)
     }
 
+    /// Validates a mapped runtime image without materializing its complete key or candidate tables.
+    /// The returned metadata is small and immutable; query code keeps using the mapped bytes.
+    static func validateMappedImage(_ image: Data, expectedWB86BuildIdentifier: UInt64,
+                                    wb86RecordCount: UInt32) throws
+        -> (header: PinyinDictionaryHeaderV1, bucketRanges: [PinyinBucketRange]) {
+        guard image.count <= maximumFileByteCount else {
+            throw PinyinDictionaryFormatError.invalidBounds
+        }
+        let header = try decodeHeader(image)
+        guard header.wb86BuildIdentifier == expectedWB86BuildIdentifier else {
+            throw PinyinDictionaryFormatError.wb86BuildMismatch
+        }
+        try validateChecksum(image, header: header)
+
+        var ranges = [PinyinBucketRange]()
+        ranges.reserveCapacity(Int(header.bucketCount))
+        for index in 0..<Int(header.bucketCount) {
+            let offset = Int(header.bucketOffset) + index * PinyinBucketRange.byteCount
+            let start: UInt32 = try read(image, at: offset)
+            let end: UInt32 = try read(image, at: offset + 4)
+            guard start <= end, end <= header.keyCount else {
+                throw PinyinDictionaryFormatError.invalidBucketRanges
+            }
+            ranges.append(PinyinBucketRange(start: start, end: end))
+        }
+
+        let sentinel = header.keyCount
+        var observed = Array(
+            repeating: PinyinBucketRange(start: sentinel, end: sentinel),
+            count: PinyinDictionaryHeaderV1.bucketCount
+        )
+        var previous = [UInt8]()
+        var suffixCursor = Int(header.keyBlobOffset)
+        var candidateCursor: UInt32 = 0
+        for index in 0..<Int(header.keyCount) {
+            let offset = Int(header.keyRecordOffset) + index * PinyinKeyRecordV1.byteCount
+            let prefixLength = Int(image[offset])
+            let suffixLength = Int(image[offset + 1])
+            let flags = image[offset + 2]
+            let reserved = image[offset + 3]
+            let suffixOffset: UInt32 = try read(image, at: offset + 4)
+            let candidateStart: UInt32 = try read(image, at: offset + 8)
+            let candidateCount: UInt16 = try read(image, at: offset + 12)
+            let trailingReserved: UInt16 = try read(image, at: offset + 14)
+            let isRestart = index % Int(header.restartInterval) == 0
+            guard reserved == 0, trailingReserved == 0,
+                  flags == (isRestart ? restartFlag : 0), suffixLength > 0,
+                  suffixOffset == suffixCursor, candidateStart == candidateCursor,
+                  (1...64).contains(Int(candidateCount)),
+                  UInt64(candidateStart) + UInt64(candidateCount)
+                    <= UInt64(header.candidateCount) else {
+                throw PinyinDictionaryFormatError.invalidFrontCoding
+            }
+            guard isRestart ? prefixLength == 0 : prefixLength <= previous.count else {
+                throw PinyinDictionaryFormatError.invalidFrontCoding
+            }
+            let suffixEnd = try checkedAdd(suffixCursor, suffixLength)
+            guard suffixEnd <= Int(header.candidateRecordOffset) else {
+                throw PinyinDictionaryFormatError.invalidBounds
+            }
+            let key = Array(previous.prefix(prefixLength))
+                + Array(image[suffixCursor..<suffixEnd])
+            guard isValidKeyBytes(key) else { throw PinyinDictionaryFormatError.invalidKey }
+            if !previous.isEmpty, !previous.lexicographicallyPrecedes(key) {
+                throw PinyinDictionaryFormatError.invalidOrdering
+            }
+            let first = Int(key[0] - UInt8(ascii: "a"))
+            noteBucket(first, index: UInt32(index), ranges: &observed)
+            if key.count > 1 {
+                let second = Int(key[1] - UInt8(ascii: "a"))
+                noteBucket(26 + first * 26 + second,
+                           index: UInt32(index), ranges: &observed)
+            }
+            previous = key
+            suffixCursor = suffixEnd
+            candidateCursor += UInt32(candidateCount)
+        }
+        guard suffixCursor == Int(header.candidateRecordOffset),
+              candidateCursor == header.candidateCount else {
+            throw PinyinDictionaryFormatError.invalidBounds
+        }
+        guard ranges == observed else {
+            throw PinyinDictionaryFormatError.invalidBucketRanges
+        }
+
+        try validateMappedCandidates(image, header: header,
+                                     wb86RecordCount: wb86RecordCount)
+        return (header, ranges)
+    }
+
     static func replaceChecksum(in image: inout Data) {
         guard image.count >= PinyinDictionaryHeaderV1.byteCount,
               let checksumOffset: UInt32 = try? read(image, at: 56),
@@ -328,7 +419,8 @@ enum PinyinDictionaryFormatV1 {
     }
 
     private static func decodeHeader(_ image: Data) throws -> PinyinDictionaryHeaderV1 {
-        guard image.count >= PinyinDictionaryHeaderV1.byteCount
+        guard image.count <= maximumFileByteCount,
+              image.count >= PinyinDictionaryHeaderV1.byteCount
                 + Int(PinyinDictionaryHeaderV1.checksumByteCount) else {
             throw PinyinDictionaryFormatError.invalidBounds
         }
@@ -361,6 +453,7 @@ enum PinyinDictionaryFormatV1 {
               bucketCount == PinyinDictionaryHeaderV1.bucketCount,
               checksumLength == PinyinDictionaryHeaderV1.checksumByteCount,
               restartInterval == PinyinDictionaryHeaderV1.restartInterval,
+              keyCount > 0, candidateCount > 0,
               reserved1 == 0, reserved2 == 0 else {
             throw PinyinDictionaryFormatError.invalidHeader
         }
@@ -554,6 +647,83 @@ enum PinyinDictionaryFormatV1 {
         return keyRecords.map { record in
             let start = Int(record.candidateStart)
             return Array(decoded[start..<(start + Int(record.candidateCount))])
+        }
+    }
+
+    private static func validateMappedCandidates(_ image: Data,
+                                                 header: PinyinDictionaryHeaderV1,
+                                                 wb86RecordCount: UInt32) throws {
+        var textCursor = Int(header.textOffset)
+        var candidateCursor: UInt32 = 0
+        for keyIndex in 0..<Int(header.keyCount) {
+            let keyOffset = Int(header.keyRecordOffset)
+                + keyIndex * PinyinKeyRecordV1.byteCount
+            let candidateStart: UInt32 = try read(image, at: keyOffset + 8)
+            let candidateCount: UInt16 = try read(image, at: keyOffset + 12)
+            guard candidateStart == candidateCursor else {
+                throw PinyinDictionaryFormatError.invalidCandidate
+            }
+            var previousWeight: UInt64?
+            for index in Int(candidateStart)..<Int(candidateStart) + Int(candidateCount) {
+                let offset = Int(header.candidateRecordOffset)
+                    + index * PinyinCandidateRecordV1.byteCount
+                let weight: UInt64 = try read(image, at: offset)
+                let textOffset: UInt32 = try read(image, at: offset + 8)
+                let textLength: UInt32 = try read(image, at: offset + 12)
+                let rawWB86Index: UInt32 = try read(image, at: offset + 16)
+                let hintPacked: UInt32 = try read(image, at: offset + 20)
+                let hintLength = Int(image[offset + 24])
+                let flags = image[offset + 25]
+                let reserved: UInt16 = try read(image, at: offset + 26)
+                let trailingReserved: UInt32 = try read(image, at: offset + 28)
+                guard reserved == 0, trailingReserved == 0,
+                      flags == 0 || flags == wb86TextFlag else {
+                    throw PinyinDictionaryFormatError.invalidCandidate
+                }
+                if let previousWeight, weight > previousWeight {
+                    throw PinyinDictionaryFormatError.invalidOrdering
+                }
+                previousWeight = weight
+
+                if flags == wb86TextFlag {
+                    guard textOffset == 0, textLength == 0,
+                          rawWB86Index != PinyinCandidateRecordV1.missingWB86Record,
+                          rawWB86Index < wb86RecordCount else {
+                        throw PinyinDictionaryFormatError.invalidCandidate
+                    }
+                } else {
+                    guard rawWB86Index == PinyinCandidateRecordV1.missingWB86Record,
+                          textLength > 0, textOffset == textCursor else {
+                        throw PinyinDictionaryFormatError.invalidCandidate
+                    }
+                    let textEnd = try checkedAdd(textCursor, Int(textLength))
+                    guard textEnd <= Int(header.checksumOffset) else {
+                        throw PinyinDictionaryFormatError.invalidBounds
+                    }
+                    let bytes = image.subdata(in: textCursor..<textEnd)
+                    guard let text = String(data: bytes, encoding: .utf8), !text.isEmpty,
+                          text == text.precomposedStringWithCanonicalMapping,
+                          !text.unicodeScalars.contains(where: {
+                              CharacterSet.controlCharacters.contains($0)
+                          }) else {
+                        throw PinyinDictionaryFormatError.invalidUTF8
+                    }
+                    textCursor = textEnd
+                }
+
+                if hintLength == 0 {
+                    guard hintPacked == 0 else {
+                        throw PinyinDictionaryFormatError.invalidCandidate
+                    }
+                } else if InputCode(packedValue: hintPacked, length: hintLength) == nil {
+                    throw PinyinDictionaryFormatError.invalidCandidate
+                }
+            }
+            candidateCursor += UInt32(candidateCount)
+        }
+        guard candidateCursor == header.candidateCount,
+              textCursor == Int(header.checksumOffset) else {
+            throw PinyinDictionaryFormatError.invalidBounds
         }
     }
 
