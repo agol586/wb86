@@ -4,6 +4,7 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+.worktrees/
 
 # Xcode and Swift build products
 .build/
