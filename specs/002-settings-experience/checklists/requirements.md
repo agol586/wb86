@@ -38,4 +38,6 @@
   preserving ordinary mouse/keyboard operation and failure safety.
 - Validation iteration 4 passed all items after aligning the language-switch selector with the supplied
   Shift/Control/Caps Lock/disabled reference and prohibiting stale menu shortcuts or a duplicate status item.
+- Validation iteration 5 passed all items after centralizing private-mode and local-learning state in the
+  advanced settings page and prohibiting their independent status-bar item.
 - No clarification markers remain; the specification is ready for `$speckit-plan`.

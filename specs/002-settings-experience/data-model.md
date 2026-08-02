@@ -98,3 +98,14 @@
 Inspector 和其他屏幕阅读器专用候选朗读、辅助选择、辅助焦点与设置导航为“不支持”。普通候选页、
 鼠标/键盘选择、视觉布局和设置错误信息继续使用既有模型；不得新增“实验性辅助功能”开关或隐藏
 状态，也不得把系统已开启辅助技术记录到磁盘或诊断中。
+
+## 11. RuntimePrivacyPolicy
+
+该状态属于当前输入法进程，不是 Settings 快照的一部分：
+
+- `privateMode`: 启用时排除既有学习分数并禁止所有学习写入。
+- `learningEnabled`: 本地学习总开关；关闭时排除既有学习分数并禁止学习写入。
+- `effectiveLearning`: 仅当 `!privateMode && learningEnabled && automaticFrequency` 时为真。
+
+高级设置页读取并即时修改前两项，控制器将同一状态原子应用到所有活动会话；重新打开页面必须
+回显当前值。该状态不得拥有独立状态栏表示，恢复 Settings 默认值也不得改变 `privateMode`。

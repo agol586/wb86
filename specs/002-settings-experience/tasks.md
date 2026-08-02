@@ -299,3 +299,13 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
 - [X] T068 [US2] 在 `Tests/AdapterContractTests/InputModeControllerTests.swift` 添加零额外 `NSStatusItem` 生命周期契约，再从 `Sources/InputMethod/InputModeController.swift` 删除重复常驻状态栏项目并保持 InputMethodKit 系统菜单、点击切换和“设置…”入口可用 per FR-033/SC-014 (contradicts)
 
 **Checkpoint**: 语言切换四种配置、系统输入菜单与状态栏行为和规格一致；完成 T027 真机矩阵后重新运行完整发布回归。
+
+---
+
+## Phase 11: Convergence
+
+- [X] T069 [US2] 在 `specs/001-native-wubi/spec.md`、`specs/002-settings-experience/plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md`、`README.md` 与 `Docs/UserGuide.md` 同步私密模式和本地学习集中到高级设置页、零独立状态栏项目的产品契约 per FR-034/SC-015 (partial)
+- [ ] T070 [US2] 先在 `Tests/PrivacyTests/PrivateModeTests.swift` 添加零 `NSStatusItem` 生命周期和四种策略状态回归，再从 `Sources/InputMethod/PrivacyModeController.swift` 删除“`五·学`/`五·私`”状态栏项目及其重复菜单，同时保留活动会话的原子策略应用 per FR-034/SC-015 (contradicts)
+- [ ] T071 [US2] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖高级页“私密模式”和“本地学习”的显示、即时切换、重新打开回显及设置取消互不干扰，再在 `Sources/InputMethod/SettingsWindowController.swift` 接通 `PrivacyModeController` 并移除无效占位控件 per FR-034/US2-AC7/SC-015 (partial)
+
+**Checkpoint**: 私密模式和本地学习只通过高级设置页查看与控制，运行期间不创建额外状态栏项目。
