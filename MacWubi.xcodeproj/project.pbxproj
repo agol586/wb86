@@ -47,6 +47,14 @@
 			);
 			target = A10000000000000000000013 /* MacWubiDictionaryCompiler */;
 		};
+		A1000000000000000000004A /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				main.swift,
+				ScriptConversionCompiler.swift,
+			);
+			target = A10000000000000000000011 /* MacWubiTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -57,7 +65,7 @@
 		A10000000000000000000044 /* Sources/Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = ("ThirdParty/rime-pinyin-simp", ); path = Sources/Resources; sourceTree = "<group>"; };
 		A10000000000000000000045 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000047 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
 		A10000000000000000000046 /* Tests/ReleaseContractTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests/ReleaseContractTests; sourceTree = "<group>"; };
-		A10000000000000000000048 /* Sources/DictionaryCompiler */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources/DictionaryCompiler; sourceTree = "<group>"; };
+		A10000000000000000000048 /* Sources/DictionaryCompiler */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A1000000000000000000004A /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources/DictionaryCompiler; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,6 +178,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000045 /* Tests */,
+				A10000000000000000000048 /* Sources/DictionaryCompiler */,
 			);
 			name = MacWubiTests;
 			packageProductDependencies = (

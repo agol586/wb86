@@ -175,7 +175,16 @@ private struct RecordKey: Hashable {
 }
 
 let compilerArguments = Array(CommandLine.arguments.dropFirst())
-if compilerArguments.first == "script-conversion" {
+if compilerArguments.first == "pinyin" {
+    do {
+        try PinyinDictionaryCompilerCommand.run(arguments: Array(compilerArguments.dropFirst()))
+    } catch {
+        let message = (error as? PinyinDictionaryCompilerError)?.description
+            ?? "pinyin dictionary compilation failed"
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+        Darwin.exit(64)
+    }
+} else if compilerArguments.first == "script-conversion" {
     do {
         try ScriptConversionCompilerCommand.run(arguments: Array(compilerArguments.dropFirst()))
     } catch {
