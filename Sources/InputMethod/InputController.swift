@@ -7,12 +7,12 @@ struct InputControllerEventRoute: Equatable {
 }
 
 final class InputControllerEventRouter {
-    private let shiftRecognizer: StandaloneShiftRecognizer
+    private let modifierRecognizer: StandaloneModifierRecognizer
     private let layoutTranslator: KeyboardLayoutTranslator
 
-    init(shiftRecognizer: StandaloneShiftRecognizer = StandaloneShiftRecognizer(),
+    init(modifierRecognizer: StandaloneModifierRecognizer = StandaloneModifierRecognizer(),
          layoutTranslator: KeyboardLayoutTranslator = KeyboardLayoutTranslator()) {
-        self.shiftRecognizer = shiftRecognizer
+        self.modifierRecognizer = modifierRecognizer
         self.layoutTranslator = layoutTranslator
     }
 
@@ -23,20 +23,20 @@ final class InputControllerEventRouter {
     func route(_ event: NSEvent, settingsSnapshot: SettingsSnapshot,
                isComposing: Bool) -> InputControllerEventRoute {
         if event.type == .flagsChanged {
-            let triggered = shiftRecognizer.handle(
+            let triggered = modifierRecognizer.handle(
                 event,
+                binding: settingsSnapshot.settings.keyBindings.languageSwitch,
                 settingsGeneration: settingsSnapshot.generation
             )
             return InputControllerEventRoute(
-                coreEvent: triggered
-                    ? standaloneShiftEvent(settingsSnapshot.settings.keyBindings) : nil,
+                coreEvent: triggered ? .switchLanguage : nil,
                 mustPassThrough: true
             )
         }
         guard event.type == .keyDown else {
             return InputControllerEventRoute(coreEvent: nil, mustPassThrough: true)
         }
-        shiftRecognizer.disqualifyForNonModifierKey()
+        modifierRecognizer.disqualifyForNonModifierKey()
         let settings = settingsSnapshot.settings
         let translated = layoutTranslator.character(
             for: event,
@@ -54,14 +54,7 @@ final class InputControllerEventRouter {
         )
     }
 
-    func reset() { shiftRecognizer.reset() }
-
-    private func standaloneShiftEvent(_ bindings: KeyBindingSettings) -> InputEvent? {
-        if bindings.languageSwitch == .standaloneShift { return .switchLanguage }
-        if bindings.scriptSwitch == .standaloneShift { return .switchScript }
-        if bindings.widthSwitch == .standaloneShift { return .switchWidth }
-        return nil
-    }
+    func reset() { modifierRecognizer.reset() }
 }
 
 @objc(InputController)

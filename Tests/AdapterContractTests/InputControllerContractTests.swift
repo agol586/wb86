@@ -64,6 +64,30 @@ final class InputControllerContractTests: XCTestCase {
         ).coreEvent)
     }
 
+    func testConfiguredStandaloneControlAndCapsLockSwitchLanguageAndPassThrough() throws {
+        for (binding, events): (ModeSwitchBinding, [(UInt16, NSEvent.ModifierFlags)]) in [
+            (.standaloneControl, [(59, [.control]), (59, [])]),
+            (.standaloneCapsLock, [(57, [.capsLock])])
+        ] {
+            var settings = InputSettings.default
+            settings.keyBindings.languageSwitch = binding
+            let snapshot = SettingsSnapshot(generation: 7, settings: settings)
+            let router = InputControllerEventRouter()
+            var routes = [InputControllerEventRoute]()
+            for (offset, item) in events.enumerated() {
+                routes.append(router.route(
+                    try event(type: .flagsChanged, keyCode: item.0, characters: "",
+                              flags: item.1, timestamp: 10 + Double(offset) / 10),
+                    settingsSnapshot: snapshot,
+                    isComposing: false
+                ))
+            }
+            XCTAssertTrue(routes.allSatisfy(\.mustPassThrough))
+            XCTAssertEqual(routes.compactMap(\.coreEvent), [.switchLanguage],
+                           "binding: \(binding)")
+        }
+    }
+
     func testEventMatrixProducesOneCoreEventAndOneFrozenLayoutSnapshotPerKeyDown() throws {
         let provider = ContractKeyboardSnapshotProvider()
         let router = InputControllerEventRouter(
