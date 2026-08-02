@@ -3,6 +3,30 @@ import XCTest
 @testable import MacWubi
 
 final class InputModeTests: XCTestCase {
+    func testStructuredBindingDefaultsAndIndependentPagingGroups() throws {
+        let fresh = KeyBindingSettings.default
+        XCTAssertEqual(fresh.languageSwitch, .standaloneShift)
+        XCTAssertEqual(fresh.scriptSwitch, .controlShiftF)
+        XCTAssertEqual(fresh.widthSwitch, .disabled)
+        XCTAssertEqual(fresh.pageKeyGroups,
+                       [.commaPeriod, .minusEquals, .bracketPair, .tab])
+        XCTAssertEqual(fresh.keyboardLayout, .us)
+
+        let compatible = KeyBindingSettings.migrationCompatibilityDefault
+        XCTAssertEqual(compatible.languageSwitch, .legacyControlShiftDigits)
+        XCTAssertEqual(compatible.pageKeyGroups, [.minusEquals])
+        XCTAssertEqual(compatible.keyboardLayout, .followSystem)
+
+        let configured = try KeyBindingSettings(
+            languageSwitch: .disabled,
+            scriptSwitch: .controlShiftF,
+            widthSwitch: .shiftSpace,
+            pageKeyGroups: [.arrows, .tab],
+            keyboardLayout: .followSystem
+        )
+        XCTAssertEqual(configured.pageKeyGroups.count, 2)
+    }
+
     func testLanguageSwitchIsSessionLocalAndDirectEnglishDoesNotQuery() {
         var queryCount = 0
         let engine = InputEngine { _, _ in
@@ -72,18 +96,19 @@ final class InputModeTests: XCTestCase {
     }
 
     func testOnlyDocumentedModeShortcutsAreIntercepted() throws {
+        let legacy = KeyBindingSettings.migrationCompatibilityDefault
         XCTAssertEqual(InputEventMapper.map(try keyEvent(keyCode: 18, characters: "1",
                                                         flags: [.control, .shift]),
-                                              isComposing: false), .switchLanguage)
+                                              isComposing: false, keyBindings: legacy), .switchLanguage)
         XCTAssertEqual(InputEventMapper.map(try keyEvent(keyCode: 19, characters: "2",
                                                         flags: [.control, .shift]),
-                                              isComposing: false), .switchPunctuation)
+                                              isComposing: false, keyBindings: legacy), .switchPunctuation)
         XCTAssertEqual(InputEventMapper.map(try keyEvent(keyCode: 20, characters: "3",
                                                         flags: [.control, .shift]),
-                                              isComposing: false), .switchWidth)
+                                              isComposing: false, keyBindings: legacy), .switchWidth)
         XCTAssertEqual(InputEventMapper.map(try keyEvent(keyCode: 21, characters: "4",
                                                         flags: [.control, .shift]),
-                                              isComposing: false), .switchScript)
+                                              isComposing: false, keyBindings: legacy), .switchScript)
         XCTAssertEqual(InputEventMapper.map(try keyEvent(keyCode: 49, characters: " ",
                                                         flags: [.control]),
                                               isComposing: false), .passThrough)

@@ -48,7 +48,7 @@ struct InputSettings: Equatable, Codable, Sendable {
         candidatePageSize: 5,
         candidateLayout: .vertical,
         candidateFontScale: 1,
-        keyBindings: .default,
+        keyBindings: .migrationCompatibilityDefault,
         autoCommitAtFour: false,
         autoCommitFirstAtFive: false,
         defaultMode: .default,

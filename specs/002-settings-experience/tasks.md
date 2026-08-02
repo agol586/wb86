@@ -43,7 +43,7 @@
 **⚠️ CRITICAL**: 本阶段完成前不得开始任何用户故事实现。
 
 - [X] T003 [P] 先在 `Tests/PersistenceTests/SettingsStoreTests.swift` 覆盖 schema v2 新安装默认、兼容默认及全部字段校验，再在 `Sources/Persistence/SettingsStore.swift` 定义 `InputSettings` v2、独立默认配置和字段级验证错误
-- [ ] T004 [P] 先在 `Tests/CoreTests/InputModeTests.swift` 覆盖结构化语言/简繁/全半角预设、五组独立翻页集合与布局枚举，再在 `Sources/Core/KeyBindingSettings.swift` 替换字符串式绑定模型并保留可验证的 legacy preset
+- [X] T004 [P] 先在 `Tests/CoreTests/InputModeTests.swift` 覆盖结构化语言/简繁/全半角预设、五组独立翻页集合与布局枚举，再在 `Sources/Core/KeyBindingSettings.swift` 替换字符串式绑定模型并保留可验证的 legacy preset
 - [ ] T005 [P] 先在 `Tests/CoreTests/CoreModelTests.swift` 覆盖 1...32 位组合序列、五笔/拼音路由、候选来源和学习键身份，再在 `Sources/Core/CompositionKeySequence.swift`、`Sources/Core/Candidate.swift` 和 `Sources/Core/CompositionState.swift` 实现通用组合与候选值对象
 - [ ] T006 先在 `Tests/CoreTests/InputEngineTests.swift` 与 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖有序客户端动作的单次执行和失败中止，再在 `Sources/Core/InputEngine.swift` 与 `Sources/InputMethod/InputControllerSession.swift` 将单一 `ClientTextAction` 升级为有序复合动作批次
 - [ ] T007 在 `Tests/PersistenceTests/SettingsStoreTests.swift` 增加 v2 current 原子保存、读回验证、代次单调和失败不发布测试，并在 `Sources/Persistence/SettingsStore.swift` 实现可发布的 `SettingsSnapshot` 与 v2 save/load
