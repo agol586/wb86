@@ -250,6 +250,8 @@ final class SettingsWindowController: NSWindowController {
         ]
         for (index, title) in options.enumerated() {
             let button = makeButton(title, action: nil)
+            button.target = self
+            button.action = #selector(commonOptionChanged(_:))
             let column = index / 3
             let row = index % 3
             button.frame = NSRect(x: 24 + column * 300, y: 130 - row * 42,
@@ -357,6 +359,21 @@ final class SettingsWindowController: NSWindowController {
         updated.keyBindings = keyBindings
         draftSettings = updated
         _ = validateAndApply(updated)
+    }
+
+    @objc private func commonOptionChanged(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        switch sender.accessibilityLabel() ?? sender.title {
+        case "四码唯一时直接上屏": draftSettings.autoCommitAtFour = enabled
+        case "第五码将首选词上屏": draftSettings.autoCommitFirstAtFive = enabled
+        case "五笔自动调频": draftSettings.automaticFrequency = enabled
+        case "五笔拼音混合输入": draftSettings.mixedPinyinEnabled = enabled
+        case "开启编码提示": draftSettings.codeHintEnabled = enabled
+        case "分号和单引号候选快捷键":
+            draftSettings.candidate2And3ShortcutsEnabled = enabled
+        default: return
+        }
+        sender.setAccessibilityValue(enabled ? "已启用" : "未启用")
     }
 
     @objc private func cancelFromControls() { cancelDraft() }

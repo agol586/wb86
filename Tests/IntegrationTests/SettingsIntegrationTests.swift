@@ -109,6 +109,43 @@ final class SettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(newSession.mode, changed.defaultMode)
     }
 
+    func testAutoCommitAndFrequencyPersistButWaitForCompositionSafeBoundary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiAutoPolicyDelay-\(UUID().uuidString)")
+        let writer = try SnapshotWriter(rootURL: root)
+        let coordinator = SettingsCoordinator(store: try SettingsStore(writer: writer))
+        let session = InputControllerSession(
+            engine: InputEngine { _, page in
+                try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+            },
+            presenter: SettingsAppearancePresenter()
+        )
+        let client = SettingsInputClient()
+        coordinator.register(session)
+        _ = session.handle(.letter("a"), client: client)
+        XCTAssertEqual(session.state.kind, .composing)
+
+        var changed = InputSettings.newInstallDefault
+        changed.autoCommitAtFour = false
+        changed.autoCommitFirstAtFive = true
+        changed.automaticFrequency = true
+        try coordinator.save(changed)
+
+        XCTAssertTrue(session.activeSnapshot.settings.autoCommitAtFour)
+        XCTAssertFalse(session.activeSnapshot.settings.autoCommitFirstAtFive)
+        XCTAssertFalse(session.activeSnapshot.settings.automaticFrequency)
+        XCTAssertEqual(session.pendingSnapshot?.settings, changed)
+
+        let restarted = try SettingsStore(writer: SnapshotWriter(rootURL: root))
+        XCTAssertEqual(restarted.settings, changed)
+        XCTAssertEqual(restarted.snapshot.generation, 1)
+
+        _ = session.handle(.cancel, client: client)
+        XCTAssertEqual(session.state.kind, .idle)
+        XCTAssertNil(session.pendingSnapshot)
+        XCTAssertEqual(session.activeSnapshot.settings, changed)
+    }
+
     func testSessionsFreezeActiveSnapshotAndKeepOnlyLatestPendingGeneration() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiSessionSnapshots-\(UUID().uuidString)")

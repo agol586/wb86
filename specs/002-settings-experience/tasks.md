@@ -108,7 +108,7 @@
 - [X] T030 [US3] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖复合动作精确客户端调用顺序、任一步失败清理和 pending 设置只在整批结束后应用，再在 `Sources/InputMethod/InputControllerSession.swift` 完成适配器执行与恢复
 - [X] T031 [P] [US3] 先在 `Tests/PersistenceTests/LearningStoreTests.swift` 与 `Tests/MigrationTests/DataMigratorTests.swift` 覆盖五笔/拼音 typed learning key、v1 包装迁移和域隔离，再在 `Sources/Persistence/LearningStore.swift` 与 `Sources/Persistence/DataMigrator.swift` 实现 Learning schema v2
 - [X] T032 [US3] 在 `Tests/CoreTests/CandidateQueryTests.swift` 与 `Tests/PrivacyTests/PrivateModeTests.swift` 覆盖调频只改变同码同 tier、关闭/私密/禁止学习时既不读分也不写，再在 `Sources/Core/CandidateRanker.swift` 和 `Sources/InputMethod/PersonalizationCoordinator.swift` 实现冻结学习策略
-- [ ] T033 [US3] 在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 和 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖四码、五码、调频开关的独立保存/重启/安全延迟，并在 `Sources/InputMethod/SettingsWindowController.swift` 完成控件到 v2 快照的双向绑定
+- [X] T033 [US3] 在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 和 `Tests/IntegrationTests/SettingsIntegrationTests.swift` 覆盖四码、五码、调频开关的独立保存/重启/安全延迟，并在 `Sources/InputMethod/SettingsWindowController.swift` 完成控件到 v2 快照的双向绑定
 - [ ] T034 [US3] 运行四码/五码/调频完整组合矩阵与 `Scripts/test.sh`，将提交次数、客户端动作顺序和学习写入隔离结果记录到 `specs/002-settings-experience/evidence/us3-auto-commit-learning.md`
 
 **Checkpoint**: User Story 3 可独立证明无重复提交、无丢键，并满足私密/关闭学习约束。

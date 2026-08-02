@@ -51,6 +51,57 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.draftSettings.automaticFrequency)
     }
 
+    func testAutoCommitAndFrequencyCheckboxesBindSaveAndRestartIndependently() throws {
+        var persisted = [InputSettings]()
+        let controller = SettingsWindowController(settings: .newInstallDefault) {
+            persisted.append($0)
+        }
+        controller.loadWindow()
+
+        let fourCode = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
+            .first { $0.accessibilityLabel() == "四码唯一时直接上屏" })
+        let fiveCode = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
+            .first { $0.accessibilityLabel() == "第五码将首选词上屏" })
+        let frequency = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
+            .first { $0.accessibilityLabel() == "五笔自动调频" })
+
+        fourCode.performClick(nil)
+        XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
+        XCTAssertFalse(controller.draftSettings.autoCommitFirstAtFive)
+        XCTAssertFalse(controller.draftSettings.automaticFrequency)
+        XCTAssertEqual(fourCode.accessibilityValue() as? String, "未启用")
+
+        fiveCode.performClick(nil)
+        XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
+        XCTAssertTrue(controller.draftSettings.autoCommitFirstAtFive)
+        XCTAssertFalse(controller.draftSettings.automaticFrequency)
+        XCTAssertEqual(fiveCode.accessibilityValue() as? String, "已启用")
+
+        frequency.performClick(nil)
+        XCTAssertFalse(controller.draftSettings.autoCommitAtFour)
+        XCTAssertTrue(controller.draftSettings.autoCommitFirstAtFive)
+        XCTAssertTrue(controller.draftSettings.automaticFrequency)
+        XCTAssertEqual(frequency.accessibilityValue() as? String, "已启用")
+
+        let save = try XCTUnwrap(controller.accessibleControls.compactMap { $0 as? NSButton }
+            .first { $0.accessibilityLabel() == "保存" })
+        save.performClick(nil)
+        let saved = try XCTUnwrap(persisted.last)
+        XCTAssertFalse(saved.autoCommitAtFour)
+        XCTAssertTrue(saved.autoCommitFirstAtFive)
+        XCTAssertTrue(saved.automaticFrequency)
+        XCTAssertEqual(saved.mixedPinyinEnabled, InputSettings.newInstallDefault.mixedPinyinEnabled)
+
+        let restarted = SettingsWindowController(settings: saved)
+        restarted.loadWindow()
+        let restartedButtons = Dictionary(uniqueKeysWithValues: restarted.accessibleControls
+            .compactMap { $0 as? NSButton }
+            .compactMap { button in button.accessibilityLabel().map { ($0, button) } })
+        XCTAssertEqual(restartedButtons["四码唯一时直接上屏"]?.state, .off)
+        XCTAssertEqual(restartedButtons["第五码将首选词上屏"]?.state, .on)
+        XCTAssertEqual(restartedButtons["五笔自动调频"]?.state, .on)
+    }
+
     func testKeyPageShowsThreeBindingsFivePageGroupsAndKeyboardLayout() {
         let controller = SettingsWindowController.makeForTesting()
         controller.loadWindow()
