@@ -1,8 +1,11 @@
 import Foundation
 
-enum SnapshotCommitStage: Equatable, Sendable {
+enum SnapshotCommitStage: Equatable, CaseIterable, Sendable {
+    case beforeTemporaryWrite
+    case afterTemporaryWrite
     case afterTemporaryValidation
     case afterPreviousReplacement
+    case afterCurrentReplacement
 }
 
 enum SnapshotWriterError: Error, Equatable {
@@ -60,20 +63,23 @@ final class SnapshotWriter {
             throw SnapshotWriterError.generationNotMonotonic
         }
         let temporary = temporaryURL(for: snapshot.domain)
-        try? fileManager.removeItem(at: temporary)
-        try snapshot.encoded().write(to: temporary, options: [.atomic])
-        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporary.path)
-        let staged = try loadUnlocked(temporary)
-        guard staged == snapshot, validatePayload(staged.payload) else {
-            try? fileManager.removeItem(at: temporary)
-            throw SnapshotWriterError.validationFailed
-        }
-        try failureInjector?(.afterTemporaryValidation)
-
         let current = currentURL(for: snapshot.domain)
         let previous = previousURL(for: snapshot.domain)
         var movedCurrent = false
+        var installedCurrent = false
         do {
+            try failureInjector?(.beforeTemporaryWrite)
+            try? fileManager.removeItem(at: temporary)
+            try snapshot.encoded().write(to: temporary, options: [.atomic])
+            try fileManager.setAttributes([.posixPermissions: 0o600],
+                                          ofItemAtPath: temporary.path)
+            try failureInjector?(.afterTemporaryWrite)
+            let staged = try loadUnlocked(temporary)
+            guard staged == snapshot, validatePayload(staged.payload) else {
+                throw SnapshotWriterError.validationFailed
+            }
+            try failureInjector?(.afterTemporaryValidation)
+
             if fileManager.fileExists(atPath: current.path) {
                 try? fileManager.removeItem(at: previous)
                 try fileManager.moveItem(at: current, to: previous)
@@ -81,16 +87,22 @@ final class SnapshotWriter {
                 try failureInjector?(.afterPreviousReplacement)
             }
             try fileManager.moveItem(at: temporary, to: current)
+            installedCurrent = true
+            try failureInjector?(.afterCurrentReplacement)
             try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: current.path)
             guard try loadUnlocked(current) == snapshot else {
                 throw SnapshotWriterError.validationFailed
             }
         } catch {
             try? fileManager.removeItem(at: temporary)
-            if movedCurrent, !fileManager.fileExists(atPath: current.path),
-               fileManager.fileExists(atPath: previous.path) {
+            if movedCurrent, fileManager.fileExists(atPath: previous.path) {
+                if installedCurrent || fileManager.fileExists(atPath: current.path) {
+                    try? fileManager.removeItem(at: current)
+                }
                 try? fileManager.copyItem(at: previous, to: current)
                 try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: current.path)
+            } else if installedCurrent {
+                try? fileManager.removeItem(at: current)
             }
             throw error
         }

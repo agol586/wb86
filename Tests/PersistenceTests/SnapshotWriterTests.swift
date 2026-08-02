@@ -37,6 +37,31 @@ final class SnapshotWriterTests: XCTestCase {
         XCTAssertEqual(try writer.load(.learning)?.generation, 1)
     }
 
+    func testEveryCommitInterruptionBoundaryRestoresLastCompleteSnapshotOnRestart() throws {
+        for stage in SnapshotCommitStage.allCases {
+            let root = temporaryDirectory()
+            let writer = try SnapshotWriter(rootURL: root)
+            let stable = try snapshot(.settings, generation: 1, text: "stable")
+            try writer.commit(stable)
+            writer.failureInjector = { current in
+                if current == stage { throw TestError.interrupted }
+            }
+
+            XCTAssertThrowsError(try writer.commit(
+                try snapshot(.settings, generation: 2, text: "replacement")
+            ), "stage \(stage)")
+
+            let restarted = try SnapshotWriter(rootURL: root)
+            XCTAssertEqual(try restarted.recover(.settings,
+                                                 supportedSchemaVersions: [1]), stable,
+                           "stage \(stage)")
+            XCTAssertEqual(try restarted.load(.settings), stable, "stage \(stage)")
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: restarted.temporaryURL(for: .settings).path
+            ))
+        }
+    }
+
     func testStartupRecoversPreviousPerDomainAndRemovesInvalidTemporary() throws {
         let writer = try SnapshotWriter(rootURL: temporaryDirectory())
         try writer.commit(try snapshot(.settings, generation: 1, text: "old"))

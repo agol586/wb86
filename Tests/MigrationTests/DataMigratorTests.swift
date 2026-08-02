@@ -119,6 +119,30 @@ final class DataMigratorTests: XCTestCase {
         XCTAssertEqual(try writer.load(.learning)?.payload, Data("stable".utf8))
     }
 
+    func testSettingsMigrationInterruptionAtEveryCommitBoundaryRecoversV1() throws {
+        let legacyPayload = Data(#"{"autoCommitAtFour":false,"candidateFontScale":1,"candidateLayout":"vertical","candidatePageSize":5,"defaultMode":{"language":"chinese","punctuation":"chinese","script":"simplified","width":"half"},"keyBindings":{"modeSwitch":{"disabled":{}},"pageKeys":"minusEquals"},"learningEnabled":true}"#.utf8)
+
+        for stage in SnapshotCommitStage.allCases {
+            let root = temporaryRoot()
+            let writer = try SnapshotWriter(rootURL: root)
+            let legacy = try DataSnapshot(domain: .settings, schemaVersion: 1,
+                                          generation: 12, payload: legacyPayload)
+            try writer.commit(legacy)
+            writer.failureInjector = { current in
+                if current == stage { throw Failure.interrupted }
+            }
+
+            XCTAssertThrowsError(try DataMigrator(writer: writer).migrate(.settings),
+                                 "stage \(stage)")
+
+            let restarted = try SnapshotWriter(rootURL: root)
+            XCTAssertEqual(try restarted.recover(.settings,
+                                                 supportedSchemaVersions: [1, 2]), legacy,
+                           "stage \(stage)")
+            XCTAssertEqual(try restarted.load(.settings), legacy, "stage \(stage)")
+        }
+    }
+
     func testLearningV1MigrationWrapsWubiKeyAndDoesNotTouchOtherDomains() throws {
         let writer = try SnapshotWriter(rootURL: temporaryRoot())
         let legacyPayload = Data(#"{"records":[{"code":"wqvb","candidateText":"你好","score":3,"decayEpoch":7}]}"#.utf8)
