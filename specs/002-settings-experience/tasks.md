@@ -160,7 +160,7 @@
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-**Purpose**: 证明全部设置组合仍满足隐私、性能、无障碍、arm64 与发行约束。
+**Purpose**: 证明全部设置组合仍满足隐私、性能、当时定义的辅助技术、arm64 与发行约束；辅助技术范围后由 Phase 9 明确移除。
 
 - [X] T053 [P] 在 `Tests/PrivacyTests/DiagnosticsRedactionTests.swift`、`Tests/PrivacyTests/PrivacyDataTests.swift` 和 `Scripts/privacy-audit.sh` 覆盖零网络、无 monitor/event tap、无输入/拼音/候选/路径日志及 `0700`/`0600` 权限
 - [X] T054 [P] 在 `Tests/PerformanceTests/LookupPerformanceTests.swift` 增加 Wubi-only、pinyin prefix/exact、merge/dedupe/简繁/翻页/全开设置样本，并证明每个已识别样本 `<2 ms` 而非仅 percentile
@@ -175,6 +175,22 @@
 
 ---
 
+## Phase 9: User Story 6 - 明确辅助技术支持边界 (Priority: P3)
+
+**Goal**: 明确不支持 VoiceOver/屏幕阅读器专用能力，删除已存在的专用适配，同时保持普通鼠标、
+键盘、候选窗口、设置反馈和故障安全。
+
+**Independent Test**: 源码审计确认不存在自定义辅助候选树、公告、辅助动作或辅助焦点；普通候选
+鼠标/键盘选择、布局、设置保存/取消/校验测试和完整发布回归全部通过；文档明确列出不支持范围。
+
+- [X] T061 [US6] 在 `specs/002-settings-experience/spec.md`、`plan.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md` 和 `tasks.md` 明确 VoiceOver/旁白实用工具/Accessibility Inspector/屏幕阅读器不支持边界及普通鼠标键盘保留范围
+- [ ] T062 [US6] 先在 `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift`、`SettingsWindowTests.swift` 和 `UnsupportedAssistiveTechnologyTests.swift` 覆盖普通候选/设置回归与零专用辅助源码，再删除 `Sources/InputMethod/AccessibilityAdapter.swift`、`Tests/AccessibilityTests/`，将 `AccessibleCandidatePresenter.swift` 重构为无辅助树/公告/焦点的普通候选面板，并移除其他 `Sources/InputMethod/` 中显式辅助语义
+- [ ] T063 [US6] 更新 `README.md`、`Docs/UserGuide.md`、`Docs/Validation.md`、`Docs/ReleaseChecklist.md`、`Docs/ReleaseMatrix.md`、`AGENTS.md` 和相关基础规格/证据，运行 `Scripts/test.sh`、Release build/verify/privacy、月度量压冒烟与源码审计，把结果记录到 `specs/002-settings-experience/evidence/us6-unsupported-assistive-technology.md`
+
+**Checkpoint**: 产品不再包含或声明 VoiceOver/屏幕阅读器专用支持；普通输入和设置行为保持通过。
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
@@ -184,6 +200,7 @@
   T003/T004，T008 依赖 T007，T009 依赖 T003/T005，T010 依赖 T003...T009。
 - **User Stories**: 都依赖 T010。相同优先级按规格顺序交付；不编辑共享热点文件的任务可提前并行。
 - **Polish (Phase 8)**: 依赖 T017、T027、T034、T045、T052 全部完成。
+- **US6 scope removal (Phase 9)**: T061→T062→T063；不依赖已明确跳过的 T027 物理回归。
 
 ### User story dependencies
 
@@ -195,6 +212,7 @@
 - **US4 (P2)**: T035 可与前置核心任务并行；T036→T037→T038→T039→T040→T041→T042→T043→
   T044→T045。编译格式、生成资源、loader 必须按此顺序保证可复现。
 - **US5 (P2)**: T046→T047→T048；T049/T050 依赖 US1 设置窗口基线并串行编辑，最后 T051→T052。
+- **US6 (P3)**: T061 先完成规格和设计修订，T062 删除专用适配并回归普通操作，T063 收口文档和证据。
 
 ### Shared-file serialization
 
@@ -261,10 +279,11 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
 3. US3 自动上屏/调频 → 完整提交与学习矩阵。
 4. US4 混输/提示 → 许可、可复现资源和内存硬门禁。
 5. US5 升级/恢复 → future 和故障注入。
-6. Cross-cutting → 隐私、性能、月度等效量稳定、无障碍和发布契约。
+6. Cross-cutting → 隐私、性能、月度等效量稳定、当时的辅助技术和发布契约。
+7. US6 → 删除屏幕阅读器专用适配，明确不支持边界并重跑发布门禁。
 
 ### Commit verification loop
 
-对每个 T002...T060：检查依赖 → 写目标测试并观察失败 → 实现最小变更 → 运行目标测试与受影响集成
+对每个 T002...T063：检查依赖 → 写目标测试并观察失败 → 实现最小变更 → 运行目标测试与受影响集成
 测试 → `git diff --check` → 更新该任务 evidence/勾选状态 → 创建唯一 `Txxx: ...` 提交。若任务没有
 通过，不勾选、不提交后续任务；不得用 Intel 适配、第三方运行时或未记录安全例外绕过失败。

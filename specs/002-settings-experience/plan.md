@@ -22,7 +22,7 @@
 
 **Storage**: `~/Library/Application Support/org.macwubi.inputmethod/` 中独立版本化、原子替换的设置与学习快照；应用包内只读词典、清单、许可及来源材料
 
-**Testing**: XCTest 单元/契约/集成/迁移/故障恢复/隐私/无障碍/性能测试及既有 shell 发布验证脚本
+**Testing**: XCTest 单元/契约/集成/迁移/故障恢复/隐私/性能测试及既有 shell 发布验证脚本；增加源码契约证明不存在屏幕阅读器专用适配
 
 **Target Platform**: macOS 13.0+，仅 Apple Silicon `arm64`；不支持 Intel Mac 或 Rosetta 2
 
@@ -30,7 +30,7 @@
 
 **Performance Goals**: 每个已识别的五笔、拼音或合并查询样本到首批候选可用均 `< 2 ms`；正常输入常驻内存 `< 15 MB`；模拟 30 个逻辑输入日并累计提交至少 1,000,000 个中文字符的压力负载无持续内存或延迟增长
 
-**Constraints**: 完全离线；核心层不得导入 AppKit/InputMethodKit；不得全局监听按键；不得记录输入内容；资源损坏时有界降级；设置保存不得在输入路径执行磁盘 I/O
+**Constraints**: 完全离线；核心层不得导入 AppKit/InputMethodKit；不得全局监听按键；不得记录输入内容；资源损坏时有界降级；设置保存不得在输入路径执行磁盘 I/O；明确不支持且不实现 VoiceOver/屏幕阅读器专用候选树、公告或焦点
 
 **Scale/Scope**: 31 项功能需求、两组设置页、约 20 个用户设置字段、5 组独立翻页键、3 类模式切换和一个本地连续全拼候选源；支持多个并发输入会话
 
@@ -44,7 +44,7 @@
 |------|--------|-----------------|
 | Apple Silicon 原生 | PASS | Xcode 继续以 `ARCHS=arm64`、macOS 13+ 构建；不增加 Intel/Rosetta 路径。 |
 | 纯 Swift、零重型依赖 | PASS | 设置、状态机、拼音解析和构建期编译均为 Swift；运行时只用 Apple 系统框架。 |
-| InputMethodKit 与签名 | PASS | 仅扩展既有 IMK 适配边界；无 App Sandbox、网络、Apple Events、Mach 或 Hardened Runtime 例外。 |
+| InputMethodKit 与签名 | PASS | IMK 适配边界保留普通候选面板与鼠标/键盘选择，删除屏幕阅读器专用元素、公告和焦点；无 App Sandbox、网络、Apple Events、Mach 或 Hardened Runtime 例外。 |
 | 故障安全 | PASS | 设置、拼音资源、学习数据分别验证和降级；任何失败清理过期候选且不提交原始编码。 |
 | 本地数据隐私 | PASS | 拼音为包内只读资源；设置/学习保留在批准目录；无网络、全局键盘监听或输入内容日志。 |
 | 性能和发布门禁 | PASS WITH MEASUREMENT REQUIRED | 采用共享只读映射和有界查询；实现后仍必须以全功能发布构建证明 `<2 ms`、`<15 MB`，并在 30 个逻辑输入日、至少 1,000,000 个已提交中文字符的确定性负载中证明稳定。 |
@@ -77,7 +77,7 @@ Sources/
 ├── Core/                # 设置值、组合路由、候选合并、输入状态机；不导入 UI 框架
 ├── Persistence/         # Settings/Learning schema 迁移、快照、恢复和权限
 ├── DictionaryCompiler/  # 固定来源拼音数据的纯 Swift 编译与清单生成
-├── InputMethod/         # IMK 事件、会话、候选显示、设置窗口与无障碍
+├── InputMethod/         # IMK 事件、会话、普通候选显示与设置窗口；无屏幕阅读器专用适配
 ├── Resources/           # 只读五笔/拼音二进制、清单、来源和许可
 └── Supporting/          # Info.plist 与无新增权限的 entitlements
 Tests/
@@ -88,7 +88,6 @@ Tests/
 ├── MigrationTests/
 ├── FailureRecoveryTests/
 ├── PrivacyTests/
-├── AccessibilityTests/
 ├── PerformanceTests/
 ├── ReleaseContractTests/
 └── IntegrationTests/

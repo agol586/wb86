@@ -1,19 +1,25 @@
-# Contract: 设置窗口与无障碍
+# Contract: 设置窗口与普通鼠标/键盘操作
 
 ## Pages
 
 - “常用”：初始语言/简繁/全半角/标点，四码唯一、五码首选、自动调频，混输、编码提示、
   分号/单引号快捷选择。
 - “按键”：语言/简繁/全半角切换预设，五组独立翻页键，键盘布局，恢复默认。
-- 复用既有外观页；新增行为不得降低其可访问性。
+- 复用既有外观页；普通视觉显示、鼠标和键盘操作保持一致。
 
 ## Interaction
 
-- 所有控件有稳定 label、value、help/description 和键盘焦点顺序；分组标题可由辅助技术识别。
+- 所有交互控件有稳定的产品内标识和普通键盘焦点顺序。
 - 窗口始终区分已保存值和未保存 draft；Save、Cancel 和 Restore Default 均可纯键盘完成。
-- Save 成功、失败和 future-schema 只读状态提供可访问反馈；校验失败把焦点移到第一个相关控件，
+- Save 成功、失败和 future-schema 只读状态提供可见反馈；校验失败把键盘焦点移到第一个相关控件，
   同时保留其余 draft 便于修正。
 - Restore Default 显示确认，明确说明只重置设置；取消不改变控件、快照或其他数据域。
+
+## Unsupported assistive technology
+
+- 不发布 VoiceOver/屏幕阅读器专用 label、value、help、候选元素树、朗读公告或辅助焦点。
+- 不承诺旁白实用工具、Accessibility Inspector、辅助选择或设置辅助导航。
+- 系统开启辅助技术时仍必须保持一般故障安全，但这不是辅助技术验收通过的声明。
 
 ## Lifecycle
 

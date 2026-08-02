@@ -10,7 +10,7 @@ Scripts/test.sh
 ```
 
 必须通过 Core、AdapterContract、Dictionary、Persistence、Migration、FailureRecovery、Privacy、
-Accessibility、Performance、ReleaseContract 和 Integration 测试。重点确认：
+Performance、ReleaseContract 和 Integration 测试。重点确认：
 
 - Settings v1→v2 golden migration、future-schema 只读、中断和 previous 恢复。
 - 新安装默认与升级兼容默认不同且都精确匹配。
@@ -48,9 +48,17 @@ Scripts/privacy-audit.sh
 1. 打开“常用”，确认全新安装默认：中文/简体/半角/英文标点；四码唯一开；五码和调频关；
    混输与提示开；分号/单引号关。
 2. 打开“按键”，确认 Shift、Control-Shift-F、宽度禁用；四个默认翻页组开启、方向键关闭；US 布局。
-3. 只用键盘和 VoiceOver 逐项识别、修改、保存、取消，并检查冲突错误将焦点定位到对应控件。
+3. 只用普通键盘逐项修改、保存、取消，并检查冲突错误将键盘焦点定位到对应控件。
 4. 保存非法冲突，确认零写入；取消 draft，确认运行值不变。
 5. 执行并取消一次 Restore Default；确认取消零写入，确认后用户词库/学习文件 checksum 与 generation 不变。
+
+## 4.1 Unsupported assistive-technology contract
+
+1. README、用户指南和发布清单必须明确说明 VoiceOver、旁白实用工具、Accessibility Inspector 与
+   屏幕阅读器专用功能不受支持。
+2. 产品源代码不得包含自定义辅助候选树、朗读公告、辅助按压动作或辅助焦点发布。
+3. 删除专用适配后，普通鼠标候选选择、键盘候选选择、候选翻页、设置保存/取消和可见错误反馈
+   必须继续通过自动化回归。
 
 ## 5. Input behavior matrix
 
