@@ -20,6 +20,37 @@ final class CoreModelTests: XCTestCase {
         }
     }
 
+    func testGeneralCompositionSequenceRoutesAndCandidateIdentity() throws {
+        XCTAssertNil(CompositionKeySequence(""))
+        XCTAssertNil(CompositionKeySequence(String(repeating: "a", count: 33)))
+        XCTAssertNil(CompositionKeySequence("ni-hao"))
+
+        let pinyin = try XCTUnwrap(CompositionKeySequence("Shang"))
+        XCTAssertEqual(pinyin.letters, "shang")
+        XCTAssertNil(pinyin.wubiCode)
+        XCTAssertEqual(CompositionRoute.resolve(sequence: pinyin, mixedPinyinEnabled: true),
+                       .pinyinOnly)
+
+        let shared = try XCTUnwrap(CompositionKeySequence("wq"))
+        XCTAssertEqual(shared.wubiCode, InputCode("wq"))
+        XCTAssertEqual(CompositionRoute.resolve(sequence: shared, mixedPinyinEnabled: true),
+                       .mixed)
+        XCTAssertEqual(CompositionRoute.resolve(sequence: shared, mixedPinyinEnabled: false),
+                       .wubiOnly)
+
+        let pinyinKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "nihao"))
+        let identity = try CandidateIdentity(queryKey: pinyinKey, text: "你好")
+        XCTAssertEqual(identity.queryKey.normalizedCode, "nihao")
+        let candidate = try Candidate(text: "你好", queryKey: pinyinKey,
+                                      source: .localPinyin, baseRank: 0,
+                                      learnedScore: 0, ordinal: 1,
+                                      wubiHint: InputCode("wqvb"))
+        XCTAssertEqual(candidate.source, .localPinyin)
+        XCTAssertEqual(candidate.wubiHint, InputCode("wqvb"))
+        XCTAssertEqual(CandidateSource.base.rawValue, "baseWubi")
+        XCTAssertThrowsError(try CandidateIdentity(queryKey: pinyinKey, text: ""))
+    }
+
     func testInputEventVocabularyIsValueSemantic() {
         XCTAssertEqual(InputEvent.letter("A"), .letter("A"))
         XCTAssertNotEqual(InputEvent.select(1), .select(9))

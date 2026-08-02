@@ -1,6 +1,12 @@
 enum CandidateSource: String, Codable, Sendable {
-    case base
-    case user
+    case baseWubi
+    case userWubi
+    case localPinyin
+
+    // Compatibility spellings for the existing Wubi-only call sites. Persisted and
+    // user-visible source identities use the explicit names above.
+    static let base = CandidateSource.baseWubi
+    static let user = CandidateSource.userWubi
 }
 
 enum CandidateValidationError: Error, Equatable {
@@ -20,7 +26,8 @@ struct Candidate: Equatable, Hashable, Sendable {
     static let learnedScoreBounds = -1_000_000...1_000_000
 
     let text: String
-    let code: InputCode
+    let queryKey: CandidateQueryKey
+    let wubiHint: InputCode?
     let source: CandidateSource
     let baseRank: Int
     let learnedScore: Int
@@ -35,12 +42,33 @@ struct Candidate: Equatable, Hashable, Sendable {
         }
         guard (1...9).contains(ordinal) else { throw CandidateValidationError.invalidOrdinal }
         self.text = text
-        self.code = code
+        queryKey = .wubi(code)
+        wubiHint = code
         self.source = source
         self.baseRank = baseRank
         self.learnedScore = learnedScore
         self.ordinal = ordinal
     }
+
+    init(text: String, queryKey: CandidateQueryKey, source: CandidateSource,
+         baseRank: Int, learnedScore: Int, ordinal: Int,
+         wubiHint: InputCode? = nil) throws {
+        guard !text.isEmpty else { throw CandidateValidationError.emptyText }
+        guard baseRank >= 0 else { throw CandidateValidationError.invalidBaseRank }
+        guard Self.learnedScoreBounds.contains(learnedScore) else {
+            throw CandidateValidationError.learnedScoreOutOfBounds
+        }
+        guard (1...9).contains(ordinal) else { throw CandidateValidationError.invalidOrdinal }
+        self.text = text
+        self.queryKey = queryKey
+        self.source = source
+        self.baseRank = baseRank
+        self.learnedScore = learnedScore
+        self.ordinal = ordinal
+        self.wubiHint = wubiHint
+    }
+
+    var code: InputCode? { queryKey.wubiCode }
 }
 
 struct CandidatePage: Equatable, Sendable {
@@ -59,7 +87,8 @@ struct CandidatePage: Equatable, Sendable {
               pageStart.partialValue + items.count <= totalCount else {
             throw CandidateValidationError.invalidTotalCount
         }
-        if let code = items.first?.code, items.contains(where: { $0.code != code }) {
+        if let queryKey = items.first?.queryKey,
+           items.contains(where: { $0.queryKey != queryKey }) {
             throw CandidateValidationError.inconsistentCode
         }
         guard items.enumerated().allSatisfy({ $0.element.ordinal == $0.offset + 1 }) else {

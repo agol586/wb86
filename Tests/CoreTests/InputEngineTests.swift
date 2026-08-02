@@ -110,6 +110,7 @@ final class InputEngineTests: XCTestCase {
         let engine = InputEngine(query: query)
         var settings = InputSettings.default
         settings.autoCommitAtFour = true
+        settings.automaticFrequency = true
         engine.apply(settings: settings)
 
         for letter in ["w", "q", "v"] { _ = engine.process(.letter(letter)) }

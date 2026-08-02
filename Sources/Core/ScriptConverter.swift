@@ -143,9 +143,10 @@ struct ScriptConverter: Sendable {
     }
 
     func convert(_ candidate: Candidate, to script: OutputScript) throws -> Candidate {
-        try Candidate(text: convert(candidate.text, to: script), code: candidate.code,
+        try Candidate(text: convert(candidate.text, to: script), queryKey: candidate.queryKey,
                       source: candidate.source, baseRank: candidate.baseRank,
-                      learnedScore: candidate.learnedScore, ordinal: candidate.ordinal)
+                      learnedScore: candidate.learnedScore, ordinal: candidate.ordinal,
+                      wubiHint: candidate.wubiHint)
     }
 
     func convert(_ page: CandidatePage, to script: OutputScript) throws -> CandidatePage {

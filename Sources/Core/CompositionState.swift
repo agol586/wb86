@@ -12,10 +12,13 @@ enum CompositionValidationError: Error, Equatable {
 }
 
 struct CompositionSnapshot: Equatable, Sendable {
-    let code: InputCode
+    let sequence: CompositionKeySequence
+    let route: CompositionRoute
     let candidates: CandidatePage
     let pageIndex: Int
     let selectionIndex: Int?
+
+    var code: InputCode? { sequence.wubiCode }
 }
 
 struct CompositionState: Equatable, Sendable {
@@ -26,10 +29,18 @@ struct CompositionState: Equatable, Sendable {
 
     static func composing(code: InputCode, candidates: CandidatePage, pageIndex: Int,
                           selectionIndex: Int?) throws -> CompositionState {
+        try composing(sequence: CompositionKeySequence(code.letters)!, route: .wubiOnly,
+                      candidates: candidates, pageIndex: pageIndex,
+                      selectionIndex: selectionIndex)
+    }
+
+    static func composing(sequence: CompositionKeySequence, route: CompositionRoute,
+                          candidates: CandidatePage, pageIndex: Int,
+                          selectionIndex: Int?) throws -> CompositionState {
         guard pageIndex == candidates.pageIndex else {
             throw CompositionValidationError.pageIndexMismatch
         }
-        guard candidates.items.allSatisfy({ $0.code == code }) else {
+        guard candidates.items.allSatisfy({ $0.queryKey.normalizedCode == sequence.letters }) else {
             throw CompositionValidationError.candidateCodeMismatch
         }
         if candidates.items.isEmpty {
@@ -43,7 +54,8 @@ struct CompositionState: Equatable, Sendable {
         return CompositionState(
             kind: .composing,
             composition: CompositionSnapshot(
-                code: code,
+                sequence: sequence,
+                route: route,
                 candidates: candidates,
                 pageIndex: pageIndex,
                 selectionIndex: selectionIndex

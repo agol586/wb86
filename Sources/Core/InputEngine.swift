@@ -106,7 +106,7 @@ final class InputEngine {
     }
 
     private func processLetter(_ rawLetter: String) -> InputProcessingResult {
-        let existing = state.composition?.code.letters ?? ""
+        let existing = state.composition?.sequence.letters ?? ""
         guard existing.utf8.count < 4, let code = InputCode(existing + rawLetter) else {
             return recoverFromError()
         }
@@ -152,11 +152,12 @@ final class InputEngine {
         }
 
         state = .idle
-        let learning = secureInput || privateMode || !learningEnabled ? nil : LearningDelta(
-            code: composition.code,
+        let learning = secureInput || privateMode || !learningEnabled ? nil
+            : composition.code.map { LearningDelta(
+            code: $0,
             candidateText: candidate.text,
             amount: 1
-        )
+        ) }
         return result(
             state: .idle,
             clientAction: .commitText(candidate.text),
@@ -174,19 +175,20 @@ final class InputEngine {
             || (delta > 0 && !composition.candidates.hasNext) {
             return result(state: state, consumed: true)
         }
-        return queryAndCompose(code: composition.code, pageIndex: composition.pageIndex + delta)
+        guard let code = composition.code else { return recoverFromError() }
+        return queryAndCompose(code: code, pageIndex: composition.pageIndex + delta)
     }
 
     private func processBackspace() -> InputProcessingResult {
         guard let composition = state.composition else {
             return result(state: state, consumed: false)
         }
-        if composition.code.length == 1 {
+        if composition.sequence.length == 1 {
             state = .idle
             return result(state: .idle, clientAction: .clearMarkedText,
                           candidateAction: .hide, consumed: true)
         }
-        let shortened = String(composition.code.letters.dropLast())
+        let shortened = String(composition.sequence.letters.dropLast())
         guard let code = InputCode(shortened) else { return recoverFromError() }
         return queryAndCompose(code: code, pageIndex: 0)
     }

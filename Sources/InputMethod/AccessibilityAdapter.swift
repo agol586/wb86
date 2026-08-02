@@ -30,7 +30,7 @@ enum AccessibilityAdapter {
                                        value: candidate.text,
                                        isSelected: index == 0)
         }
-        let code = page.items.first?.code.letters ?? ""
+        let code = page.items.first?.queryKey.normalizedCode ?? ""
         let candidateAnnouncement = candidates.map { candidate in
             "候选 \(candidate.ordinal)，\(candidate.value)\(candidate.isSelected ? "，已选中" : "")。"
         }.joined()
