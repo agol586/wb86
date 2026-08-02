@@ -53,6 +53,43 @@ final class SettingsAccessibilityTests: XCTestCase {
         XCTAssertEqual(controller.lastFocusedControlLabel, "每页候选数量 5 至 9")
         XCTAssertTrue(controller.confirmationMessage(for: .deleteAllPersonalization).contains("基础词库"))
     }
+
+    func testEveryEnhancedSettingHasOneNamedKeyboardAccessibleControl() {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let requiredLabels = [
+            "初始语言", "初始简繁体", "初始全半角", "中文模式标点",
+            "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
+            "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键",
+            "中英文切换", "简繁切换", "全半角切换", "键盘布局",
+            "逗号句号翻页", "减号等号翻页", "中括号翻页",
+            "Tab/Shift-Tab 翻页", "上下方向键翻页",
+            "候选布局", "每页候选数量 5 至 9", "候选字号缩放",
+            "恢复默认…", "取消", "保存"
+        ]
+        let labels = controller.accessibleControls.compactMap { $0.accessibilityLabel() }
+
+        for label in requiredLabels {
+            XCTAssertEqual(labels.filter { $0 == label }.count, 1,
+                           "\(label) must identify exactly one control")
+            let control = controller.accessibleControls.first { $0.accessibilityLabel() == label }
+            XCTAssertEqual(control?.acceptsFirstResponder, true)
+            XCTAssertFalse(control?.accessibilityHelp()?.isEmpty ?? true)
+        }
+    }
+
+    func testKeyBindingPopupsExposeCurrentChoiceWithoutDuplicateTraversalStops() {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let keyLabels = ["中英文切换", "简繁切换", "全半角切换", "键盘布局"]
+        let popups = controller.accessibleControls.compactMap { $0 as? NSPopUpButton }
+            .filter { keyLabels.contains($0.accessibilityLabel() ?? "") }
+
+        XCTAssertEqual(popups.count, keyLabels.count)
+        XCTAssertEqual(popups.map { $0.accessibilityLabel() ?? "" }, keyLabels)
+        XCTAssertEqual(popups.map { $0.accessibilityValue() as? String },
+                       ["Shift", "Control-Shift-F", "禁用", "美国 ANSI"])
+    }
 }
 
 private enum SaveError: Error { case failed }
