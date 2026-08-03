@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 final class CandidatePanelPresenterTests: XCTestCase {
+    func testWubiAssociationHintShowsOnlyTheUntypedSuffix() throws {
+        let candidate = try Candidate(
+            text: "机会", queryKey: .wubi(XCTUnwrap(InputCode("sm"))),
+            source: .baseWubi, baseRank: 0, learnedScore: 0, ordinal: 1,
+            wubiHint: XCTUnwrap(InputCode("smwf"))
+        )
+        let row = CandidateLayoutController().rowPresentation(
+            for: candidate, showsCodeHint: true, maximumWidth: 300,
+            font: .systemFont(ofSize: NSFont.systemFontSize)
+        )
+
+        XCTAssertEqual(row.visibleHint, "wf")
+        XCTAssertEqual(row.title, "1  机会  wf")
+    }
+
     func testTypographyKeepsEveryScaleInADailyReadingRange() {
         XCTAssertEqual(CandidateTypography.candidatePointSize(for: 0.8), 13,
                        accuracy: 0.01)

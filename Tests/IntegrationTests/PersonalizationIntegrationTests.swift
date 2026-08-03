@@ -3,6 +3,37 @@ import XCTest
 @testable import MacWubi
 
 final class PersonalizationIntegrationTests: XCTestCase {
+    func testBundledDictionaryAssociatesWordsAfterSMWithoutLosingExactMachine() throws {
+        let resourceURL = try XCTUnwrap(
+            Bundle.main.url(forResource: "wb86", withExtension: "bin")
+                ?? Bundle(for: Self.self).url(forResource: "wb86", withExtension: "bin")
+        )
+        let coordinator = PersonalizationCoordinator(
+            index: DictionaryIndex(image: try DictionaryLoader.load(from: resourceURL)),
+            userStore: nil, learningStore: nil
+        )
+        let sequence = try XCTUnwrap(CompositionKeySequence("sm"))
+        let policy = CandidateRankingPolicy(settingsGeneration: 1, pageSize: 9,
+                                            automaticFrequency: false)
+        var pageIndex = 0
+        var candidates = [Candidate]()
+        repeat {
+            let result = try coordinator.page(
+                for: sequence, pageIndex: pageIndex, policy: policy,
+                mode: .default, mixedPinyinEnabled: false, scriptConverter: nil
+            )
+            candidates.append(contentsOf: result.page.items)
+            guard result.page.hasNext else { break }
+            pageIndex += 1
+        } while true
+
+        XCTAssertEqual(candidates.first?.text, "机")
+        for expected in ["机会", "机构", "机场", "机器", "机遇"] {
+            XCTAssertTrue(candidates.contains { $0.text == expected }, expected)
+        }
+        XCTAssertEqual(Set(candidates.map(\.text)).count, candidates.count)
+    }
+
     func testQueryPagingRankingAndLearningUseOneExplicitFrozenPolicy() throws {
         let root = temporaryDirectory()
         let writer = try SnapshotWriter(rootURL: root)

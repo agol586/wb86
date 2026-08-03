@@ -410,3 +410,13 @@ Chrome 五类客户端共同通过物理矩阵。
   目标/完整测试、Release build、发布/隐私审计，确认正式源码无诊断标记后安装
 - [X] T091 [US2] 用户在完全重开的 VS Code 使用实体左右 Shift 验证首次及连续切换；随后在
   TextEdit、iTerm、Codex、Chrome 做回归，五类全部通过才完成 T082/T087/T091
+
+---
+
+## Phase 16: Wubi short-code phrase association
+
+- [X] T092 [US4] 先在 `Tests/CoreTests/CandidateQueryTests.swift`、
+  `Tests/IntegrationTests/PersonalizationIntegrationTests.swift` 与
+  `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift` 覆盖 `sm` 精确候选优先、基础词组
+  联想、去重、分页、剩余码提示和查询预算，再在 `DictionaryIndex.swift`、`CandidateRanker.swift`、
+  `PersonalizationCoordinator.swift` 与 `CandidateLayoutController.swift` 实现有界的二/三码本地联想。

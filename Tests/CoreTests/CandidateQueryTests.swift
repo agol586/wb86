@@ -3,6 +3,32 @@ import XCTest
 @testable import MacWubi
 
 final class CandidateQueryTests: XCTestCase {
+    func testWubiPrefixAssociationsKeepExactCandidateFirstAndUseFullHints() throws {
+        let code = try XCTUnwrap(InputCode("sm"))
+        let records = try [
+            DictionaryEntryRecord(code: code, rank: 0, text: "机"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smn")), rank: 0, text: "机"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smfn")), rank: 4, text: "机场"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smjm")), rank: 5, text: "机遇"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smkk")), rank: 3, text: "机器"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smsq")), rank: 2, text: "机构"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smwf")), rank: 1, text: "机会"),
+            DictionaryEntryRecord(code: XCTUnwrap(InputCode("smyy")), rank: 0, text: "无关")
+        ]
+
+        let page = try CandidateRanker(pageSize: 9).mixedPage(
+            for: XCTUnwrap(CompositionKeySequence("sm")), wubiRecords: records,
+            userEntries: [], pinyinCandidates: [], learningRecords: [],
+            learningEnabled: true, scriptConverter: nil, outputScript: .simplified,
+            pageIndex: 0
+        )
+
+        XCTAssertEqual(page.items.map(\.text), ["机", "机会", "机构", "机器", "机场", "机遇"])
+        XCTAssertEqual(page.items.map { $0.wubiHint?.letters },
+                       ["sm", "smwf", "smsq", "smkk", "smfn", "smjm"])
+        XCTAssertTrue(page.items.allSatisfy { $0.queryKey == .wubi(code) })
+    }
+
     func testRankingPolicyFreezesGenerationPagingAndLearning() throws {
         let code = try XCTUnwrap(InputCode("a"))
         let records = try (0..<7).map {

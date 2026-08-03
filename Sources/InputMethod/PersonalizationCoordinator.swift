@@ -84,7 +84,10 @@ final class PersonalizationCoordinator {
         lock.lock()
         let includeLearning = policy.automaticFrequency && learningEnabled && !privateMode
         lock.unlock()
-        let records = index?.lookup(code) ?? []
+        let records = (2...3).contains(code.length)
+            ? index?.records(matchingPrefix: code,
+                             maximumCount: DictionaryIndex.maximumAssociationRecords) ?? []
+            : index?.lookup(code) ?? []
         let effectivePolicy = CandidateRankingPolicy(
             settingsGeneration: policy.settingsGeneration,
             pageSize: policy.pageSize,
@@ -124,7 +127,11 @@ final class PersonalizationCoordinator {
             automaticFrequency: includeLearning
         )
         let learningRecords = includeLearning ? currentLearningRecords() : []
-        let wubiRecords = sequence.wubiCode.map { index?.lookup($0) ?? [] } ?? []
+        let wubiRecords: [DictionaryEntryRecord] = sequence.wubiCode.map { code in
+            guard (2...3).contains(code.length) else { return index?.lookup(code) ?? [] }
+            return index?.records(matchingPrefix: code,
+                                  maximumCount: DictionaryIndex.maximumAssociationRecords) ?? []
+        } ?? []
         let userEntries: [UserCandidateRanking]
         if let code = sequence.wubiCode {
             userEntries = userStore?.snapshot.entries.compactMap { entry in

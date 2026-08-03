@@ -23,7 +23,7 @@ struct CandidateLayoutController {
     func rowPresentation(for candidate: Candidate, showsCodeHint: Bool,
                          maximumWidth: CGFloat, font: NSFont) -> CandidateRowPresentation {
         let body = "\(candidate.ordinal)  \(candidate.text)"
-        let candidateHint = showsCodeHint ? candidate.wubiHint?.letters : nil
+        let candidateHint = showsCodeHint ? visibleCodeHint(for: candidate) : nil
         guard let hint = candidateHint else {
             return CandidateRowPresentation(title: body, visibleHint: nil)
         }
@@ -34,6 +34,16 @@ struct CandidateLayoutController {
             title: visibleHint == nil ? body : withHint,
             visibleHint: visibleHint
         )
+    }
+
+    private func visibleCodeHint(for candidate: Candidate) -> String? {
+        guard let fullHint = candidate.wubiHint?.letters else { return nil }
+        guard candidate.queryKey.kind == .wubi else { return fullHint }
+        let typed = candidate.queryKey.normalizedCode
+        guard fullHint.hasPrefix(typed), fullHint.utf8.count > typed.utf8.count else {
+            return nil
+        }
+        return String(fullHint.dropFirst(typed.count))
     }
 
     func layout(contentSize: NSSize, anchorTopLeft: NSPoint,

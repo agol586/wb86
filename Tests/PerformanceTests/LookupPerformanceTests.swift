@@ -65,6 +65,8 @@ final class LookupPerformanceTests: XCTestCase {
         let wubiCode = try XCTUnwrap(InputCode("wqvb"))
         let prefix = try XCTUnwrap(CompositionKeySequence("nih"))
         let exact = try XCTUnwrap(CompositionKeySequence("nihao"))
+        let wubiAssociation = try XCTUnwrap(CompositionKeySequence("sm"))
+        let largestWubiAssociationRange = try XCTUnwrap(CompositionKeySequence("kh"))
 
         let duplicateSequence = try XCTUnwrap(CompositionKeySequence("a"))
         let duplicateWubi = [
@@ -85,6 +87,22 @@ final class LookupPerformanceTests: XCTestCase {
             Sample(name: "wubi-only") {
                 _ = try coordinator.page(for: wubiCode, pageIndex: 0,
                                          policy: allEnabledPolicy)
+            },
+            Sample(name: "wubi-short-code-association") {
+                let result = try coordinator.page(
+                    for: wubiAssociation, pageIndex: 0, policy: allEnabledPolicy,
+                    mode: allEnabled.defaultMode, mixedPinyinEnabled: false,
+                    scriptConverter: converter
+                )
+                XCTAssertEqual(result.page.items.first?.text, "機")
+            },
+            Sample(name: "wubi-largest-short-code-association-range") {
+                let result = try coordinator.page(
+                    for: largestWubiAssociationRange, pageIndex: 0,
+                    policy: allEnabledPolicy, mode: allEnabled.defaultMode,
+                    mixedPinyinEnabled: false, scriptConverter: converter
+                )
+                XCTAssertEqual(result.page.items.first?.text, "中")
             },
             Sample(name: "pinyin-prefix") {
                 let result = try coordinator.page(

@@ -1,6 +1,7 @@
 import Foundation
 
 struct DictionaryIndex: Sendable {
+    static let maximumAssociationRecords = 256
     private let image: BaseDictionaryImage
 
     init(image: BaseDictionaryImage) {
@@ -33,16 +34,29 @@ struct DictionaryIndex: Sendable {
         return matches
     }
 
-    func records(matchingPrefix prefix: InputCode) -> [DictionaryEntryRecord] {
+    func records(matchingPrefix prefix: InputCode,
+                 maximumCount: Int = .max) -> [DictionaryEntryRecord] {
+        guard maximumCount > 0 else { return [] }
         let range = prefixRange(for: prefix)
         guard range.start < range.end else { return [] }
-        var records = [DictionaryEntryRecord]()
-        records.reserveCapacity(Int(range.end - range.start))
-        for index in Int(range.start)..<Int(range.end) {
-            guard let record = record(at: index) else { return [] }
-            if record.code.letters.hasPrefix(prefix.letters) {
-                records.append(record)
+        var lower = Int(range.start)
+        var upper = Int(range.end)
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            guard let packed = packedCode(at: middle) else { return [] }
+            if packed < prefix.packedValue {
+                lower = middle + 1
+            } else {
+                upper = middle
             }
+        }
+        var records = [DictionaryEntryRecord]()
+        records.reserveCapacity(min(maximumCount, Int(range.end) - lower))
+        for index in lower..<Int(range.end) {
+            guard let record = record(at: index) else { return [] }
+            guard record.code.letters.hasPrefix(prefix.letters) else { break }
+            records.append(record)
+            if records.count == maximumCount { break }
         }
         return records
     }

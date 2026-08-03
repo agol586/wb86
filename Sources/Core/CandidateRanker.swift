@@ -66,7 +66,7 @@ struct CandidateRanker: Sendable {
               learningEnabled: Bool, pageIndex: Int) throws -> CandidatePage {
         guard (5...9).contains(pageSize) else { throw CandidateQueryError.invalidPageSize }
         guard pageIndex >= 0 else { throw CandidateQueryError.pageOutOfRange }
-        guard records.allSatisfy({ $0.code == code }) else {
+        guard records.allSatisfy({ $0.code.letters.hasPrefix(code.letters) }) else {
             throw CandidateQueryError.mismatchedCode
         }
 
@@ -84,35 +84,54 @@ struct CandidateRanker: Sendable {
             var baseRank: Int
             var fixedRank: Int?
             var learnedScore: Int
+            var isExact: Bool
+            var fullCode: InputCode
         }
+        let exactRoots = Set(records.filter { $0.code == code }.map(\.text)
+            + matchingUsers.map(\.text))
         var values = [String: RankedValue]()
         for record in records {
+            let isExact = record.code == code
+            guard isExact || exactRoots.contains(where: {
+                record.text != $0 && record.text.hasPrefix($0)
+            }) else { continue }
             guard let rank = Int(exactly: record.rank) else { throw CandidateQueryError.invalidRank }
-            values[record.text] = RankedValue(text: record.text, source: .base,
-                                              baseRank: rank, fixedRank: nil,
-                                              learnedScore: scores[record.text] ?? 0)
+            let value = RankedValue(text: record.text, source: .base,
+                                    baseRank: rank, fixedRank: nil,
+                                    learnedScore: scores[record.text] ?? 0,
+                                    isExact: isExact, fullCode: record.code)
+            if let existing = values[record.text] {
+                if existing.isExact && !isExact { continue }
+                if existing.isExact == isExact && existing.baseRank <= rank { continue }
+            }
+            values[record.text] = value
         }
         for entry in matchingUsers {
             if var existing = values[entry.text] {
                 existing.source = .user
                 existing.fixedRank = entry.fixedRank
                 existing.learnedScore = scores[entry.text] ?? 0
+                existing.isExact = true
+                existing.fullCode = code
                 values[entry.text] = existing
             } else {
                 values[entry.text] = RankedValue(text: entry.text, source: .user,
                                                  baseRank: Int.max,
                                                  fixedRank: entry.fixedRank,
-                                                 learnedScore: scores[entry.text] ?? 0)
+                                                 learnedScore: scores[entry.text] ?? 0,
+                                                 isExact: true, fullCode: code)
             }
         }
         let ordered = values.values.sorted { lhs, rhs in
+            if lhs.isExact != rhs.isExact { return lhs.isExact }
             if lhs.fixedRank != rhs.fixedRank {
                 return (lhs.fixedRank ?? Int.max) < (rhs.fixedRank ?? Int.max)
             }
             if lhs.learnedScore != rhs.learnedScore { return lhs.learnedScore > rhs.learnedScore }
             if lhs.baseRank != rhs.baseRank { return lhs.baseRank < rhs.baseRank }
+            if lhs.fullCode != rhs.fullCode { return lhs.fullCode < rhs.fullCode }
             return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
-        }
+        }.prefix(Self.maximumCandidatesPerTier)
         let start = pageIndex.multipliedReportingOverflow(by: pageSize)
         guard !start.overflow, start.partialValue <= ordered.count,
               pageIndex == 0 || start.partialValue < ordered.count else {
@@ -121,14 +140,10 @@ struct CandidateRanker: Sendable {
         let end = min(start.partialValue + pageSize, ordered.count)
         let slice = ordered[start.partialValue..<end]
         let candidates = try slice.enumerated().map { offset, value -> Candidate in
-            return try Candidate(
-                text: value.text,
-                code: code,
-                source: value.source,
-                baseRank: value.baseRank,
-                learnedScore: value.learnedScore,
-                ordinal: offset + 1
-            )
+            return try Candidate(text: value.text, queryKey: queryKey,
+                                 source: value.source, baseRank: value.baseRank,
+                                 learnedScore: value.learnedScore, ordinal: offset + 1,
+                                 wubiHint: value.fullCode)
         }
         return try CandidatePage(
             items: candidates,
@@ -172,6 +187,8 @@ struct CandidateRanker: Sendable {
             var baseRank: Int
             var fixedRank: Int?
             var learnedScore: Int
+            var isExact: Bool
+            var fullCode: InputCode
         }
         func score(for text: String, in scores: [String: Int]) -> Int {
             let displayText = scriptConverter?.convert(text, to: outputScript) ?? text
@@ -180,38 +197,56 @@ struct CandidateRanker: Sendable {
 
         var wubiTier = [MixedValue]()
         if let code = sequence.wubiCode {
-            guard wubiRecords.allSatisfy({ $0.code == code }),
+            guard wubiRecords.allSatisfy({ $0.code.letters.hasPrefix(code.letters) }),
                   userEntries.allSatisfy({ $0.code == code }) else {
                 throw CandidateQueryError.mismatchedCode
             }
             let queryKey = CandidateQueryKey.wubi(code)
             let scores = learningScores(for: queryKey, in: learningRecords,
                                         enabled: learningEnabled)
+            let exactRoots = Set(
+                wubiRecords.lazy.filter { $0.code == code }.map(\.text)
+                    + userEntries.map(\.text)
+            )
             var values = [String: WubiValue]()
             for record in wubiRecords {
+                let isExact = record.code == code
+                guard isExact || exactRoots.contains(where: {
+                    record.text != $0 && record.text.hasPrefix($0)
+                }) else { continue }
                 guard let rank = Int(exactly: record.rank) else {
                     throw CandidateQueryError.invalidRank
                 }
-                values[record.text] = WubiValue(
+                let value = WubiValue(
                     text: record.text, source: .baseWubi, baseRank: rank,
-                    fixedRank: nil, learnedScore: score(for: record.text, in: scores)
+                    fixedRank: nil, learnedScore: score(for: record.text, in: scores),
+                    isExact: isExact, fullCode: record.code
                 )
+                if let existing = values[record.text] {
+                    if existing.isExact && !isExact { continue }
+                    if existing.isExact == isExact && existing.baseRank <= rank { continue }
+                }
+                values[record.text] = value
             }
             for entry in userEntries {
                 if var existing = values[entry.text] {
                     existing.source = .userWubi
                     existing.fixedRank = entry.fixedRank
                     existing.learnedScore = score(for: entry.text, in: scores)
+                    existing.isExact = true
+                    existing.fullCode = code
                     values[entry.text] = existing
                 } else {
                     values[entry.text] = WubiValue(
                         text: entry.text, source: .userWubi, baseRank: Int.max,
                         fixedRank: entry.fixedRank,
-                        learnedScore: score(for: entry.text, in: scores)
+                        learnedScore: score(for: entry.text, in: scores),
+                        isExact: true, fullCode: code
                     )
                 }
             }
             let ordered = values.values.sorted { lhs, rhs in
+                if lhs.isExact != rhs.isExact { return lhs.isExact }
                 if lhs.fixedRank != rhs.fixedRank {
                     return (lhs.fixedRank ?? Int.max) < (rhs.fixedRank ?? Int.max)
                 }
@@ -219,12 +254,13 @@ struct CandidateRanker: Sendable {
                     return lhs.learnedScore > rhs.learnedScore
                 }
                 if lhs.baseRank != rhs.baseRank { return lhs.baseRank < rhs.baseRank }
+                if lhs.fullCode != rhs.fullCode { return lhs.fullCode < rhs.fullCode }
                 return lhs.text.utf8.lexicographicallyPrecedes(rhs.text.utf8)
             }
             wubiTier = ordered.prefix(Self.maximumCandidatesPerTier).map {
                 MixedValue(text: $0.text, queryKey: queryKey, source: $0.source,
                            baseRank: $0.baseRank, learnedScore: $0.learnedScore,
-                           wubiHint: code)
+                           wubiHint: $0.fullCode)
             }
         } else if !wubiRecords.isEmpty || !userEntries.isEmpty {
             throw CandidateQueryError.mismatchedCode
@@ -314,6 +350,10 @@ struct CandidateQuery: Sendable {
     }
 
     func page(for code: InputCode, pageIndex: Int) throws -> CandidatePage {
-        try ranker.page(for: code, records: index.lookup(code), pageIndex: pageIndex)
+        let records = (2...3).contains(code.length)
+            ? index.records(matchingPrefix: code,
+                            maximumCount: DictionaryIndex.maximumAssociationRecords)
+            : index.lookup(code)
+        return try ranker.page(for: code, records: records, pageIndex: pageIndex)
     }
 }
