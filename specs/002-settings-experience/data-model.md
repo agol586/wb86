@@ -37,7 +37,17 @@
 `KeyBinding` 由 `physicalKey`、精确 `modifiers`、`triggerPhase` 和 `preset` 构成，不存任意用户字符串。
 语言绑定限定为 Shift、Control、Caps Lock 或禁用；简繁和全半角分别选择其文档化预设或禁用；
 翻页是五个独立组的集合。独立修饰键由会话级 `ModifierTapState` 跟踪：
-`idle → eligible → disqualified/released`，重复、其他键或其他修饰键均使其失效。
+`resyncing/idle → eligible → completed/disqualified`。状态包含 `lastModifierFlags`、目标 modifier 类别、
+可选物理 keyCode、开始 timestamp、设置代次和歧义标记；不保存 client、应用身份或输入文本。
+
+`flagsChanged` 先更新该状态，随后才解析 client proxy。聚合 flags 的唯一目标 transition 是必要证据；
+精确 keyCode 只增强左右键与交错判定。aggregate flags 未变化的重复 edge 是幂等重放并保持当前状态；
+其他键、多 flag 同变、超时、设置代次改变或不完整配对均进入 `disqualified/resyncing`。普通 activation/deactivation 不制造完成事件；首次可证明的 flags
+快照只用于同步，孤立 release 不得切换。
+
+完成状态只输出一次 `ModifierModeIntent`，与原始事件是否 handled 分离。intent 应用规则为：client
+可用时走正常安全取消与会话切换；client 不可用且会话空闲时只更新会话模式；client 不可用且正在
+组合时丢弃 intent 并安全复位，不提交原始编码。
 
 ## 4. CompositionKeySequence and Route
 

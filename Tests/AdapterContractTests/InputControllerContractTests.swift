@@ -5,10 +5,10 @@ import XCTest
 @MainActor
 final class InputControllerContractTests: XCTestCase {
     func testFlagsChangedEdgesPassThroughAndReleasePerformsOneModeSideEffect() throws {
-        let baseMask = Int(NSEvent.EventTypeMask.keyDown.rawValue)
-        let extended = InputControllerEventRouter.extendingRecognizedEvents(baseMask)
-        XCTAssertNotEqual(extended & Int(NSEvent.EventTypeMask.keyDown.rawValue), 0)
-        XCTAssertNotEqual(extended & Int(NSEvent.EventTypeMask.flagsChanged.rawValue), 0)
+        let recognized = InputControllerEventRouter.recognizedEventMask
+        let expected = Int(NSEvent.EventTypeMask.keyDown.rawValue
+            | NSEvent.EventTypeMask.flagsChanged.rawValue)
+        XCTAssertEqual(recognized, expected)
 
         let router = InputControllerEventRouter()
         let snapshot = SettingsSnapshot(generation: 1, settings: .default)
@@ -38,21 +38,49 @@ final class InputControllerContractTests: XCTestCase {
         XCTAssertEqual(session.mode.language, .directEnglish)
     }
 
+    func testDuplicatedPhysicalModifierEdgesProduceOnlyOneModeIntent() throws {
+        let router = InputControllerEventRouter()
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        let events = [
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 1),
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 1.01),
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.11)
+        ]
+
+        let routes = events.map {
+            router.route($0, settingsSnapshot: snapshot, isComposing: false)
+        }
+        XCTAssertTrue(routes.allSatisfy(\.mustPassThrough))
+        XCTAssertEqual(routes.compactMap(\.coreEvent), [.switchLanguage])
+    }
+
+    func testRecognizedEventMaskDoesNotInheritClientSpecificExtraEvents() {
+        let extraEvents = Int(NSEvent.EventTypeMask.leftMouseDown.rawValue
+            | NSEvent.EventTypeMask.keyUp.rawValue)
+        XCTAssertEqual(InputControllerEventRouter.recognizedEventMask & extraEvents, 0)
+    }
+
     func testKeyDownDisqualifiesShiftAndResetDropsOrphanRelease() throws {
         let router = InputControllerEventRouter()
         let snapshot = SettingsSnapshot(generation: 2, settings: .default)
-        _ = router.route(try event(type: .flagsChanged, keyCode: 56, characters: "",
-                                   flags: [.shift], timestamp: 1),
-                         settingsSnapshot: snapshot, isComposing: false)
+        let press = router.route(try event(type: .flagsChanged, keyCode: 56, characters: "",
+                                           flags: [.shift], timestamp: 1),
+                                 settingsSnapshot: snapshot, isComposing: false)
+        XCTAssertTrue(press.mustPassThrough)
         let keyDown = router.route(try event(type: .keyDown, keyCode: 0, characters: "x",
                                              flags: [.shift], timestamp: 1.05),
                                    settingsSnapshot: snapshot, isComposing: false)
         XCTAssertEqual(keyDown.coreEvent, .letter("A"))
         XCTAssertFalse(keyDown.mustPassThrough)
-        XCTAssertNil(router.route(
+        let release = router.route(
             try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
             settingsSnapshot: snapshot, isComposing: false
-        ).coreEvent)
+        )
+        XCTAssertNil(release.coreEvent)
+        XCTAssertTrue(release.mustPassThrough)
 
         _ = router.route(try event(type: .flagsChanged, keyCode: 60, characters: "",
                                    flags: [.shift], timestamp: 2),
@@ -103,6 +131,113 @@ final class InputControllerContractTests: XCTestCase {
         XCTAssertTrue(session.handleMenuModeEvent(.switchScript))
         XCTAssertEqual(session.mode.script, .traditional)
         XCTAssertFalse(presenter.isVisible)
+    }
+
+    func testModifierEdgesAreObservedBeforeClientResolutionForEveryEndpointCombination() throws {
+        let availabilityPairs = [
+            (press: true, release: true),
+            (press: true, release: false),
+            (press: false, release: true),
+            (press: false, release: false)
+        ]
+
+        for availability in availabilityPairs {
+            let processor = InputControllerEventProcessor()
+            let session = InputControllerSession(
+                engine: InputEngine(query: query),
+                presenter: RecordingCandidatePresenter()
+            )
+            let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+            session.stage(settingsSnapshot: snapshot)
+
+            let pressClient = availability.press ? RecordingInputClient() : nil
+            XCTAssertFalse(processor.handle(
+                try event(type: .flagsChanged, keyCode: 56, characters: "",
+                          flags: [.shift], timestamp: 1),
+                session: session,
+                settingsSnapshot: snapshot,
+                resolveClient: { pressClient }
+            ))
+
+            let releaseClient = availability.release ? RecordingInputClient() : nil
+            XCTAssertFalse(processor.handle(
+                try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
+                session: session,
+                settingsSnapshot: snapshot,
+                resolveClient: { releaseClient }
+            ))
+            XCTAssertEqual(session.mode.language, .directEnglish,
+                           "press=\(availability.press), release=\(availability.release)")
+        }
+    }
+
+    func testLifecycleSuspensionDisqualifiesPendingTapAndResynchronizesOnRelease() throws {
+        let processor = InputControllerEventProcessor()
+        let session = InputControllerSession(
+            engine: InputEngine(query: query),
+            presenter: RecordingCandidatePresenter()
+        )
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        session.stage(settingsSnapshot: snapshot)
+
+        XCTAssertFalse(processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        ))
+        processor.suspend()
+        XCTAssertFalse(processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        ))
+        XCTAssertEqual(session.mode.language, .chinese)
+
+        _ = processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 2),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        )
+        _ = processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 2.1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        )
+        XCTAssertEqual(session.mode.language, .directEnglish)
+    }
+
+    func testCompletedModifierIntentWithoutClientFailsClosedDuringComposition() throws {
+        let processor = InputControllerEventProcessor()
+        let session = InputControllerSession(
+            engine: InputEngine(query: query),
+            presenter: RecordingCandidatePresenter()
+        )
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        session.stage(settingsSnapshot: snapshot)
+        XCTAssertTrue(session.handle(.letter("w"), client: RecordingInputClient()))
+
+        _ = processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "",
+                      flags: [.shift], timestamp: 1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        )
+        XCTAssertFalse(processor.handle(
+            try event(type: .flagsChanged, keyCode: 56, characters: "", timestamp: 1.1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { nil }
+        ))
+
+        XCTAssertEqual(session.state, .idle)
+        XCTAssertEqual(session.mode.language, .chinese)
     }
 
     func testMenuModeChangeWithoutClientRefusesToAbandonComposition() {

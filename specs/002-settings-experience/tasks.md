@@ -328,3 +328,85 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
   `CandidatePanelPresenterTests.swift` 覆盖外观页可见标签、当前值、即时预览、Cancel 全量恢复以及候选
   字号上界和窗口视觉属性，再重构 `SettingsWindowController.swift`、`CandidateAppearanceController.swift`
   与 `CandidatePanelPresenter.swift`；安装后用普通鼠标验证外观页和候选窗口，不改动用户词库或学习数据
+- [X] T075 [US2] 先在 `StandaloneShiftRecognizerTests.swift` 与 `InputControllerContractTests.swift`
+  覆盖客户端交付 `keyCode=0` 的单一 modifier transition、模糊/重复 transition 拒绝及精确
+  `keyDown | flagsChanged` 事件掩码，再在 `StandaloneShiftRecognizer.swift` 和 `InputController.swift`
+  实现仅依据活动 IMK 会话已交付 modifier edge 的有界推断；不得轮询或监听全局键盘
+- [X] T076 [US2] [REJECTED EXPERIMENT] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift`
+  与 `Sources/InputMethod/InputController.swift` 验证“消费独立 modifier press 以换取 release 交付”假设；
+  Codex、VS Code、Chrome 实测均失败，结论只作为证伪证据，后续 T077 必须回滚该返回语义
+
+---
+
+## Phase 13: Chromium/Electron modifier lifecycle redesign
+
+**Goal**: modifier edge 在 client proxy 校验前被会话级观察，正常 `flagsChanged` 始终透传；以聚合
+flag transition 识别独立 Shift/Control，且任何 client/lifecycle 歧义均不切换、不提交文本。
+
+**Independent Test**: 对 press/release 的 sender 分别为有效、nil、不可转换对象，及两端之间发生
+activate/deactivate、设置代次改变、普通按键、组合键和超时的矩阵运行契约测试；只允许完整、唯一、
+短时的独立 modifier 点击产生一次模式 intent。签名包必须再由 TextEdit、iTerm、Codex、VS Code、
+Chrome 五类客户端共同通过物理矩阵。
+
+- [X] T077 [US2] 先修改 `Tests/AdapterContractTests/InputControllerContractTests.swift` 断言普通
+  modifier press/release 均返回未处理，再回滚 `Sources/InputMethod/InputController.swift` 与
+  `Sources/InputMethod/StandaloneShiftRecognizer.swift` 中 T076 的 handled/consume 语义
+- [X] T078 [US2] 先在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖
+  press/release 两端 sender 为有效、nil、不可转换对象的组合，再重构
+  `Sources/InputMethod/InputController.swift`，使 `flagsChanged` observation 发生在 client proxy guard
+  之前且 client 解析失败不重置当前 edge
+- [X] T079 [US2] 先在 `Tests/AdapterContractTests/StandaloneShiftRecognizerTests.swift` 覆盖聚合
+  flag delta、左右键交错、重复 edge、多 flag 同变、孤立 release、长按和 `keyCode=0` 唯一推断，再在
+  `Sources/InputMethod/StandaloneShiftRecognizer.swift` 实现会话级 transition/category 状态机
+- [X] T080 [US2] 先在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖
+  activate/deactivate 穿插两端、设置代次变化、空闲无 client 和组合中无 client，再更新
+  `Sources/InputMethod/InputController.swift` 与 `Sources/InputMethod/InputControllerSession.swift`：空闲
+  intent 可只更新会话模式，组合中 client 不可用则丢弃 intent 并安全复位
+- [X] T081 [US2] 运行 `Scripts/test.sh`、签名 Release build、`Scripts/verify-release.sh` 与
+  `Scripts/privacy-audit.sh`，把命令和结果记录到
+  `specs/002-settings-experience/evidence/us2-modifier-lifecycle-redesign.md`
+- [X] T082 [US2] [PASSED AFTER T088–T091 2026-08-03] 重新安装签名 arm64 包并完全重开 TextEdit、iTerm、Codex、VS Code、Chrome，按
+  `specs/002-settings-experience/quickstart.md` 验证单 Shift、Shift+字母、Command+Shift、长按、重复、
+  左右交错和应用切换；五类全部通过才可勾选，否则记录平台门禁失败并停止代码绕行
+
+**Checkpoint**: T077...T081 自动化与发布验证通过后才交付物理包；T082 未由五类客户端共同通过前，
+不得宣称 FR-014 跨应用修复完成。
+
+---
+
+## Phase 14: Modifier recovery parity experiment
+
+**Goal**: 修复由 Command-Tab、Command-L 等非目标 modifier 造成的粘滞 `disqualified` 状态；事件自身
+仍必须由活动会话交付，禁止全局观察和应用特判。
+
+- [X] T083 [US2] 在计划、研究和 T082 evidence 中记录五应用全部失败，并固定对比的 Squirrel commit、
+  安装包 SHA-256、设置快照和系统装载路径，排除旧包与设置回退
+- [X] T084 [US2] 用 TextEdit、iTerm 和 Chrome 临时输入面建立可重复物理基线；确认旧包在 Chrome 的
+  `Command-L → 中文 → Shift → 中文 → Shift → 英文` 序列中稳定丢失第一次 Shift，而 TextEdit/iTerm
+  同会话序列正常，从而排除“所有客户端不交付 flagsChanged”
+- [X] T085 [US2] 先在 `StandaloneShiftRecognizerTests.swift` 覆盖完整 Command gesture 和应用切换后
+  stale Command baseline 不得污染下一次独立 Shift，
+  与精确 Shift keyCode 的安全重同步，再最小更新 `StandaloneShiftRecognizer.swift`：只有当前 flags
+  恰为目标 modifier、keyCode 精确且无其他当前 modifier 时，才允许把历史中已释放的 stale flags
+  排除出 press 判定；invalid keyCode 仍要求唯一 delta
+- [X] T086 [US2] 让非目标 modifier 在目标 flag 已完全松开后恢复 recognizer idle，保留现有
+  activate/deactivate 安全边界；运行目标测试、完整测试、Release/签名/隐私门禁，并确认源码与正式包
+  不包含临时 modifier 诊断日志
+- [X] T087 [US2] 安装新包并重新执行五应用物理矩阵；若任一应用仍失败，停止 Shift 实现并提交
+  Caps Lock、显式组合键或限定支持范围的规格决策，不再增加事件捕获机制
+
+**Checkpoint**: Chrome 自动化物理回归已由 `你好→你好→wqvb` 变为 `你好→wqvb→你好`；T087 仍需
+实体键盘和五类客户端共同通过，失败即终止。
+
+---
+
+## Phase 15: VS Code physical duplicate-edge handling
+
+- [X] T088 [US2] 用临时分类诊断构建对比 VS Code 自动与实体 Shift；确认自动每端一次，实体左右
+  Shift 每端重复两次，并在取证后停止日志流、恢复无日志包、清除诊断源码
+- [X] T089 [US2] 先在 `StandaloneShiftRecognizerTests.swift` 和 `InputControllerContractTests.swift`
+  添加重复 press/release 幂等且只产生一次模式 intent 的失败测试，并保持多 flag delta 为歧义
+- [X] T090 [US2] 在 `StandaloneShiftRecognizer.swift` 将零 flag-delta edge 作为幂等重放忽略，运行
+  目标/完整测试、Release build、发布/隐私审计，确认正式源码无诊断标记后安装
+- [X] T091 [US2] 用户在完全重开的 VS Code 使用实体左右 Shift 验证首次及连续切换；随后在
+  TextEdit、iTerm、Codex、Chrome 做回归，五类全部通过才完成 T082/T087/T091

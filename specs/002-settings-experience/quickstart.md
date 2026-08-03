@@ -67,9 +67,10 @@ Scripts/privacy-audit.sh
 
 ## 5. Input behavior matrix
 
-在 TextEdit 和至少一个浏览器/编辑器中分别验证：
+使用 Release 签名 arm64 产物，在 TextEdit、iTerm、Codex、VS Code、Chrome 中分别验证。每次重新安装
+输入法后必须完全退出并重开这些应用，避免旧 IMK client/controller 继续驻留：
 
-- 分别选择 Shift、Control、Caps Lock 后单独操作只切一次；与字母或其他修饰键组合、长按、
+- 分别选择 Shift、Control、Caps Lock 后单独操作只切一次；Shift+字母、Command+Shift、长按、重复、
   左右键交错时不误切换且不出现卡键；选择禁用后不切换。
 - Control-Shift-F 和选定宽度快捷键在空闲/组合中按安全取消规则工作，应用快捷键继续到达客户端。
 - 每组翻页键在候选存在时双向翻页；第一页/末页不循环；关闭或空闲时按键正常透传。
@@ -83,6 +84,11 @@ Scripts/privacy-audit.sh
 扩展 `recognizedEvents` 后必须真机执行：组合中点击 marked text 内外、点击候选、切换窗口、切换应用、
 停用/重启输入源。确认 marked text 和候选总能安全清理、鼠标选择不回归、无原始编码提交。若默认
 点击外部取消失效，修复 `IMKMouseHandling` 后重复本节，不能把它标记为自动通过。
+
+独立 modifier 的通过条件是 TextEdit、iTerm、Codex、VS Code、Chrome 五类客户端全部通过上述矩阵；
+不得用 TextEdit/iTerm 成功替代 Chromium/Electron 结果。只记录构建标识、系统版本和每项 pass/fail，
+产品运行时不得记录按键、应用身份、文本或可重建输入时间线。若重构后 Chromium/Electron 仍未交付
+可配对 `flagsChanged`，记录平台门禁失败并停止实现，不得增加 global monitor、event tap 或轮询。
 
 ## 7. Performance and stability
 

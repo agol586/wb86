@@ -16,9 +16,10 @@ final class InputControllerEventRouter {
         self.layoutTranslator = layoutTranslator
     }
 
-    static func extendingRecognizedEvents(_ mask: Int) -> Int {
-        mask | Int(NSEvent.EventTypeMask.flagsChanged.rawValue)
-    }
+    static let recognizedEventMask = Int(
+        NSEvent.EventTypeMask.keyDown.rawValue
+            | NSEvent.EventTypeMask.flagsChanged.rawValue
+    )
 
     func route(_ event: NSEvent, settingsSnapshot: SettingsSnapshot,
                isComposing: Bool) -> InputControllerEventRoute {
@@ -55,6 +56,48 @@ final class InputControllerEventRouter {
     }
 
     func reset() { modifierRecognizer.reset() }
+
+    func suspend() { modifierRecognizer.suspend() }
+}
+
+@MainActor
+final class InputControllerEventProcessor {
+    private let router: InputControllerEventRouter
+
+    init(router: InputControllerEventRouter = InputControllerEventRouter()) {
+        self.router = router
+    }
+
+    /// Observe the event before resolving its text client. Some IMK clients deliver a
+    /// flagsChanged edge with a temporarily nil or non-IMKTextInput sender.
+    func handle(_ event: NSEvent, session: InputControllerSession,
+                settingsSnapshot: SettingsSnapshot,
+                resolveClient: () -> InputClientProxy?) -> Bool {
+        let route = router.route(
+            event,
+            settingsSnapshot: settingsSnapshot,
+            isComposing: session.state.kind == .composing
+        )
+        let client = resolveClient()
+        guard let mappedEvent = route.coreEvent else { return false }
+
+        let consumed: Bool
+        if let client {
+            consumed = session.handle(mappedEvent, client: client)
+        } else if session.state == .idle {
+            consumed = session.handleMenuModeEvent(mappedEvent)
+        } else {
+            // The owning client is required to clear marked text. Fail closed locally:
+            // never commit raw input or apply a mode change to an ambiguous session.
+            session.resetWithoutClient()
+            return false
+        }
+        return route.mustPassThrough ? false : consumed
+    }
+
+    func reset() { router.reset() }
+
+    func suspend() { router.suspend() }
 }
 
 @objc(InputController)
@@ -63,7 +106,7 @@ final class InputController: IMKInputController {
     private var inputSession: InputControllerSession!
     private var candidatePresenter: CandidatePanelPresenter!
     private var clientProxy: IMKClientProxy?
-    private let eventRouter = InputControllerEventRouter()
+    private let eventProcessor = InputControllerEventProcessor()
 
     private(set) var compositionState: CompositionState {
         get { inputSession?.state ?? .idle }
@@ -93,54 +136,56 @@ final class InputController: IMKInputController {
     }
 
     override func activateServer(_ sender: Any!) {
+        eventProcessor.suspend()
         guard proxy(for: sender) != nil else {
-            resetSession()
+            inputSession.resetWithoutClient()
+            candidatePresenter.hide()
+            clientProxy = nil
+            SettingsCoordinator.shared?.applyPendingAtIdle()
             return
         }
-        eventRouter.reset()
         inputSession.reactivate()
         SettingsCoordinator.shared?.applyPendingAtIdle()
         InputModeController.shared.activate(mode: inputSession.mode)
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, let client = proxy(for: sender) else {
+        guard let event else {
             resetSession()
             return false
         }
-        let route = eventRouter.route(
+        let consumed = eventProcessor.handle(
             event,
+            session: inputSession,
             settingsSnapshot: inputSession.activeSnapshot,
-            isComposing: compositionState.kind == .composing
+            resolveClient: { [weak self] in self?.proxy(for: sender) }
         )
-        guard let mappedEvent = route.coreEvent else { return false }
-        let consumed = inputSession.handle(mappedEvent, client: client)
         SettingsCoordinator.shared?.applyPendingAtIdle()
         InputModeController.shared.activate(mode: inputSession.mode)
-        return route.mustPassThrough ? false : consumed
+        return consumed
     }
 
     override func recognizedEvents(_ sender: Any!) -> Int {
-        InputControllerEventRouter.extendingRecognizedEvents(super.recognizedEvents(sender))
+        InputControllerEventRouter.recognizedEventMask
     }
 
     override func deactivateServer(_ sender: Any!) {
-        finishSession(sender: sender)
+        finishSession(sender: sender, closingController: false)
     }
 
     override func commitComposition(_ sender: Any!) {
         // A client-requested end is a privacy-safe cancellation. Calling super here would
         // restore originalString and could insert the raw Wubi code into the document.
-        finishSession(sender: sender)
+        finishSession(sender: sender, closingController: false)
     }
 
     override func inputControllerWillClose() {
-        finishSession(sender: nil)
+        finishSession(sender: nil, closingController: true)
         super.inputControllerWillClose()
     }
 
     func resetSession() {
-        eventRouter.reset()
+        eventProcessor.reset()
         inputSession?.resetWithoutClient()
         candidatePresenter?.hide()
         clientProxy = nil
@@ -148,16 +193,19 @@ final class InputController: IMKInputController {
     }
 
     private func proxy(for sender: Any?) -> IMKClientProxy? {
-        if let sender {
-            guard let proxy = IMKClientProxy(sender) else { return nil }
+        if let sender, let proxy = IMKClientProxy(sender) {
             clientProxy = proxy
             return proxy
         }
         return clientProxy
     }
 
-    private func finishSession(sender: Any?) {
-        eventRouter.reset()
+    private func finishSession(sender: Any?, closingController: Bool) {
+        if closingController {
+            eventProcessor.reset()
+        } else {
+            eventProcessor.suspend()
+        }
         if let client = proxy(for: sender) {
             inputSession.deactivate(client: client)
         } else {

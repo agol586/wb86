@@ -4,15 +4,33 @@
 
 - 只处理活动 InputMethodKit 会话交付的 `keyDown`、必要的 modifier-change 和候选鼠标事件；不得安装
   全局 monitor、event tap 或绕过 Secure Event Input。
+- `flagsChanged` 必须在 client proxy 获取/类型转换之前交给会话 recognizer；nil 或不可转换的
+  `sender` 不得导致当前 modifier edge 被丢弃或 recognizer 被无条件 reset。
+- 连续收到聚合 modifier flags 完全相同的 `flagsChanged` 时，后一个事件必须作为客户端重放幂等忽略；
+  不得触发第二次模式动作，也不得把 eligible/idle 改成 disqualified。只有实际 flag delta 才推进状态。
 - 带 Command、Control、Option 等非预期修饰键的应用/系统快捷键默认透传，并在需要时先安全取消组合。
 - 每个物理事件最多产生一个核心事件；每个核心事件最多产生一次候选提交。
 
 ## Mode switches
 
-- Shift 或 Control 预设只在一次无重复、无其他键/修饰键的按下—释放序列完成时切换一次；
+- Shift 或 Control 预设只在一次无其他键/修饰键的按下—释放序列完成时切换一次；相同 aggregate flags
+  的客户端重复 edge 不算新的物理 transition；
   Caps Lock 按系统 toggle 型修饰事件去重并只切换一次。禁用时所有对应事件均不产生模式副作用。
+- 正常 modifier press/release 必须透传；模式 intent 与原始事件的 handled 返回值分离，不得通过消费
+  press 来要求客户端继续交付 release。
 - 组合期间触发模式切换时，按既有安全取消策略清除 marked text，不提交原始编码。
+- client 可用时 intent 走正常输入会话路径；client 不可用且会话空闲时可只更新当前会话模式；client
+  不可用且组合未结束时必须丢弃 intent、安全复位且不提交文本。
 - 简繁和全半角切换只改变当前会话状态，不写持久化默认。
+
+## Modifier lifecycle
+
+- recognizer 依据聚合 modifier flags 的 transition/category 维护 `lastModifierFlags`；keyCode 无效时仅在
+  flag delta 唯一指向目标 modifier 时作有界推断。
+- controller 首次同步、普通 activation/deactivation、设置代次变化及 client 暂时缺失均不得把孤立
+  release 解释为点击；非 modifier 键、超时、多 flag edge 和左右键歧义必须使待定点击失效。
+- controller 关闭、确定的会话废弃或不可恢复歧义必须清空状态。不得跨 controller、跨会话共享
+  modifier 状态。
 
 ## Candidate page and direct selection keys
 

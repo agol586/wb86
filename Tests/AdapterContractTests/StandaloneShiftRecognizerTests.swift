@@ -3,6 +3,119 @@ import XCTest
 @testable import MacWubi
 
 final class StandaloneShiftRecognizerTests: XCTestCase {
+    func testInvalidKeyCodeInfersShiftFromModifierFlagTransition() throws {
+        let recognizer = StandaloneModifierRecognizer()
+
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 0, flags: [.shift], timestamp: 1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertTrue(recognizer.handle(
+            try flagsEvent(keyCode: 0, flags: [], timestamp: 1.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+    }
+
+    func testInvalidKeyCodeWithoutOneUnambiguousTransitionDoesNotTrigger() throws {
+        let recognizer = StandaloneModifierRecognizer()
+
+        _ = recognizer.handle(
+            try flagsEvent(keyCode: 0, flags: [.shift, .control], timestamp: 1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        )
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 0, flags: [], timestamp: 1.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+    }
+
+    func testWrongModifierKeyCodeIsNeverReinterpretedAsConfiguredShift() throws {
+        let recognizer = StandaloneModifierRecognizer()
+
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 59, flags: [.shift], timestamp: 1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 59, flags: [], timestamp: 1.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+    }
+
+    func testCompletedCommandGestureDoesNotPoisonTheNextStandaloneShiftTap() throws {
+        let recognizer = StandaloneModifierRecognizer()
+
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 55, flags: [.command], timestamp: 1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 55, flags: [], timestamp: 1.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertEqual(recognizer.state, .idle)
+
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 2),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertTrue(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [], timestamp: 2.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+    }
+
+    func testExactShiftPressResynchronizesAStaleReleasedCommandBaseline() throws {
+        let recognizer = StandaloneModifierRecognizer()
+
+        _ = recognizer.handle(
+            try flagsEvent(keyCode: 55, flags: [.command], timestamp: 1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        )
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 2),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertTrue(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [], timestamp: 2.1),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+    }
+
+    func testCategoryPairingAcceptsInvalidKeyCodeOnEitherEndpoint() throws {
+        let endpointPairs: [(press: UInt16, release: UInt16)] = [
+            (press: 60, release: 0),
+            (press: 0, release: 60)
+        ]
+
+        for endpoints in endpointPairs {
+            let recognizer = StandaloneModifierRecognizer()
+            XCTAssertFalse(recognizer.handle(
+                try flagsEvent(keyCode: endpoints.press, flags: [.shift], timestamp: 1),
+                binding: .standaloneShift,
+                settingsGeneration: 1
+            ))
+            XCTAssertTrue(recognizer.handle(
+                try flagsEvent(keyCode: endpoints.release, flags: [], timestamp: 1.1),
+                binding: .standaloneShift,
+                settingsGeneration: 1
+            ), "press=\(endpoints.press), release=\(endpoints.release)")
+        }
+    }
+
     func testLeftAndRightShiftOrControlTapTriggerExactlyOnceOnRelease() throws {
         let cases: [(ModeSwitchBinding, [UInt16], NSEvent.ModifierFlags)] = [
             (.standaloneShift, [56, 60], .shift),
@@ -45,7 +158,7 @@ final class StandaloneShiftRecognizerTests: XCTestCase {
         ))
     }
 
-    func testLongPressAndRepeatedFlagsChangedDoNotTrigger() throws {
+    func testLongPressDoesNotTrigger() throws {
         let recognizer = StandaloneModifierRecognizer(maximumTapDuration: 0.4)
         _ = recognizer.handle(try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 1),
                               binding: .standaloneShift,
@@ -53,18 +166,36 @@ final class StandaloneShiftRecognizerTests: XCTestCase {
         XCTAssertFalse(recognizer.handle(try flagsEvent(keyCode: 56, flags: [], timestamp: 1.5),
                                          binding: .standaloneShift,
                                          settingsGeneration: 1))
+    }
 
-        _ = recognizer.handle(try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 2),
-                              binding: .standaloneShift,
-                              settingsGeneration: 1)
+    func testDuplicatePressAndReleaseEdgesAreIdempotent() throws {
+        let recognizer = StandaloneModifierRecognizer(maximumTapDuration: 0.4)
+
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 2),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
         XCTAssertFalse(recognizer.handle(
             try flagsEvent(keyCode: 56, flags: [.shift], timestamp: 2.1, isARepeat: true),
             binding: .standaloneShift,
             settingsGeneration: 1
         ))
-        XCTAssertFalse(recognizer.handle(try flagsEvent(keyCode: 56, flags: [], timestamp: 2.2),
-                                         binding: .standaloneShift,
-                                         settingsGeneration: 1))
+        XCTAssertEqual(
+            recognizer.state,
+            .eligible(keyCode: 56, pressedAt: 2, settingsGeneration: 1)
+        )
+        XCTAssertTrue(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [], timestamp: 2.2),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertFalse(recognizer.handle(
+            try flagsEvent(keyCode: 56, flags: [], timestamp: 2.21),
+            binding: .standaloneShift,
+            settingsGeneration: 1
+        ))
+        XCTAssertEqual(recognizer.state, .idle)
     }
 
     func testSecondShiftAndOtherModifiersDisqualifyGesture() throws {

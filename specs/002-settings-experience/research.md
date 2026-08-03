@@ -82,18 +82,30 @@ prefix-exists 和 exact-key lookup；有效未完成前缀继续 marked text，e
 
 ## 6. 独立修饰键单击和事件识别
 
-**Decision**: 每个 `IMKInputController` 旁增加会话级 `StandaloneModifierRecognizer`，把
-`recognizedEvents` 扩展为 `super | flagsChanged`。语言切换可选择左/右 Shift、左/右 Control、
+**Decision**: 每个 `IMKInputController` 旁增加会话级 `StandaloneModifierRecognizer`，让
+`recognizedEvents` 返回精确的 `keyDown | flagsChanged`，不继承客户端特定的额外事件位。语言切换可选择左/右 Shift、左/右 Control、
 Caps Lock 或禁用；只在配置的修饰键独立完成、无其他事件/修饰键且未超长按阈值时切换一次。
-任何普通按键、同类左右键交错、会话切换、设置代次变化或 reset 使待定手势失效。事件保持透传，
-只产生会话内模式副作用；不得在 `flagsChanged` 上读取 `isARepeat`，长按用可注入时钟和事件
-timestamp 判定。Caps Lock 按系统 toggle 型 flagsChanged 语义去重，不安装监听或 event tap。
+任何普通按键、同类左右键交错、设置代次变化或显式 reset 使待定手势失效。modifier observation
+必须发生在 client proxy 解析之前：`sender` 为 nil 或不能转换为 `IMKTextInput` 时，仍观察活动 IMK
+会话已经交付的 edge，而不是提前 reset。正常 press/release 保持未处理并透传，识别成功只产生一次
+内部会话模式副作用；不得在 `flagsChanged` 上读取 `isARepeat`，长按用可注入时钟和事件 timestamp
+判定。Caps Lock 按系统 toggle 型 flagsChanged 语义去重，不安装监听或 event tap。
+若活动 IMK 客户端已交付 `flagsChanged` 但给出 `keyCode=0` 或其他非修饰键值，只在前后聚合
+modifier flags 显示唯一目标修饰键变化时推断配置键；无变化、多变化或客户端根本未交付事件时不推测。
 
 **Rationale**: 单独修饰键产生 flagsChanged 而非普通 keyDown；会话级状态可避免修饰键+字母、系统
-快捷键、遗留 release 和跨客户端串线，同时不采用隐私违规的全局监听。
+快捷键、遗留 release 和跨客户端串线。Squirrel 在 client cast 失败时仍先更新 modifier transition，
+并让正常 `flagsChanged` 透传；MacWubi 先要求 client proxy、失败即 reset 的顺序更可能丢失
+Chromium/Electron 的 edge。T076“消费候选 press 以换取 release”的假设与该实现不符，也已被
+Codex、VS Code、Chrome 的物理测试证伪。后续 Chrome 固定序列证明客户端实际交付了 edge：旧实现
+在 Command-L 后第一次 Shift 失败、第二次成功。根因是非目标 modifier 把 recognizer 留在粘滞的
+`disqualified` 状态；非目标 flag 已完全松开时必须恢复 idle，精确目标 press 可在当前无其他 modifier
+时安全排除历史 stale flags。这一恢复规则不放宽真实组合键、重复 edge 或模糊 keyCode 的拒绝条件。
 
 **Alternatives considered**: keyDown-only（无法识别独立修饰键）；轮询 modifier flags（无法证明配对）；
-global monitor/event tap（违反会话与隐私边界）；消费 release（可能让客户端认为 Shift 卡住）。
+global monitor/event tap（违反会话与隐私边界）；消费 press/release（实测失败且可能改变客户端 modifier
+语义）；把 `keyCode=0` 推断作为 Chromium 主修复（Squirrel 对应改动服务于远程桌面异常事件，不证明
+Chromium 根因）；按应用身份特判（脆弱且扩大隐私面）。
 
 ### R12 — 输入法进程需要 agent 应用语义才能显示设置窗口
 

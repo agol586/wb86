@@ -3,7 +3,7 @@ import Foundation
 
 enum ModifierTapState: Equatable {
     case idle
-    case eligible(keyCode: UInt16, pressedAt: TimeInterval, settingsGeneration: UInt64)
+    case eligible(keyCode: UInt16?, pressedAt: TimeInterval, settingsGeneration: UInt64)
     case disqualified
 }
 
@@ -13,10 +13,13 @@ final class StandaloneModifierRecognizer {
     private static let relevantModifiers: NSEvent.ModifierFlags = [
         .command, .control, .option, .shift, .capsLock, .function
     ]
+    private static let modifierKeyCodes: Set<UInt16> = [
+        54, 55, 56, 57, 58, 59, 60, 61, 62, 63
+    ]
 
     private let maximumTapDuration: TimeInterval
     private let clock: Clock
-    private var pressedModifierKeys = Set<UInt16>()
+    private var lastModifierFlags: NSEvent.ModifierFlags?
     private var observedSettingsGeneration: UInt64?
     private var observedBinding: ModeSwitchBinding?
     private(set) var state = ModifierTapState.idle
@@ -28,8 +31,8 @@ final class StandaloneModifierRecognizer {
         self.clock = clock
     }
 
-    /// Returns true only for the release completing one valid standalone Shift tap.
-    /// Press and release events themselves remain available for pass-through by the adapter.
+    /// Returns true only for the release completing one valid standalone modifier tap.
+    /// Press and release events remain available for pass-through by the adapter.
     func handle(_ event: NSEvent, binding: ModeSwitchBinding,
                 settingsGeneration: UInt64) -> Bool {
         if let observedSettingsGeneration,
@@ -41,97 +44,113 @@ final class StandaloneModifierRecognizer {
         observedBinding = binding
 
         guard let definition = ModifierDefinition(binding: binding) else {
-            pressedModifierKeys.removeAll(keepingCapacity: true)
             state = .idle
             return false
         }
 
-        guard event.type == .flagsChanged,
-              definition.keyCodes.contains(event.keyCode) else {
+        guard event.type == .flagsChanged else {
             disqualifyForNonModifierKey()
             return false
         }
 
+        let modifiers = event.modifierFlags.intersection(Self.relevantModifiers)
+        let previousModifiers = lastModifierFlags ?? []
+        let changedModifiers = previousModifiers.symmetricDifference(modifiers)
+        lastModifierFlags = modifiers
+
+        // Some IMK clients (observed with physical Shift in VS Code) deliver each
+        // flagsChanged edge twice. An identical aggregate state is an idempotent
+        // replay, not a second physical transition. Preserve the pending gesture;
+        // a duplicated release after completion must likewise remain idle.
+        guard !changedModifiers.isEmpty else { return false }
+
+        let hasExactTargetKeyCode = definition.keyCodes.contains(event.keyCode)
+        let keyCode: UInt16?
+        if hasExactTargetKeyCode {
+            keyCode = event.keyCode
+        } else if !Self.modifierKeyCodes.contains(event.keyCode),
+                  changedModifiers == definition.flag {
+            // Some InputMethodKit clients and remote-input bridges deliver a valid
+            // flagsChanged edge with keyCode 0. The aggregate transition still
+            // identifies one configured modifier without global event monitoring.
+            keyCode = nil
+        } else {
+            // A completed unrelated modifier gesture (for example Command-Tab or
+            // Command-L) must not poison the next standalone Shift tap. Keep a
+            // pending target gesture disqualified while its flag is still down,
+            // then return to idle once the target is absent.
+            state = modifiers.contains(definition.flag) ? .disqualified : .idle
+            return false
+        }
+
+        let isExactPressResynchronizingStaleReleasedFlags = hasExactTargetKeyCode
+            && modifiers == definition.flag
+            && !previousModifiers.contains(definition.flag)
+        guard changedModifiers == definition.flag
+                || isExactPressResynchronizingStaleReleasedFlags else {
+            state = .disqualified
+            return false
+        }
+
         let timestamp = event.timestamp > 0 ? event.timestamp : clock()
-        let otherModifiers = event.modifierFlags
-            .intersection(Self.relevantModifiers)
-            .subtracting(definition.flag)
+        let otherModifiers = modifiers.subtracting(definition.flag)
         guard otherModifiers.isEmpty else {
             state = .disqualified
             return false
         }
 
         if definition.isToggle {
-            pressedModifierKeys.removeAll(keepingCapacity: true)
             state = .idle
             return true
         }
 
-        if pressedModifierKeys.contains(event.keyCode) {
-            // A repeated edge or release while the other side remains held must not trigger.
-            if event.modifierFlags.contains(definition.flag) {
-                pressedModifierKeys.remove(event.keyCode)
+        if modifiers.contains(definition.flag) {
+            guard state == .idle else {
                 state = .disqualified
                 return false
             }
-            return release(keyCode: event.keyCode, modifiers: event.modifierFlags,
-                           targetFlag: definition.flag, timestamp: timestamp,
-                           settingsGeneration: settingsGeneration)
-        }
-
-        guard event.modifierFlags.contains(definition.flag) else {
-            // An orphan release may arrive after reset, activation or a settings generation change.
+            state = .eligible(keyCode: keyCode, pressedAt: timestamp,
+                              settingsGeneration: settingsGeneration)
             return false
         }
-        return press(keyCode: event.keyCode, modifiers: event.modifierFlags,
-                     targetFlag: definition.flag, timestamp: timestamp,
-                     settingsGeneration: settingsGeneration)
+
+        return release(keyCode: keyCode, timestamp: timestamp,
+                       settingsGeneration: settingsGeneration)
     }
 
     func disqualifyForNonModifierKey() {
-        state = pressedModifierKeys.isEmpty ? .idle : .disqualified
+        if state != .idle { state = .disqualified }
+    }
+
+    /// Preserve the last aggregate flags across an ordinary IMK lifecycle boundary,
+    /// while ensuring a press started before that boundary can never complete a tap.
+    func suspend() {
+        if state != .idle { state = .disqualified }
     }
 
     func reset() {
-        pressedModifierKeys.removeAll(keepingCapacity: true)
+        lastModifierFlags = nil
         observedSettingsGeneration = nil
         observedBinding = nil
         state = .idle
     }
 
-    private func press(keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
-                       targetFlag: NSEvent.ModifierFlags,
-                       timestamp: TimeInterval, settingsGeneration: UInt64) -> Bool {
-        pressedModifierKeys.insert(keyCode)
-        let otherModifiers = modifiers.intersection(Self.relevantModifiers)
-            .subtracting(targetFlag)
-        guard pressedModifierKeys.count == 1, otherModifiers.isEmpty else {
-            state = .disqualified
-            return false
-        }
-        state = .eligible(keyCode: keyCode, pressedAt: timestamp,
-                          settingsGeneration: settingsGeneration)
-        return false
-    }
-
-    private func release(keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
-                         targetFlag: NSEvent.ModifierFlags,
-                         timestamp: TimeInterval, settingsGeneration: UInt64) -> Bool {
-        pressedModifierKeys.remove(keyCode)
+    private func release(keyCode: UInt16?, timestamp: TimeInterval,
+                         settingsGeneration: UInt64) -> Bool {
         let triggered: Bool
         if case let .eligible(eligibleKeyCode, pressedAt, eligibleGeneration) = state {
             let duration = timestamp - pressedAt
-            triggered = eligibleKeyCode == keyCode
+            let physicalKeyMatches = eligibleKeyCode == nil
+                || keyCode == nil
+                || eligibleKeyCode == keyCode
+            triggered = physicalKeyMatches
                 && eligibleGeneration == settingsGeneration
                 && duration >= 0
                 && duration <= maximumTapDuration
-                && modifiers.intersection(Self.relevantModifiers)
-                    .subtracting(targetFlag).isEmpty
-                && pressedModifierKeys.isEmpty
         } else {
             triggered = false
         }
-        state = pressedModifierKeys.isEmpty ? .idle : .disqualified
+        state = .idle
         return triggered
     }
 
