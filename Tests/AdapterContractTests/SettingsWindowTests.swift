@@ -23,7 +23,9 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.registeredControls.allSatisfy {
             !($0.identifier?.rawValue ?? "").isEmpty
         })
-        XCTAssertTrue(controller.registeredControls.allSatisfy(\.acceptsFirstResponder))
+        XCTAssertTrue(controller.registeredControls.filter {
+            $0.identifier?.rawValue != "操作反馈"
+        }.allSatisfy(\.acceptsFirstResponder))
         let stepper = controller.registeredControls.compactMap { $0 as? NSStepper }.first
         XCTAssertEqual(stepper?.minValue, 5)
         XCTAssertEqual(stepper?.maxValue, 9)
@@ -32,10 +34,157 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(popups.contains { $0.itemTitles == ["简体", "繁体"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["半角", "全角"] })
         XCTAssertTrue(popups.contains { $0.itemTitles == ["英文标点", "中文标点"] })
-        XCTAssertTrue(popups.contains { $0.itemTitles == ["纵向候选", "横向候选"] })
+        XCTAssertTrue(popups.contains { $0.itemTitles == ["纵向", "横向"] })
         let slider = controller.registeredControls.compactMap { $0 as? NSSlider }.first
         XCTAssertEqual(slider?.minValue, 0.8)
         XCTAssertEqual(slider?.maxValue, 2)
+        XCTAssertFalse(controller.registeredControls.contains {
+            $0.identifier?.rawValue == "候选纵向排列"
+        })
+    }
+
+    func testAdvancedOperationsAreActionButtonsWithFeedbackSurface() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let controls = Dictionary(uniqueKeysWithValues: controller.registeredControls.compactMap {
+            control -> (String, NSControl)? in
+            guard let identifier = control.identifier?.rawValue else { return nil }
+            return (identifier, control)
+        })
+        for title in [
+            "清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…",
+            "导入用户词库…", "导出用户词库…", "隐私与数据管理…"
+        ] {
+            let button = try XCTUnwrap(controls[title] as? NSButton)
+            XCTAssertTrue(button.isBordered, title)
+            XCTAssertNotNil(button.target, title)
+            XCTAssertNotNil(button.action, title)
+        }
+        let feedback = try XCTUnwrap(controls["操作反馈"] as? NSTextField)
+        XCTAssertFalse(feedback.isHidden)
+    }
+
+    func testUserLexiconManagementWindowExposesSearchMutationsAndFeedback() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiLexiconWindow-\(UUID().uuidString)",
+                                   isDirectory: true)
+        let store = try UserLexiconStore(writer: SnapshotWriter(rootURL: root))
+        let service = UserLexiconService(store: store)
+        let controller = UserLexiconWindowController { service }
+        controller.loadWindow()
+        let content = try XCTUnwrap(controller.window?.contentView)
+        let controls = allControls(in: content)
+        let identifiers = Set(controls.compactMap { $0.identifier?.rawValue })
+
+        XCTAssertTrue(identifiers.isSuperset(of: [
+            "词条搜索", "搜索", "编码", "词条", "固定顺序（可选）",
+            "添加", "保存编辑", "删除所选…", "词库操作反馈"
+        ]))
+        for title in ["搜索", "添加", "保存编辑", "删除所选…"] {
+            let button = try XCTUnwrap(controls.compactMap { $0 as? NSButton }
+                .first { $0.identifier?.rawValue == title })
+            XCTAssertTrue(button.isBordered, title)
+            XCTAssertNotNil(button.target, title)
+            XCTAssertNotNil(button.action, title)
+        }
+        let feedback = try XCTUnwrap(controls.compactMap { $0 as? NSTextField }
+            .first { $0.identifier?.rawValue == "词库操作反馈" })
+        XCTAssertTrue(feedback.isSelectable)
+    }
+
+    func testPrivacyRuntimeTogglePublishesVisibleFeedback() throws {
+        let baseline = PrivacyModeController.shared.privateMode
+        defer { PrivacyModeController.shared.setPrivateMode(baseline) }
+        let controller = PrivacyViewController(statusProvider: nil, deletionCoordinator: nil)
+        controller.loadView()
+        let privateMode = try XCTUnwrap(controller.controls.compactMap { $0 as? NSButton }
+            .first { $0.title == "私密模式" })
+        let feedback = try XCTUnwrap(controller.controls.compactMap { $0 as? NSTextField }
+            .first { $0.identifier?.rawValue == "隐私操作反馈" })
+
+        privateMode.state = baseline ? .off : .on
+        privateMode.performClick(nil)
+
+        XCTAssertFalse(controller.lastFeedback.isEmpty)
+        XCTAssertEqual(feedback.stringValue, controller.lastFeedback)
+    }
+
+    func testCancelAndRestoreRefreshEveryPersistedControl() throws {
+        var baseline = InputSettings.default
+        baseline.candidatePageSize = 7
+        baseline.candidateLayout = .horizontal
+        baseline.candidateFontScale = 1.6
+        baseline.defaultMode.language = .directEnglish
+        let controller = SettingsWindowController(settings: baseline)
+        controller.loadWindow()
+        let controls = Dictionary(uniqueKeysWithValues: controller.registeredControls.compactMap {
+            control -> (String, NSControl)? in
+            guard let identifier = control.identifier?.rawValue else { return nil }
+            return (identifier, control)
+        })
+        let stepper = try XCTUnwrap(controls["每页候选数量 5 至 9"] as? NSStepper)
+        let layout = try XCTUnwrap(controls["候选布局"] as? NSPopUpButton)
+        let slider = try XCTUnwrap(controls["候选字号缩放"] as? NSSlider)
+        let language = try XCTUnwrap(controls["初始语言"] as? NSPopUpButton)
+
+        stepper.integerValue = 9
+        layout.selectItem(at: 0)
+        slider.doubleValue = 0.8
+        language.selectItem(at: 0)
+        controller.cancelDraft()
+        XCTAssertEqual(stepper.integerValue, 7)
+        XCTAssertEqual(layout.indexOfSelectedItem, 1)
+        XCTAssertEqual(slider.doubleValue, 1.6, accuracy: 0.001)
+        XCTAssertEqual(language.indexOfSelectedItem, 1)
+        XCTAssertEqual((controls["操作反馈"] as? NSTextField)?.stringValue,
+                       "未保存的修改已取消。")
+
+        XCTAssertTrue(try controller.restoreDefaults(confirmed: true))
+        XCTAssertEqual(stepper.integerValue, InputSettings.default.candidatePageSize)
+        XCTAssertEqual(layout.indexOfSelectedItem, 0)
+        XCTAssertEqual(slider.doubleValue, InputSettings.default.candidateFontScale,
+                       accuracy: 0.001)
+        XCTAssertEqual(language.indexOfSelectedItem, 0)
+        XCTAssertEqual((controls["操作反馈"] as? NSTextField)?.stringValue,
+                       "已恢复默认设置。")
+    }
+
+    func testAppearancePageHasLabeledValuesAndDraftPreview() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let content = try XCTUnwrap(controller.window?.contentView)
+        let tabView: NSTabView = try XCTUnwrap(firstView(ofType: NSTabView.self, in: content))
+        tabView.selectTabViewItem(withIdentifier: "外观")
+        let controls = Dictionary(uniqueKeysWithValues: allControls(in: content).compactMap {
+            control -> (String, NSControl)? in
+            guard let identifier = control.identifier?.rawValue else { return nil }
+            return (identifier, control)
+        })
+
+        XCTAssertEqual((controls["外观说明"] as? NSTextField)?.stringValue,
+                       "调整候选窗口的密度与阅读大小")
+        XCTAssertEqual((controls["每页候选标题"] as? NSTextField)?.stringValue, "每页候选")
+        XCTAssertEqual((controls["排列方式标题"] as? NSTextField)?.stringValue, "排列方式")
+        XCTAssertEqual((controls["文字大小标题"] as? NSTextField)?.stringValue, "文字大小")
+        XCTAssertEqual((controls["每页候选当前值"] as? NSTextField)?.stringValue, "5 个")
+        XCTAssertEqual((controls["字号当前值"] as? NSTextField)?.stringValue, "标准 · 14 pt")
+        XCTAssertEqual((controls["候选预览"] as? NSTextField)?.stringValue,
+                       "1  示例\n2  示例\n3  示例")
+
+        controller.updateDraft { draft in
+            draft.candidatePageSize = 8
+            draft.candidateLayout = .horizontal
+            draft.candidateFontScale = 2
+        }
+
+        XCTAssertEqual((controls["每页候选当前值"] as? NSTextField)?.stringValue, "8 个")
+        XCTAssertEqual((controls["字号当前值"] as? NSTextField)?.stringValue, "特大 · 17 pt")
+        XCTAssertEqual((controls["候选预览"] as? NSTextField)?.stringValue,
+                       "1  示例    2  示例    3  示例")
+        let previewFontSize = try XCTUnwrap(
+            (controls["候选预览"] as? NSTextField)?.font?.pointSize
+        )
+        XCTAssertEqual(previewFontSize, 17, accuracy: 0.01)
     }
 
     func testAdvancedPageControlsPrivacyAndLearningImmediatelyAndReopensCurrentState() throws {
@@ -327,6 +476,22 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertTrue(controller.confirmationMessage(for: .clearLearning).contains("学习"))
         XCTAssertTrue(controller.confirmationMessage(for: .deleteUserLexicon).contains("用户词库"))
         XCTAssertTrue(controller.confirmationMessage(for: .deleteAllPersonalization).contains("全部个性化"))
+    }
+
+    private func allControls(in view: NSView) -> [NSControl] {
+        view.subviews.flatMap { subview in
+            ((subview as? NSControl).map { [$0] } ?? []) + allControls(in: subview)
+        }
+    }
+
+    private func firstView<T: NSView>(ofType type: T.Type, in view: NSView) -> T? {
+        if let matchingView = view as? T { return matchingView }
+        for subview in view.subviews {
+            if let matchingView = firstView(ofType: type, in: subview) {
+                return matchingView
+            }
+        }
+        return nil
     }
 }
 

@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class CandidatePanelPresenterTests: XCTestCase {
+    func testTypographyKeepsEveryScaleInADailyReadingRange() {
+        XCTAssertEqual(CandidateTypography.candidatePointSize(for: 0.8), 13,
+                       accuracy: 0.01)
+        XCTAssertEqual(CandidateTypography.candidatePointSize(for: 1), 14,
+                       accuracy: 0.01)
+        XCTAssertEqual(CandidateTypography.candidatePointSize(for: 2), 17,
+                       accuracy: 0.01)
+        XCTAssertLessThanOrEqual(CandidateTypography.candidatePointSize(for: 2), 18)
+    }
+
     func testMouseSelectionUsesNormalCandidateCallbackWithoutTakingKeyFocus() throws {
         var selected = [Int]()
         let presenter = CandidatePanelPresenter { selected.append($0) }
@@ -18,6 +28,8 @@ final class CandidatePanelPresenterTests: XCTestCase {
         presenter.update(with: page)
 
         XCTAssertEqual(presenter.displayedCandidateTitles, ["1  甲", "2  乙"])
+        XCTAssertEqual(presenter.emphasizedCandidateOrdinals, [1])
+        XCTAssertTrue(presenter.candidateRowsHavePointerFeedback)
         XCTAssertFalse(presenter.canTakeKeyboardFocus)
         XCTAssertTrue(presenter.performMouseSelection(ordinal: 2))
         XCTAssertEqual(selected, [2])
@@ -84,7 +96,12 @@ final class CandidatePanelPresenterTests: XCTestCase {
         XCTAssertTrue(presenter.usesHorizontalLayout)
         XCTAssertEqual(presenter.displayedCandidateTitles, ["1  输入法  lwy"])
         XCTAssertEqual(presenter.displayedCandidateFontSizes,
-                       [NSFont.systemFontSize * 1.5])
+                       [CandidateTypography.candidatePointSize(for: 1.5)])
+        XCTAssertGreaterThanOrEqual(presenter.visualCornerRadius, 8)
+        XCTAssertEqual(presenter.visualBorderWidth, 1)
+        XCTAssertFalse(presenter.showsPageIndicator)
+        XCTAssertEqual(presenter.emphasizedCandidateOrdinals, [1])
+        XCTAssertTrue(presenter.usesCandidateTextHierarchy)
 
         settings.codeHintEnabled = false
         settings.candidateLayout = .vertical

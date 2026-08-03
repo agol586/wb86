@@ -324,3 +324,7 @@ T056、T059、T060 按资源优化、月度等效量压、Quickstart、文档收
   按 `doCommand(by:command:)` 合同由当前 controller 接收 selector 和命令字典，使四个菜单 toggle
   仍更新当前会话且不提交文本；在 iTerm、文本编辑、Codex 与 VS Code 记录 `flagsChanged` 实机交付差异，
   不得以 global monitor/event tap 绕过不交付修饰键事件的客户端
+- [ ] T074 [US4] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 与
+  `CandidatePanelPresenterTests.swift` 覆盖外观页可见标签、当前值、即时预览、Cancel 全量恢复以及候选
+  字号上界和窗口视觉属性，再重构 `SettingsWindowController.swift`、`CandidateAppearanceController.swift`
+  与 `CandidatePanelPresenter.swift`；安装后用普通鼠标验证外观页和候选窗口，不改动用户词库或学习数据

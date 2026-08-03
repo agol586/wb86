@@ -6,6 +6,8 @@ final class PrivacyViewController: NSViewController {
     private let statusProvider: PrivacyStatusProvider?
     private let deletionCoordinator: PrivacyDeletionCoordinator?
     private(set) var controls = [NSControl]()
+    private(set) var lastFeedback = ""
+    private var feedbackLabel: NSTextField?
 
     init(statusProvider: PrivacyStatusProvider?, deletionCoordinator: PrivacyDeletionCoordinator?) {
         self.statusProvider = statusProvider
@@ -51,30 +53,66 @@ final class PrivacyViewController: NSViewController {
         controls.append(privateMode); root.addSubview(privateMode)
         let deleteAll = NSButton(title: "删除全部个性化…", target: self,
                                  action: #selector(deleteAllData))
-        deleteAll.frame = NSRect(x: 440, y: 20, width: 170, height: 30)
+        deleteAll.frame = NSRect(x: 440, y: 42, width: 170, height: 30)
         controls.append(deleteAll); root.addSubview(deleteAll)
+        let feedback = NSTextField(wrappingLabelWithString: lastFeedback)
+        feedback.frame = NSRect(x: 20, y: 8, width: 590, height: 30)
+        feedback.identifier = NSUserInterfaceItemIdentifier("隐私操作反馈")
+        feedback.isSelectable = true
+        feedbackLabel = feedback
+        controls.append(feedback); root.addSubview(feedback)
         view = root
     }
 
     @objc private func togglePrivateMode(_ sender: NSButton) {
         PrivacyModeController.shared.setPrivateMode(sender.state == .on)
+        publish(sender.state == .on ? "私密模式已开启。" : "私密模式已关闭。")
     }
 
     @objc private func deleteDomain(_ sender: NSButton) {
-        guard let domain = DataDomain(rawValue: UInt8(sender.tag)), confirm("删除 \(domain.directoryName) 数据？") else { return }
-        _ = deletionCoordinator?.delete(domain)
+        guard let domain = DataDomain(rawValue: UInt8(sender.tag)) else { return }
+        guard deletionCoordinator != nil else {
+            publish("本地数据管理当前不可用。", isError: true)
+            return
+        }
+        guard confirm("删除 \(domain.directoryName) 数据？") else {
+            publish("已取消删除 \(domain.directoryName) 数据。")
+            return
+        }
+        let report = deletionCoordinator?.delete(domain)
         loadView()
+        publish(report?.results[domain] == .failed
+                ? "删除失败，\(domain.directoryName) 数据保持不变。"
+                : "\(domain.directoryName) 数据已删除。",
+                isError: report?.results[domain] == .failed)
     }
 
     @objc private func deleteAllData() {
-        guard confirm("删除 Settings、UserLexicon 和 Learning？基础词库会保留。") else { return }
-        _ = deletionCoordinator?.deleteAll()
+        guard deletionCoordinator != nil else {
+            publish("本地数据管理当前不可用。", isError: true)
+            return
+        }
+        guard confirm("删除 Settings、UserLexicon 和 Learning？基础词库会保留。") else {
+            publish("已取消删除全部个性化数据。")
+            return
+        }
+        let report = deletionCoordinator?.deleteAll()
         loadView()
+        publish(report?.allSucceeded == true
+                ? "全部个性化数据已删除，基础词库保留。"
+                : "部分数据删除失败；未删除的数据保持不变。",
+                isError: report?.allSucceeded != true)
     }
 
     private func confirm(_ message: String) -> Bool {
         let alert = NSAlert(); alert.messageText = message
         alert.addButton(withTitle: "删除"); alert.addButton(withTitle: "取消")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func publish(_ message: String, isError: Bool = false) {
+        lastFeedback = message
+        feedbackLabel?.stringValue = message
+        feedbackLabel?.textColor = isError ? .systemRed : .secondaryLabelColor
     }
 }

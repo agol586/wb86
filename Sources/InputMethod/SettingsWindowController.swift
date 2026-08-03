@@ -43,26 +43,39 @@ final class SettingsWindowController: NSWindowController {
     private let saveHandler: (InputSettings) throws -> Void
     private let keyBindingValidator: KeyBindingValidator
     private let privacyController: PrivacyModeController
+    private let personalizationCoordinator: PersonalizationCoordinator
     private var controlsByTitle = [String: NSButton]()
     private var pageSizeStepper: NSStepper?
     private var layoutPopup: NSPopUpButton?
     private var fontScaleSlider: NSSlider?
+    private weak var pageSizeValueLabel: NSTextField?
+    private weak var fontScaleValueLabel: NSTextField?
+    private weak var appearancePreviewLabel: NSTextField?
     private var popupsByLabel = [String: NSPopUpButton]()
     private var bindingChoicesByLabel = [String: [(title: String, binding: ModeSwitchBinding)]]()
     private var titlesByControl = [ObjectIdentifier: String]()
     private weak var tabView: NSTabView?
+    private weak var feedbackLabel: NSTextField?
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
+    private var privacyWindowController: NSWindowController?
+    private lazy var userLexiconWindowController = UserLexiconWindowController(
+        serviceProvider: { [weak self] in
+            self?.personalizationCoordinator.userLexiconService
+        }
+    )
 
     init(settings: InputSettings,
          access: SettingsStoreAccess = .writable,
          privacyController: PrivacyModeController = .shared,
+         personalizationCoordinator: PersonalizationCoordinator = .shared,
          saveHandler: @escaping (InputSettings) throws -> Void = { _ in },
          layoutAvailability: @escaping KeyBindingValidator.LayoutAvailability = { _ in true }) {
         self.settings = settings
         draftSettings = settings
         self.access = access
         self.privacyController = privacyController
+        self.personalizationCoordinator = personalizationCoordinator
         self.saveHandler = saveHandler
         keyBindingValidator = KeyBindingValidator(isLayoutAvailable: layoutAvailability)
         super.init(window: nil)
@@ -83,6 +96,10 @@ final class SettingsWindowController: NSWindowController {
         pageSizeStepper = nil
         layoutPopup = nil
         fontScaleSlider = nil
+        pageSizeValueLabel = nil
+        fontScaleValueLabel = nil
+        appearancePreviewLabel = nil
+        feedbackLabel = nil
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 500),
                               styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
@@ -106,26 +123,32 @@ final class SettingsWindowController: NSWindowController {
         window.contentView?.addSubview(applyButton)
         window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
+        let feedback = NSTextField(wrappingLabelWithString: lastValidationMessage ?? "")
+        feedback.frame = NSRect(x: 12, y: 6, width: 312, height: 40)
+        feedback.identifier = NSUserInterfaceItemIdentifier("操作反馈")
+        feedback.isSelectable = true
+        feedbackLabel = feedback
+        register(feedback, label: "操作反馈")
+        window.contentView?.addSubview(feedback)
         var initialResponder: NSView? = registeredControls.first
         if let message = readOnlyMessage {
-            let status = NSTextField(wrappingLabelWithString: message)
-            status.frame = NSRect(x: 12, y: 4, width: 316, height: 46)
-            status.isSelectable = true
-            register(status, label: "设置状态")
-            window.contentView?.addSubview(status)
+            feedback.stringValue = message
+            feedback.identifier = NSUserInterfaceItemIdentifier("设置状态")
+            titlesByControl[ObjectIdentifier(feedback)] = "设置状态"
             registeredControls.forEach { control in
                 let title = title(for: control)
                 if title != "取消" && title != "设置状态" { control.isEnabled = false }
             }
             lastValidationMessage = message
             lastFocusedControlTitle = "设置状态"
-            initialResponder = status
+            initialResponder = feedback
         }
-        focusOrderTitles = registeredControls.compactMap { title(for: $0) }
-        for (current, next) in zip(registeredControls, registeredControls.dropFirst()) {
+        let focusControls = registeredControls.filter { $0 !== feedback || readOnlyMessage != nil }
+        focusOrderTitles = focusControls.compactMap { title(for: $0) }
+        for (current, next) in zip(focusControls, focusControls.dropFirst()) {
             current.nextKeyView = next
         }
-        registeredControls.last?.nextKeyView = registeredControls.first
+        focusControls.last?.nextKeyView = focusControls.first
         window.initialFirstResponder = initialResponder
         self.window = window
     }
@@ -171,21 +194,23 @@ final class SettingsWindowController: NSWindowController {
 
     func cancelDraft() {
         draftSettings = settings
-        lastValidationMessage = nil
         lastFocusedControlTitle = nil
-        refreshCommonControls()
+        refreshAllControls()
+        publishMessage("未保存的修改已取消。")
     }
 
     @discardableResult
     func restoreDefaults(confirmed: Bool) throws -> Bool {
         guard confirmed else { return false }
         try apply(.default)
+        refreshAllControls()
+        publishMessage("已恢复默认设置。")
         return true
     }
 
     func updateDraft(_ update: (inout InputSettings) -> Void) {
         update(&draftSettings)
-        refreshCommonControls()
+        refreshAllControls()
     }
 
     func confirmationMessage(for action: SettingsDestructiveAction) -> String {
@@ -216,7 +241,6 @@ final class SettingsWindowController: NSWindowController {
 
     private func groupView(_ title: String) -> NSView {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 390))
-        let labels: [String]
         switch title {
         case "常用":
             addCommonControls(to: view)
@@ -225,34 +249,8 @@ final class SettingsWindowController: NSWindowController {
             addKeyControls(to: view)
             return view
         case "外观":
-            labels = ["候选纵向排列"]
-            let stepper = NSStepper()
-            stepper.frame = NSRect(x: 24, y: 280, width: 96, height: 30)
-            stepper.minValue = 5
-            stepper.maxValue = 9
-            stepper.integerValue = settings.candidatePageSize
-            stepper.increment = 1
-            register(stepper, label: "每页候选数量 5 至 9")
-            pageSizeStepper = stepper
-            view.addSubview(stepper)
-
-            let layout = NSPopUpButton(frame: NSRect(x: 24, y: 232, width: 200, height: 30))
-            layout.addItems(withTitles: ["纵向候选", "横向候选"])
-            layout.selectItem(at: settings.candidateLayout == .vertical ? 0 : 1)
-            register(layout, label: "候选布局")
-            layoutPopup = layout
-            view.addSubview(layout)
-
-            let slider = NSSlider(value: settings.candidateFontScale, minValue: 0.8,
-                                  maxValue: 2, target: nil, action: nil)
-            slider.frame = NSRect(x: 24, y: 184, width: 260, height: 30)
-            register(slider, label: "候选字号缩放")
-            fontScaleSlider = slider
-            view.addSubview(slider)
-
-            let preview = NSTextField(labelWithString: "1  示例    2  示例    3  示例")
-            preview.frame = NSRect(x: 24, y: 120, width: 430, height: 40)
-            view.addSubview(preview)
+            addAppearanceControls(to: view)
+            return view
         case "高级":
             for (index, title) in ["私密模式", "本地学习"].enumerated() {
                 let control = makeButton(title, action: nil)
@@ -261,27 +259,158 @@ final class SettingsWindowController: NSWindowController {
                 control.frame = NSRect(x: 24, y: 330 - index * 48, width: 430, height: 30)
                 view.addSubview(control)
             }
-            for (index, title) in ["清除学习数据…", "搜索用户词条", "添加词条", "编辑词条", "删除词条…"].enumerated() {
-                let control = makeButton(title, action: nil)
-                control.frame = NSRect(x: 24, y: 234 - index * 38, width: 430, height: 30)
+            let actionButtons: [(String, Selector, NSRect)] = [
+                ("清除学习数据…", #selector(confirmClearLearning),
+                 NSRect(x: 24, y: 226, width: 170, height: 30)),
+                ("隐私与数据管理…", #selector(showPrivacyData),
+                 NSRect(x: 204, y: 226, width: 190, height: 30)),
+                ("搜索用户词条", #selector(searchUserLexicon),
+                 NSRect(x: 24, y: 178, width: 135, height: 30)),
+                ("添加词条", #selector(addUserLexiconEntry),
+                 NSRect(x: 169, y: 178, width: 105, height: 30)),
+                ("编辑词条", #selector(editUserLexiconEntry),
+                 NSRect(x: 284, y: 178, width: 105, height: 30)),
+                ("删除词条…", #selector(deleteUserLexiconEntry),
+                 NSRect(x: 399, y: 178, width: 125, height: 30))
+            ]
+            for (buttonTitle, action, frame) in actionButtons {
+                let control = makeActionButton(buttonTitle, action: action)
+                control.frame = frame
                 view.addSubview(control)
             }
             let importButton = makeButton("导入用户词库…", action: #selector(importLexicon))
-            importButton.frame = NSRect(x: 24, y: 42, width: 150, height: 30)
+            importButton.frame = NSRect(x: 24, y: 122, width: 150, height: 30)
             view.addSubview(importButton)
             let exportButton = makeButton("导出用户词库…", action: #selector(exportLexicon))
-            exportButton.frame = NSRect(x: 184, y: 42, width: 150, height: 30)
+            exportButton.frame = NSRect(x: 184, y: 122, width: 150, height: 30)
             view.addSubview(exportButton)
             return view
         default:
-            labels = []
+            return view
         }
-        for (index, label) in labels.enumerated() {
-            let control = makeButton(label, action: nil)
-            control.frame = NSRect(x: 24, y: 330 - index * 48, width: 430, height: 30)
-            view.addSubview(control)
-        }
-        return view
+    }
+
+    private func addAppearanceControls(to view: NSView) {
+        let heading = identifiedLabel("候选窗口", identifier: "外观标题",
+                                      font: .systemFont(ofSize: 17, weight: .semibold))
+        heading.frame = NSRect(x: 24, y: 342, width: 300, height: 24)
+        let summary = identifiedLabel("调整候选窗口的密度与阅读大小", identifier: "外观说明",
+                                      color: .secondaryLabelColor)
+        summary.frame = NSRect(x: 24, y: 316, width: 420, height: 20)
+        view.addSubview(heading)
+        view.addSubview(summary)
+
+        let settingsCard = appearanceCard(frame: NSRect(x: 24, y: 66, width: 330, height: 230))
+        let previewCard = appearanceCard(frame: NSRect(x: 370, y: 66, width: 246, height: 230))
+        view.addSubview(settingsCard)
+        view.addSubview(previewCard)
+
+        let pageTitle = identifiedLabel("每页候选", identifier: "每页候选标题",
+                                        font: .systemFont(ofSize: 13, weight: .medium))
+        pageTitle.frame = NSRect(x: 44, y: 248, width: 130, height: 20)
+        let pageHelp = identifiedLabel("控制翻页前显示的项目数", identifier: "每页候选说明",
+                                       color: .secondaryLabelColor)
+        pageHelp.frame = NSRect(x: 44, y: 226, width: 170, height: 18)
+        let pageValue = identifiedLabel("", identifier: "每页候选当前值",
+                                        font: .monospacedDigitSystemFont(ofSize: 13,
+                                                                        weight: .medium))
+        pageValue.alignment = .right
+        pageValue.frame = NSRect(x: 218, y: 239, width: 62, height: 24)
+        pageSizeValueLabel = pageValue
+        let stepper = NSStepper(frame: NSRect(x: 294, y: 236, width: 22, height: 28))
+        stepper.minValue = 5
+        stepper.maxValue = 9
+        stepper.integerValue = draftSettings.candidatePageSize
+        stepper.increment = 1
+        stepper.target = self
+        stepper.action = #selector(appearanceControlChanged(_:))
+        register(stepper, label: "每页候选数量 5 至 9")
+        pageSizeStepper = stepper
+
+        let layoutTitle = identifiedLabel("排列方式", identifier: "排列方式标题",
+                                          font: .systemFont(ofSize: 13, weight: .medium))
+        layoutTitle.frame = NSRect(x: 44, y: 181, width: 130, height: 20)
+        let layoutHelp = identifiedLabel("横向紧凑，纵向便于浏览", identifier: "排列方式说明",
+                                         color: .secondaryLabelColor)
+        layoutHelp.frame = NSRect(x: 44, y: 159, width: 170, height: 18)
+        let layout = NSPopUpButton(frame: NSRect(x: 210, y: 165, width: 106, height: 30))
+        layout.addItems(withTitles: ["纵向", "横向"])
+        layout.selectItem(at: draftSettings.candidateLayout == .vertical ? 0 : 1)
+        layout.target = self
+        layout.action = #selector(appearanceControlChanged(_:))
+        register(layout, label: "候选布局")
+        layoutPopup = layout
+
+        let fontTitle = identifiedLabel("文字大小", identifier: "文字大小标题",
+                                        font: .systemFont(ofSize: 13, weight: .medium))
+        fontTitle.frame = NSRect(x: 44, y: 114, width: 130, height: 20)
+        let fontHelp = identifiedLabel("保持正文清楚，不随比例暴涨", identifier: "文字大小说明",
+                                       color: .secondaryLabelColor)
+        fontHelp.frame = NSRect(x: 44, y: 92, width: 180, height: 18)
+        let fontValue = identifiedLabel("", identifier: "字号当前值",
+                                        font: .monospacedDigitSystemFont(ofSize: 12,
+                                                                        weight: .medium))
+        fontValue.alignment = .right
+        fontValue.frame = NSRect(x: 210, y: 112, width: 106, height: 20)
+        fontScaleValueLabel = fontValue
+        let slider = NSSlider(value: draftSettings.candidateFontScale, minValue: 0.8,
+                              maxValue: 2, target: self,
+                              action: #selector(appearanceControlChanged(_:)))
+        slider.frame = NSRect(x: 210, y: 83, width: 106, height: 24)
+        slider.numberOfTickMarks = 5
+        slider.allowsTickMarkValuesOnly = false
+        register(slider, label: "候选字号缩放")
+        fontScaleSlider = slider
+
+        [pageTitle, pageHelp, pageValue, stepper, layoutTitle, layoutHelp, layout,
+         fontTitle, fontHelp, fontValue, slider].forEach(view.addSubview)
+
+        let previewTitle = identifiedLabel("候选预览", identifier: "候选预览标题",
+                                           font: .systemFont(ofSize: 13, weight: .medium))
+        previewTitle.frame = NSRect(x: 390, y: 252, width: 150, height: 20)
+        let previewHelp = identifiedLabel("保存前确认实际密度", identifier: "候选预览说明",
+                                          color: .secondaryLabelColor)
+        previewHelp.frame = NSRect(x: 390, y: 230, width: 180, height: 18)
+        let preview = NSTextField(wrappingLabelWithString: "")
+        preview.identifier = NSUserInterfaceItemIdentifier("候选预览")
+        preview.frame = NSRect(x: 390, y: 91, width: 206, height: 124)
+        preview.drawsBackground = true
+        preview.backgroundColor = .textBackgroundColor.withAlphaComponent(0.72)
+        preview.isBezeled = false
+        preview.isEditable = false
+        preview.isSelectable = false
+        preview.maximumNumberOfLines = 3
+        preview.wantsLayer = true
+        preview.layer?.cornerRadius = 8
+        preview.layer?.cornerCurve = .continuous
+        preview.layer?.masksToBounds = true
+        preview.alignment = .center
+        appearancePreviewLabel = preview
+        view.addSubview(previewTitle)
+        view.addSubview(previewHelp)
+        view.addSubview(preview)
+        refreshAppearanceControls()
+    }
+
+    private func identifiedLabel(_ value: String, identifier: String,
+                                 font: NSFont = .systemFont(ofSize: 12),
+                                 color: NSColor = .labelColor) -> NSTextField {
+        let label = NSTextField(labelWithString: value)
+        label.identifier = NSUserInterfaceItemIdentifier(identifier)
+        label.font = font
+        label.textColor = color
+        return label
+    }
+
+    private func appearanceCard(frame: NSRect) -> NSBox {
+        let box = NSBox(frame: frame)
+        box.boxType = .custom
+        box.titlePosition = .noTitle
+        box.fillColor = .controlBackgroundColor.withAlphaComponent(0.72)
+        box.borderColor = .separatorColor.withAlphaComponent(0.55)
+        box.borderWidth = 1
+        box.cornerRadius = 10
+        return box
     }
 
     private func addCommonControls(to view: NSView) {
@@ -386,6 +515,10 @@ final class SettingsWindowController: NSWindowController {
         return button
     }
 
+    private func makeActionButton(_ title: String, action: Selector) -> NSButton {
+        makeButton(title, action: action)
+    }
+
     @objc private func applyFromControls() {
         var updated = draftSettings
         updated.autoCommitAtFour = isOn("四码唯一时直接上屏")
@@ -428,10 +561,28 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
+    @objc private func appearanceControlChanged(_ sender: NSControl) {
+        if sender === pageSizeStepper {
+            draftSettings.candidatePageSize = pageSizeStepper?.integerValue
+                ?? draftSettings.candidatePageSize
+        } else if sender === layoutPopup {
+            draftSettings.candidateLayout = layoutPopup?.indexOfSelectedItem == 1
+                ? .horizontal : .vertical
+        } else if sender === fontScaleSlider {
+            draftSettings.candidateFontScale = fontScaleSlider?.doubleValue
+                ?? draftSettings.candidateFontScale
+        }
+        refreshAppearanceControls()
+    }
+
     @objc private func runtimePolicyChanged(_ sender: NSButton) {
         switch sender.title {
-        case "私密模式": privacyController.setPrivateMode(sender.state == .on)
-        case "本地学习": privacyController.setLearningEnabled(sender.state == .on)
+        case "私密模式":
+            privacyController.setPrivateMode(sender.state == .on)
+            publishMessage(sender.state == .on ? "私密模式已开启。" : "私密模式已关闭。")
+        case "本地学习":
+            privacyController.setLearningEnabled(sender.state == .on)
+            publishMessage(sender.state == .on ? "本地学习已开启。" : "本地学习已关闭。")
         default: return
         }
         refreshRuntimePolicyControls()
@@ -470,14 +621,13 @@ final class SettingsWindowController: NSWindowController {
             button.state = draftSettings.keyBindings.pageKeyGroups.contains(.tab) ? .on : .off
         case "上下方向键翻页":
             button.state = draftSettings.keyBindings.pageKeyGroups.contains(.arrows) ? .on : .off
-        case "候选纵向排列": button.state = draftSettings.candidateLayout == .vertical ? .on : .off
         case "私密模式": button.state = privacyController.privateMode ? .on : .off
         case "本地学习": button.state = privacyController.learningEnabled ? .on : .off
         default: break
         }
     }
 
-    private func refreshCommonControls() {
+    private func refreshAllControls() {
         controlsByTitle.forEach { configureInitialState($0.value, title: $0.key) }
         popupsByLabel["初始语言"]?.selectItem(at: draftSettings.defaultMode.language == .chinese ? 0 : 1)
         popupsByLabel["初始简繁体"]?.selectItem(at: draftSettings.defaultMode.script == .simplified ? 0 : 1)
@@ -489,7 +639,26 @@ final class SettingsWindowController: NSWindowController {
         popupsByLabel["键盘布局"]?.selectItem(
             at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1
         )
+        pageSizeStepper?.integerValue = draftSettings.candidatePageSize
+        layoutPopup?.selectItem(at: draftSettings.candidateLayout == .vertical ? 0 : 1)
+        fontScaleSlider?.doubleValue = draftSettings.candidateFontScale
+        refreshAppearanceControls()
         refreshRuntimePolicyControls()
+    }
+
+    private func refreshAppearanceControls() {
+        pageSizeValueLabel?.stringValue = "\(draftSettings.candidatePageSize) 个"
+        let pointSize = CandidateTypography.candidatePointSize(
+            for: draftSettings.candidateFontScale
+        )
+        let displayName = CandidateTypography.displayName(for: draftSettings.candidateFontScale)
+        fontScaleValueLabel?.stringValue = "\(displayName) · \(Int(pointSize.rounded())) pt"
+        let isHorizontal = draftSettings.candidateLayout == .horizontal
+        appearancePreviewLabel?.stringValue = isHorizontal
+            ? "1  示例    2  示例    3  示例"
+            : "1  示例\n2  示例\n3  示例"
+        appearancePreviewLabel?.font = .systemFont(ofSize: pointSize, weight: .regular)
+        appearancePreviewLabel?.alignment = isHorizontal ? .center : .left
     }
 
     private func refreshRuntimePolicyControls() {
@@ -499,6 +668,10 @@ final class SettingsWindowController: NSWindowController {
 
     private func publishMessage(_ message: String) {
         lastValidationMessage = message
+        feedbackLabel?.stringValue = message
+        feedbackLabel?.textColor = message.contains("失败") || message.contains("无效")
+            || message.contains("冲突") || message.contains("不可用")
+            ? .systemRed : .secondaryLabelColor
     }
 
     private func reject(_ message: String, focus label: String) {
@@ -508,8 +681,13 @@ final class SettingsWindowController: NSWindowController {
         } else if ["中英文切换", "简繁切换", "全半角切换", "键盘布局"]
             .contains(label) {
             tabView?.selectTabViewItem(withIdentifier: "按键")
+        } else if ["清除学习数据…", "搜索用户词条", "添加词条", "编辑词条",
+                   "删除词条…", "导入用户词库…", "导出用户词库…",
+                   "隐私与数据管理…"].contains(label) {
+            tabView?.selectTabViewItem(withIdentifier: "高级")
         }
-        if let control = registeredControls.first(where: { title(for: $0) == label }) {
+        if let control = registeredControls.first(where: { title(for: $0) == label }),
+           control.window != nil {
             window?.makeFirstResponder(control)
         }
         publishMessage(message)
@@ -525,23 +703,97 @@ final class SettingsWindowController: NSWindowController {
         alert.informativeText = "只恢复 Settings；用户词库和学习数据不会删除。"
         alert.addButton(withTitle: "恢复默认")
         alert.addButton(withTitle: "取消")
-        if alert.runModal() == .alertFirstButtonReturn { _ = try? restoreDefaults(confirmed: true) }
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            publishMessage("已取消恢复默认设置。")
+            return
+        }
+        do {
+            _ = try restoreDefaults(confirmed: true)
+        } catch {
+            reject("恢复默认设置失败，最后有效设置保持不变。", focus: "初始语言")
+        }
+    }
+
+    @objc private func confirmClearLearning() {
+        let alert = NSAlert()
+        alert.messageText = "清除全部学习数据？"
+        alert.informativeText = "用户词库和设置不会改变。"
+        alert.addButton(withTitle: "清除")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            publishMessage("已取消清除学习数据。")
+            return
+        }
+        do {
+            let removed = try personalizationCoordinator.clearLearning()
+            publishMessage("学习数据已清除（\(removed) 条）。")
+        } catch {
+            reject("清除学习数据失败，原数据保持不变。", focus: "清除学习数据…")
+        }
+    }
+
+    @objc private func searchUserLexicon() { showUserLexicon(.search, "已打开用户词库搜索。") }
+    @objc private func addUserLexiconEntry() { showUserLexicon(.add, "已打开添加词条。") }
+    @objc private func editUserLexiconEntry() { showUserLexicon(.edit, "请选择要编辑的词条。") }
+    @objc private func deleteUserLexiconEntry() { showUserLexicon(.delete, "请选择要删除的词条。") }
+
+    private func showUserLexicon(_ mode: UserLexiconWindowMode, _ message: String) {
+        guard personalizationCoordinator.userLexiconService != nil else {
+            reject("用户词库当前不可用。", focus: "搜索用户词条")
+            return
+        }
+        userLexiconWindowController.show(mode: mode)
+        publishMessage(message)
+    }
+
+    @objc private func showPrivacyData() {
+        let content = PrivacyViewController.makeDefault()
+        let privacyWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 380),
+                                     styleMask: [.titled, .closable, .resizable],
+                                     backing: .buffered, defer: false)
+        privacyWindow.title = "隐私与本地数据"
+        privacyWindow.contentViewController = content
+        privacyWindow.isReleasedWhenClosed = false
+        let controller = NSWindowController(window: privacyWindow)
+        privacyWindowController = controller
+        privacyWindow.center()
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        publishMessage("已打开隐私与本地数据管理。")
     }
 
     @objc private func importLexicon() {
-        guard let importer = PersonalizationCoordinator.shared.lexiconImporter else { return }
-        _ = try? panelController.performImport { [weak self] data in
-            let report = data.starts(with: Data("MWARCH01".utf8))
-                ? try importer.importArchive(data) : try importer.importText(data)
-            self?.importReportController.present(report)
+        guard let importer = personalizationCoordinator.lexiconImporter else {
+            reject("用户词库导入当前不可用。", focus: "导入用户词库…")
+            return
+        }
+        do {
+            let selected = try panelController.performImport { [weak self] data in
+                let report = data.starts(with: Data("MWARCH01".utf8))
+                    ? try importer.importArchive(data) : try importer.importText(data)
+                self?.importReportController.present(report)
+                self?.importReportController.show()
+                self?.publishMessage("导入完成：新增 \(report.acceptedCount)，合并 \(report.mergedCount)，跳过 \(report.skippedCount)，失败 \(report.failedCount)。")
+            }
+            if !selected { publishMessage("已取消导入。") }
+        } catch {
+            reject("导入失败，原用户词库保持不变。", focus: "导入用户词库…")
         }
     }
 
     @objc private func exportLexicon() {
-        guard let exporter = PersonalizationCoordinator.shared.lexiconExporter,
-              let data = try? exporter.archiveData(includeLearning: false) else { return }
-        _ = try? panelController.performExport(data, using: exporter) {
-            _ = try LexiconArchiveCodec.decode($0)
+        guard let exporter = personalizationCoordinator.lexiconExporter else {
+            reject("用户词库导出当前不可用。", focus: "导出用户词库…")
+            return
+        }
+        do {
+            let data = try exporter.archiveData(includeLearning: false)
+            let selected = try panelController.performExport(data, using: exporter) {
+                _ = try LexiconArchiveCodec.decode($0)
+            }
+            publishMessage(selected ? "用户词库已导出。" : "已取消导出。")
+        } catch {
+            reject("导出失败，目标文件保持原状。", focus: "导出用户词库…")
         }
     }
 

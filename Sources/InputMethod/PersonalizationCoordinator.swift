@@ -1,5 +1,9 @@
 import Foundation
 
+enum PersonalizationOperationError: Error, Equatable {
+    case unavailable
+}
+
 final class PersonalizationCoordinator {
     static let shared = PersonalizationCoordinator()
 
@@ -178,6 +182,14 @@ final class PersonalizationCoordinator {
         self.learningEnabled = learningEnabled
         lock.unlock()
         learningStore?.isEnabled = learningEnabled && !privateMode
+    }
+
+    @discardableResult
+    func clearLearning() throws -> Int {
+        guard let learningStore else { throw PersonalizationOperationError.unavailable }
+        let removedCount = learningStore.snapshot.records.count
+        try learningStore.clear()
+        return removedCount
     }
 
     func apply(settings: InputSettings) {

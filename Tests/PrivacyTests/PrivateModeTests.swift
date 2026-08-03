@@ -94,6 +94,34 @@ final class PrivateModeTests: XCTestCase {
             XCTAssertEqual(learning.snapshot, before)
         }
     }
+
+    func testCoordinatorClearLearningReportsRemovedRecordsAndPersistsEmptySnapshot() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacWubiClearLearning-\(UUID().uuidString)",
+                                   isDirectory: true)
+        let writer = try SnapshotWriter(rootURL: root)
+        let learning = try LearningStore(writer: writer)
+        let code = try XCTUnwrap(InputCode("a"))
+        try learning.recordSelection(code: code, candidateText: "甲")
+        try learning.recordSelection(code: code, candidateText: "乙")
+        let coordinator = PersonalizationCoordinator(index: nil, userStore: nil,
+                                                      learningStore: learning)
+
+        XCTAssertEqual(try coordinator.clearLearning(), 2)
+        XCTAssertTrue(learning.snapshot.records.isEmpty)
+
+        let reopened = try LearningStore(writer: SnapshotWriter(rootURL: root))
+        XCTAssertTrue(reopened.snapshot.records.isEmpty)
+    }
+
+    func testCoordinatorClearLearningReportsUnavailableStore() {
+        let coordinator = PersonalizationCoordinator(index: nil, userStore: nil,
+                                                      learningStore: nil)
+
+        XCTAssertThrowsError(try coordinator.clearLearning()) { error in
+            XCTAssertEqual(error as? PersonalizationOperationError, .unavailable)
+        }
+    }
 }
 
 private final class PrivacySessionSpy: PrivacySessionControlling {
