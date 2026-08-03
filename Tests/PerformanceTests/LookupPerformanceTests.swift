@@ -64,6 +64,7 @@ final class LookupPerformanceTests: XCTestCase {
         let allEnabledPolicy = allEnabled.candidateRankingPolicy(generation: 99)
         let wubiCode = try XCTUnwrap(InputCode("wqvb"))
         let prefix = try XCTUnwrap(CompositionKeySequence("nih"))
+        let predictivePrefix = try XCTUnwrap(CompositionKeySequence("shenm"))
         let exact = try XCTUnwrap(CompositionKeySequence("nihao"))
         let wubiAssociation = try XCTUnwrap(CompositionKeySequence("sm"))
         let largestWubiAssociationRange = try XCTUnwrap(CompositionKeySequence("kh"))
@@ -111,6 +112,15 @@ final class LookupPerformanceTests: XCTestCase {
                     scriptConverter: converter
                 )
                 XCTAssertEqual(result.pinyinState, .viablePrefix)
+            },
+            Sample(name: "pinyin-prefix-prediction") {
+                let result = try coordinator.page(
+                    for: predictivePrefix, pageIndex: 0, policy: allEnabledPolicy,
+                    mode: allEnabled.defaultMode, mixedPinyinEnabled: true,
+                    scriptConverter: converter
+                )
+                XCTAssertEqual(result.pinyinState, .viablePrefix)
+                XCTAssertEqual(result.page.items.first?.text, "什麼")
             },
             Sample(name: "pinyin-exact") {
                 let result = try coordinator.page(

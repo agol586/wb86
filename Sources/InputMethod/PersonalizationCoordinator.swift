@@ -218,7 +218,9 @@ final class PersonalizationCoordinator {
         guard index.prefixExists(sequence) else { return (.noMatch, []) }
         var pageIndex = 0
         var page = try index.page(for: sequence, pageIndex: pageIndex, pageSize: 9)
-        guard page.totalCount > 0 else { return (.viablePrefix, []) }
+        guard page.totalCount > 0 else {
+            return (.viablePrefix, try index.predictions(for: sequence))
+        }
         var candidates = page.items
         while page.hasNext {
             pageIndex += 1

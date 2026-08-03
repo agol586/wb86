@@ -23,9 +23,12 @@ struct PinyinLookupPage: Equatable, Sendable {
     var hasNext: Bool { (pageIndex + 1) * pageSize < totalCount }
 }
 
-/// Bounded lookup over a validated MWPY mapping. Keys are decoded from the nearest 32-key restart,
-/// and only the requested candidate page is decoded.
+/// Bounded lookup over a validated MWPY mapping. Keys are decoded from the nearest 32-key restart;
+/// exact lookup decodes one page, while prefix prediction uses fixed key and candidate limits.
 struct PinyinDictionaryIndex: Sendable {
+    static let maximumPredictionKeys = 24
+    static let maximumPredictionCandidates = 24
+
     private let image: PinyinDictionaryImage
 
     var mappedImageIdentity: ObjectIdentifier { ObjectIdentifier(image) }
@@ -81,6 +84,80 @@ struct PinyinDictionaryIndex: Sendable {
         }
         return PinyinLookupPage(items: items, pageIndex: pageIndex,
                                 pageSize: pageSize, totalCount: totalCount)
+    }
+
+    func predictions(for sequence: CompositionKeySequence,
+                     maximumKeyCount: Int = Self.maximumPredictionKeys,
+                     maximumCandidateCount: Int = Self.maximumPredictionCandidates) throws
+        -> [PinyinLookupCandidate] {
+        let keyLimit = min(max(0, maximumKeyCount), Self.maximumPredictionKeys)
+        let candidateLimit = min(max(0, maximumCandidateCount),
+                                 Self.maximumPredictionCandidates)
+        guard keyLimit > 0, candidateLimit > 0 else { return [] }
+
+        struct Prediction {
+            let candidate: PinyinLookupCandidate
+            let key: [UInt8]
+        }
+        func precedes(_ lhs: Prediction, _ rhs: Prediction) -> Bool {
+            if lhs.candidate.weight != rhs.candidate.weight {
+                return lhs.candidate.weight > rhs.candidate.weight
+            }
+            if lhs.key.count != rhs.key.count { return lhs.key.count < rhs.key.count }
+            if lhs.key != rhs.key { return lhs.key.lexicographicallyPrecedes(rhs.key) }
+            if lhs.candidate.baseRank != rhs.candidate.baseRank {
+                return lhs.candidate.baseRank < rhs.candidate.baseRank
+            }
+            return lhs.candidate.text.utf8.lexicographicallyPrecedes(
+                rhs.candidate.text.utf8
+            )
+        }
+
+        let query = Array(sequence.letters.utf8)
+        let range = bucketRange(for: query)
+        guard range.start < range.end,
+              let start = lowerBound(for: query, in: range) else { return [] }
+
+        var bestByText = [String: Prediction]()
+        var keyCount = 0
+        var decodedCandidateCount = 0
+        var index = start
+        while index < Int(range.end), keyCount < keyLimit,
+              decodedCandidateCount < candidateLimit {
+            guard let key = keyBytes(at: index) else {
+                throw PinyinDictionaryQueryError.corruptImage
+            }
+            guard key.starts(with: query) else { break }
+            index += 1
+            guard key.count > query.count else { continue }
+            guard let record = keyRecord(at: index - 1),
+                  (1...64).contains(Int(record.candidateCount)) else {
+                throw PinyinDictionaryQueryError.corruptImage
+            }
+            keyCount += 1
+            for relativeIndex in 0..<Int(record.candidateCount) {
+                guard decodedCandidateCount < candidateLimit else { break }
+                let absoluteIndex = Int(record.candidateStart) + relativeIndex
+                guard let candidate = candidate(at: absoluteIndex,
+                                                baseRank: relativeIndex) else {
+                    throw PinyinDictionaryQueryError.corruptImage
+                }
+                decodedCandidateCount += 1
+                let prediction = Prediction(candidate: candidate, key: key)
+                if let existing = bestByText[candidate.text],
+                   !precedes(prediction, existing) {
+                    continue
+                }
+                bestByText[candidate.text] = prediction
+            }
+        }
+
+        return bestByText.values.sorted(by: precedes).enumerated().map { rank, value in
+            PinyinLookupCandidate(text: value.candidate.text,
+                                  weight: value.candidate.weight,
+                                  baseRank: rank,
+                                  wubiHint: value.candidate.wubiHint)
+        }
     }
 
     private func bucketRange(for query: [UInt8]) -> PinyinBucketRange {

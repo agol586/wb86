@@ -230,6 +230,40 @@ final class CandidateQueryTests: XCTestCase {
         }
     }
 
+    func testPinyinPrefixPredictionRanksAndDeduplicatesBoundedFutureKeys() throws {
+        let index = try pinyinIndex()
+        let prefix = try XCTUnwrap(CompositionKeySequence("shenm"))
+
+        let predicted = try index.predictions(for: prefix)
+
+        XCTAssertEqual(predicted.map(\.text), ["什么", "生命", "重复"])
+        XCTAssertEqual(predicted.map(\.baseRank), [0, 1, 2])
+        XCTAssertEqual(predicted.filter { $0.text == "重复" }.count, 1)
+        XCTAssertLessThanOrEqual(predicted.count,
+                                 PinyinDictionaryIndex.maximumPredictionCandidates)
+        XCTAssertEqual(
+            try index.predictions(for: prefix, maximumKeyCount: 1,
+                                  maximumCandidateCount: 1).map(\.text),
+            ["什么"]
+        )
+    }
+
+    func testPinyinExactCandidatesDoNotMixPrefixPredictions() throws {
+        let index = try pinyinIndex()
+        let coordinator = PersonalizationCoordinator(index: nil, pinyinIndex: index,
+                                                      userStore: nil, learningStore: nil)
+        let result = try coordinator.page(
+            for: XCTUnwrap(CompositionKeySequence("ni")), pageIndex: 0,
+            policy: CandidateRankingPolicy(settingsGeneration: 1, pageSize: 9,
+                                           automaticFrequency: false),
+            mode: .default, mixedPinyinEnabled: true, scriptConverter: nil
+        )
+
+        XCTAssertEqual(result.pinyinState, .exactMatch)
+        XCTAssertEqual(result.page.totalCount, 12)
+        XCTAssertFalse(result.page.items.contains { $0.text == "你好" })
+    }
+
     func testMixedRankingKeepsUserAndBaseWubiAheadAndLearningInsideEachTier() throws {
         let code = try XCTUnwrap(InputCode("a"))
         let sequence = try XCTUnwrap(CompositionKeySequence("a"))
@@ -360,6 +394,20 @@ final class CandidateQueryTests: XCTestCase {
                 PinyinDictionaryEntry(
                     key: "nimen",
                     candidates: [PinyinDictionaryCandidate(text: "你们", weight: 1)]
+                ),
+                PinyinDictionaryEntry(
+                    key: "shenme",
+                    candidates: [
+                        PinyinDictionaryCandidate(text: "什么", weight: 300),
+                        PinyinDictionaryCandidate(text: "重复", weight: 100)
+                    ]
+                ),
+                PinyinDictionaryEntry(
+                    key: "shenming",
+                    candidates: [
+                        PinyinDictionaryCandidate(text: "生命", weight: 200),
+                        PinyinDictionaryCandidate(text: "重复", weight: 50)
+                    ]
                 ),
                 PinyinDictionaryEntry(key: "shi", candidates: sixtyFour),
                 PinyinDictionaryEntry(

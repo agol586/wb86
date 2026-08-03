@@ -420,3 +420,13 @@ Chrome 五类客户端共同通过物理矩阵。
   `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift` 覆盖 `sm` 精确候选优先、基础词组
   联想、去重、分页、剩余码提示和查询预算，再在 `DictionaryIndex.swift`、`CandidateRanker.swift`、
   `PersonalizationCoordinator.swift` 与 `CandidateLayoutController.swift` 实现有界的二/三码本地联想。
+
+---
+
+## Phase 17: Pinyin prefix prediction
+
+- [X] T093 [US4] 先在 `Tests/CoreTests/CandidateQueryTests.swift`、
+  `Tests/IntegrationTests/PersonalizationIntegrationTests.swift` 与
+  `Tests/PerformanceTests/LookupPerformanceTests.swift` 覆盖 `shenm → 什么`、精确键优先、预测去重、
+  固定扫描/候选上限和每样本 `<2 ms`，再在 `Sources/Core/PinyinDictionaryIndex.swift` 与
+  `Sources/InputMethod/PersonalizationCoordinator.swift` 实现仅在精确候选为空时启用的本地拼音前缀预测。

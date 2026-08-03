@@ -3,6 +3,42 @@ import XCTest
 @testable import MacWubi
 
 final class PersonalizationIntegrationTests: XCTestCase {
+    func testBundledPinyinPredictsShenmeFromShenmAndThenUsesExactKey() throws {
+        let bundle = Bundle(for: Self.self)
+        let wb86URL = try XCTUnwrap(
+            Bundle.main.url(forResource: "wb86", withExtension: "bin")
+                ?? bundle.url(forResource: "wb86", withExtension: "bin")
+        )
+        let pinyinURL = try XCTUnwrap(
+            Bundle.main.url(forResource: "pinyin-simp", withExtension: "bin")
+                ?? bundle.url(forResource: "pinyin-simp", withExtension: "bin")
+        )
+        let wb86 = try DictionaryLoader.load(from: wb86URL)
+        let coordinator = PersonalizationCoordinator(
+            index: DictionaryIndex(image: wb86),
+            pinyinIndex: PinyinDictionaryIndex(image: try PinyinDictionaryLoader.load(
+                from: pinyinURL, wb86Image: wb86
+            )),
+            userStore: nil, learningStore: nil
+        )
+        let policy = CandidateRankingPolicy(settingsGeneration: 1, pageSize: 9,
+                                            automaticFrequency: false)
+
+        let predicted = try coordinator.page(
+            for: XCTUnwrap(CompositionKeySequence("shenm")), pageIndex: 0, policy: policy,
+            mode: .default, mixedPinyinEnabled: true, scriptConverter: nil
+        )
+        let exact = try coordinator.page(
+            for: XCTUnwrap(CompositionKeySequence("shenme")), pageIndex: 0, policy: policy,
+            mode: .default, mixedPinyinEnabled: true, scriptConverter: nil
+        )
+
+        XCTAssertEqual(predicted.pinyinState, .viablePrefix)
+        XCTAssertEqual(predicted.page.items.first?.text, "什么")
+        XCTAssertEqual(exact.pinyinState, .exactMatch)
+        XCTAssertEqual(exact.page.items.first?.text, "什么")
+    }
+
     func testBundledDictionaryAssociatesWordsAfterSMWithoutLosingExactMachine() throws {
         let resourceURL = try XCTUnwrap(
             Bundle.main.url(forResource: "wb86", withExtension: "bin")
