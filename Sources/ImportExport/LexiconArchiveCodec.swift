@@ -81,7 +81,8 @@ enum LexiconArchiveCodec {
                                                           from: Data(learnData)),
                   decoded.count <= 50_000,
                   decoded.allSatisfy({
-                      CandidateQueryKey(kind: $0.kind ?? .wubi, code: $0.code) != nil
+                      ($0.kind ?? .wubi) != .directInput
+                          && CandidateQueryKey(kind: $0.kind ?? .wubi, code: $0.code) != nil
                           && !$0.candidateText.isEmpty
                           && $0.score > 0 && $0.score <= 1_000_000
                   }) else {

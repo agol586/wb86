@@ -134,12 +134,18 @@ final class InputEngine {
 
     @discardableResult
     func process(_ event: InputEvent) -> InputProcessingResult {
+        if let directResult = processDirectInputComposition(event) {
+            return directResult
+        }
         if mode.language == .directEnglish, case .letter = event {
             return result(state: state, consumed: false)
         }
 
         switch event {
         case let .letter(letter):
+            if state == .idle, mode.language == .chinese, isASCIIUppercase(letter) {
+                return composeDirectInput(letter)
+            }
             return processLetter(letter)
         case let .select(ordinal):
             return processSelection(ordinal)
@@ -158,7 +164,7 @@ final class InputEngine {
         case .passThrough:
             return clearIfComposing(consumedWhenComposing: false)
         case .switchLanguage:
-            return switchMode { mode in
+            return switchMode(commitRawComposition: true) { mode in
                 mode.language = mode.language == .chinese ? .directEnglish : .chinese
             }
         case .switchPunctuation:
@@ -294,8 +300,11 @@ final class InputEngine {
         return result(state: .idle, clientAction: .commitText(converted), consumed: true)
     }
 
-    private func switchMode(_ update: (inout InputMode) -> Void) -> InputProcessingResult {
-        let resetActions = cancelCompositionForModeSwitch()
+    private func switchMode(commitRawComposition: Bool = false,
+                            _ update: (inout InputMode) -> Void) -> InputProcessingResult {
+        let resetActions = resolveCompositionForModeSwitch(
+            commitRawComposition: commitRawComposition
+        )
         update(&mode)
         return result(
             state: .idle,
@@ -305,11 +314,107 @@ final class InputEngine {
         )
     }
 
-    private func cancelCompositionForModeSwitch()
+    private func resolveCompositionForModeSwitch(commitRawComposition: Bool)
         -> (client: ClientTextAction, candidates: CandidateWindowAction) {
-        guard state.kind == .composing else { return (.none, .none) }
+        guard let composition = state.composition else { return (.none, .none) }
         state = .idle
-        return (.clearMarkedText, .hide)
+        let clientAction: ClientTextAction = commitRawComposition
+            ? .commitText(composition.sequence.letters)
+            : .clearMarkedText
+        return (clientAction, .hide)
+    }
+
+    private func processDirectInputComposition(_ event: InputEvent) -> InputProcessingResult? {
+        guard let directInput = state.directInput else { return nil }
+        switch event {
+        case let .letter(letter):
+            return composeDirectInput(directInput.text + letter)
+        case let .text(text):
+            if !text.isEmpty, text.allSatisfy({ $0.isWhitespace }) {
+                return commitDirectInput(directInput.text, consumed: true)
+            }
+            return composeDirectInput(directInput.text + text)
+        case .backspace:
+            let shortened = String(directInput.text.dropLast())
+            guard !shortened.isEmpty else {
+                state = .idle
+                return result(state: .idle, clientAction: .clearMarkedText,
+                              candidateAction: .hide, consumed: true)
+            }
+            return composeDirectInput(shortened)
+        case .cancel:
+            state = .idle
+            return result(state: .idle, clientAction: .clearMarkedText,
+                          candidateAction: .hide, consumed: true)
+        case .passThrough:
+            return commitDirectInput(directInput.text, consumed: false)
+        case .selectFirst:
+            return commitDirectInput(directInput.text, consumed: true)
+        case let .select(ordinal):
+            guard ordinal == 1 else { return result(state: state, consumed: false) }
+            return commitDirectInput(directInput.text, consumed: true)
+        case .pagePrevious, .pageNext:
+            return result(state: state, consumed: false)
+        case .switchLanguage:
+            mode.language = mode.language == .chinese ? .directEnglish : .chinese
+            return commitDirectInput(directInput.text, consumed: true)
+        case .switchPunctuation:
+            mode.punctuation = mode.punctuation == .chinese ? .english : .chinese
+            return commitDirectInput(directInput.text, consumed: true)
+        case .switchWidth:
+            mode.width = mode.width == .half ? .full : .half
+            return commitDirectInput(directInput.text, consumed: true)
+        case .switchScript:
+            mode.script = mode.script == .simplified ? .traditional : .simplified
+            return commitDirectInput(directInput.text, consumed: true)
+        }
+    }
+
+    private func composeDirectInput(_ text: String) -> InputProcessingResult {
+        do {
+            guard let queryKey = CandidateQueryKey(kind: .directInput, code: text) else {
+                return recoverFromError()
+            }
+            let candidate = try Candidate(
+                text: text,
+                queryKey: queryKey,
+                source: .directInput,
+                baseRank: 0,
+                learnedScore: 0,
+                ordinal: 1
+            )
+            let page = try CandidatePage(
+                items: [candidate],
+                pageIndex: 0,
+                pageSize: rankingPolicy.pageSize,
+                totalCount: 1
+            )
+            let next = try CompositionState.directInput(text: text, candidates: page)
+            state = next
+            return result(
+                state: next,
+                clientAction: .setMarkedText(text),
+                candidateAction: .show(page),
+                consumed: true
+            )
+        } catch {
+            return recoverFromError()
+        }
+    }
+
+    private func commitDirectInput(_ text: String, consumed: Bool) -> InputProcessingResult {
+        state = .idle
+        return result(
+            state: .idle,
+            clientAction: .commitText(text),
+            candidateAction: .hide,
+            consumed: consumed
+        )
+    }
+
+    private func isASCIIUppercase(_ text: String) -> Bool {
+        let bytes = Array(text.utf8)
+        return bytes.count == 1 && (65...90).contains(bytes[0])
     }
 
     private func processSelection(_ ordinal: Int) -> InputProcessingResult {

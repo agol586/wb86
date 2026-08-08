@@ -51,6 +51,15 @@ final class CoreModelTests: XCTestCase {
         XCTAssertThrowsError(try CandidateIdentity(queryKey: pinyinKey, text: ""))
     }
 
+    func testDirectInputIdentityPreservesDisplayTextAndRejectsControlCharacters() throws {
+        let raw = "MacWubi_86"
+        let key = try XCTUnwrap(CandidateQueryKey(kind: .directInput, code: raw))
+        XCTAssertEqual(key.normalizedCode, raw)
+        XCTAssertNil(key.wubiCode)
+        XCTAssertNil(CandidateQueryKey(kind: .directInput, code: "bad\nvalue"))
+        XCTAssertNil(CandidateQueryKey(kind: .directInput, code: ""))
+    }
+
     func testInputEventVocabularyIsValueSemantic() {
         XCTAssertEqual(InputEvent.letter("A"), .letter("A"))
         XCTAssertNotEqual(InputEvent.select(1), .select(9))

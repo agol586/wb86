@@ -2,6 +2,7 @@ enum CandidateSource: String, Codable, Sendable {
     case baseWubi
     case userWubi
     case localPinyin
+    case directInput
 
     // Compatibility spellings for the existing Wubi-only call sites. Persisted and
     // user-visible source identities use the explicit names above.

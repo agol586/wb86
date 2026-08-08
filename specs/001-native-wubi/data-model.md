@@ -9,6 +9,7 @@
 | `sessionID` | 进程内不透明标识 | 仅关联生命周期，不写日志或磁盘 |
 | `state` | `CompositionState` | 每次事件后必须处于合法状态 |
 | `mode` | `InputMode` | 会话激活时读取设置默认值，可临时切换 |
+| `directInput` | Optional raw composition | 中文空闲态首个大写字母开启；保留大小写和符号、显示单一候选，不改变 `mode` |
 | `secureInput` | Boolean | 为 true 时禁止任何学习和用户数据写入 |
 | `clientAvailable` | Boolean | 客户端失效时立即复位并停止提交 |
 
@@ -42,7 +43,12 @@ composing(code, candidates, pageIndex, selectionIndex)
 | composing | 取消、失焦或输入源切换 | idle | 清除 marked text 和候选，不提交、不学习 |
 | composing | 有效选择 | idle | 提交所选文本；非安全场景可生成一个学习增量 |
 | composing | 有效翻页或移动选择 | composing | 仅更新页码或选择，不改变编码 |
-| any | 模式变化 | idle 或 composing | 依据设置提交或取消一次，禁止残留状态 |
+| composing | 中英文切换 | idle | 原样提交当前编码一次、隐藏候选、不学习，再切换语言 |
+| any | 其他模式变化 | idle 或 composing | 依据设置取消一次，禁止残留状态 |
+| idle | 首个大写 ASCII 字母 | direct input composing | 设置原文 marked text 并显示单一原文候选，不查询、不学习、不改变语言模式 |
+| direct input composing | 字母、数字或普通符号 | direct input composing | 追加原文并同步 marked text 与候选 |
+| direct input composing | 空格、回车或选择首项 | idle | 原子提交整段原文，隐藏候选，不学习；回车由输入法消费，不向应用插入换行 |
+| direct input composing | 退格或 Escape | composing 或 idle | 退格修正原文；Escape 清空且不提交 |
 | any | 数据、客户端或内部错误 | idle | 清除组合与候选，不提交、不学习 |
 
 ## InputMode

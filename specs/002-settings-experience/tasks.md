@@ -87,7 +87,7 @@
 - [X] T021 [US2] 先在 `Tests/CoreTests/InputModeTests.swift` 覆盖精确 modifiers、非重复 Control-Shift-F、宽度预设和应用快捷键优先级，再在 `Sources/InputMethod/InputEventMapper.swift` 实现“模式绑定→系统快捷键透传→候选控制→普通输入”的确定映射
 - [X] T022 [US2] 在 `Tests/CoreTests/InputModeTests.swift` 覆盖五组翻页的启用集合、双向、空闲、修饰键、页边界及分号/单引号缺失目标，并在 `Sources/InputMethod/InputEventMapper.swift` 和 `Sources/Core/InputEngine.swift` 实现单事件动作与活动组合边界消费
 - [X] T023 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖 flagsChanged 两端透传、release 副作用、失活和 reset，再在 `Sources/InputMethod/InputController.swift` 以 `super.recognizedEvents | flagsChanged` 接入 Shift recognizer 和布局 translator
-- [X] T024 [US2] 在 `Tests/CoreTests/InputEngineTests.swift` 覆盖语言/简繁/全半角快捷键安全取消 marked text、隐藏候选且不提交原始编码，并在 `Sources/Core/InputEngine.swift` 完成当前会话模式切换语义
+- [X] T024 [US2] 在 `Tests/CoreTests/InputEngineTests.swift` 覆盖语言/简繁/全半角快捷键安全取消 marked text、隐藏候选且不提交原始编码，并在 `Sources/Core/InputEngine.swift` 完成当前会话模式切换语义；其中语言切换语义后由 T094 修订为提交原始编码
 - [X] T025 [US2] 先在 `Tests/AccessibilityTests/SettingsWindowTests.swift` 覆盖“按键”页三个切换预设、五组复选、布局和冲突定位，再在 `Sources/InputMethod/SettingsWindowController.swift` 实现按键页及布局不可用反馈
 - [X] T026 [US2] 在 `Tests/AdapterContractTests/InputControllerContractTests.swift` 和 `Tests/IntegrationTests/ModeInputIntegrationTests.swift` 增加完整事件矩阵，验证候选控制、应用快捷键、translator 快照与每事件最多一次动作
 - [ ] T027 [US2] 在签名 arm64 开发构建上验证单 Shift、无卡键、点击组合区内外、候选鼠标选择、失活与跨应用透传，并将可复现步骤和结果记录到 `specs/002-settings-experience/evidence/us2-inputmethodkit-events.md`
@@ -430,3 +430,26 @@ Chrome 五类客户端共同通过物理矩阵。
   `Tests/PerformanceTests/LookupPerformanceTests.swift` 覆盖 `shenm → 什么`、精确键优先、预测去重、
   固定扫描/候选上限和每样本 `<2 ms`，再在 `Sources/Core/PinyinDictionaryIndex.swift` 与
   `Sources/InputMethod/PersonalizationCoordinator.swift` 实现仅在精确候选为空时启用的本地拼音前缀预测。
+
+---
+
+## Phase 18: Language-switch preservation and uppercase direct input
+
+- [X] T094 [US2] 先在 `Tests/CoreTests/InputEngineTests.swift` 和
+  `Tests/AdapterContractTests/InputControllerContractTests.swift` 覆盖组合中语言切换提交原始编码、
+  其他模式仍取消、首字母大写开启不改变语言的原样直输段及 `Z` 路由，再更新
+  `Sources/Core/InputEngine.swift`、`Sources/InputMethod/InputEventMapper.swift` 和用户文档；其中大写
+  直输的立即透传展示方式后由 T095 修订为可见组合。
+
+- [X] T095 [US2] 将 T094 的立即透传修订为可见原样组合：在核心与适配器测试中覆盖 marked text、
+  单一原文候选、空格/回车/选择提交、退格、Escape、模式保持及候选快捷键隔离；在
+  `CompositionState.swift`、`Candidate.swift`、`InputEngine.swift` 与 `InputController.swift` 实现，
+  并拒绝临时 direct-input 身份进入学习和导入持久化。
+
+- [X] T096 [US2] 修订原样组合的回车结束语义：回车只提交原文并由输入法消费，不再继续透传给
+  应用插入换行；同时覆盖 InputMethodKit 将 Return 映射为 `insertNewline:` 命令的交付路径，在核心
+  与适配器契约测试中验证提交结果和事件消费行为。
+
+- [X] T097 [US2] 修订原样组合的空格结束语义：空格只确认并提交原文，由输入法消费且不附加到
+  提交文本；同时覆盖 InputMethodKit `inputText:client:` 文本回调路径，在核心与适配器契约测试中
+  验证无尾随空格结果。

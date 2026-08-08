@@ -22,7 +22,7 @@ final class InputControllerEventRouter {
     )
 
     func route(_ event: NSEvent, settingsSnapshot: SettingsSnapshot,
-               isComposing: Bool) -> InputControllerEventRoute {
+               isComposing: Bool, isDirectInput: Bool = false) -> InputControllerEventRoute {
         if event.type == .flagsChanged {
             let triggered = modifierRecognizer.handle(
                 event,
@@ -48,6 +48,7 @@ final class InputControllerEventRouter {
                 event,
                 translatedCharacter: translated,
                 isComposing: isComposing,
+                isDirectInput: isDirectInput,
                 keyBindings: settings.keyBindings,
                 candidate2And3ShortcutsEnabled: settings.candidate2And3ShortcutsEnabled
             ),
@@ -76,7 +77,8 @@ final class InputControllerEventProcessor {
         let route = router.route(
             event,
             settingsSnapshot: settingsSnapshot,
-            isComposing: session.state.kind == .composing
+            isComposing: session.state.composition != nil,
+            isDirectInput: session.state.directInput != nil
         )
         let client = resolveClient()
         guard let mappedEvent = route.coreEvent else { return false }
@@ -100,6 +102,42 @@ final class InputControllerEventProcessor {
     func suspend() { router.suspend() }
 }
 
+@MainActor
+final class InputControllerCommandProcessor {
+    private static let directInputCommitCommands: Set<String> = [
+        "insertNewline:",
+        "insertLineBreak:",
+        "insertParagraphSeparator:",
+        "insertNewlineIgnoringFieldEditor:"
+    ]
+
+    func handle(_ selector: Selector, session: InputControllerSession,
+                resolveClient: () -> InputClientProxy?) -> Bool {
+        guard session.state.directInput != nil,
+              Self.directInputCommitCommands.contains(NSStringFromSelector(selector)) else {
+            return false
+        }
+        guard let client = resolveClient() else {
+            session.resetWithoutClient()
+            return true
+        }
+        return session.handle(.select(1), client: client)
+    }
+}
+
+@MainActor
+final class InputControllerTextProcessor {
+    func handle(_ text: String, session: InputControllerSession,
+                resolveClient: () -> InputClientProxy?) -> Bool {
+        guard session.state.directInput != nil else { return false }
+        guard let client = resolveClient() else {
+            session.resetWithoutClient()
+            return true
+        }
+        return session.handle(.text(text), client: client)
+    }
+}
+
 @objc(InputController)
 @MainActor
 final class InputController: IMKInputController {
@@ -107,6 +145,8 @@ final class InputController: IMKInputController {
     private var candidatePresenter: CandidatePanelPresenter!
     private var clientProxy: IMKClientProxy?
     private let eventProcessor = InputControllerEventProcessor()
+    private let commandProcessor = InputControllerCommandProcessor()
+    private let textProcessor = InputControllerTextProcessor()
 
     private(set) var compositionState: CompositionState {
         get { inputSession?.state ?? .idle }
@@ -167,6 +207,30 @@ final class InputController: IMKInputController {
 
     override func recognizedEvents(_ sender: Any!) -> Int {
         InputControllerEventRouter.recognizedEventMask
+    }
+
+    override func inputText(_ string: String!, client sender: Any!) -> Bool {
+        guard let string else { return false }
+        let consumed = textProcessor.handle(
+            string,
+            session: inputSession,
+            resolveClient: { [weak self] in self?.proxy(for: sender) }
+        )
+        SettingsCoordinator.shared?.applyPendingAtIdle()
+        InputModeController.shared.activate(mode: inputSession.mode)
+        return consumed
+    }
+
+    override func didCommand(by aSelector: Selector!, client sender: Any!) -> Bool {
+        guard let aSelector else { return false }
+        let consumed = commandProcessor.handle(
+            aSelector,
+            session: inputSession,
+            resolveClient: { [weak self] in self?.proxy(for: sender) }
+        )
+        SettingsCoordinator.shared?.applyPendingAtIdle()
+        InputModeController.shared.activate(mode: inputSession.mode)
+        return consumed
     }
 
     override func deactivateServer(_ sender: Any!) {

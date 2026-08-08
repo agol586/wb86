@@ -38,7 +38,8 @@ final class LexiconImporter {
     func importArchive(_ data: Data) throws -> ImportReport {
         let archive = try LexiconArchiveCodec.decode(data)
         let learning = try archive.learning?.map { item -> LearningRecord in
-            guard let queryKey = CandidateQueryKey(kind: item.kind ?? .wubi,
+            guard (item.kind ?? .wubi) != .directInput,
+                  let queryKey = CandidateQueryKey(kind: item.kind ?? .wubi,
                                                    code: item.code) else {
                 throw LexiconCodecError.invalidRecord
             }

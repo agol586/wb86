@@ -2,22 +2,25 @@ import AppKit
 
 enum InputEventMapper {
     static func map(_ event: NSEvent, isComposing: Bool,
+                    isDirectInput: Bool = false,
                     keyBindings: KeyBindingSettings = .default,
                     candidate2And3ShortcutsEnabled: Bool = false) -> InputEvent {
         map(event, resolvedCharacters: event.charactersIgnoringModifiers,
-            isComposing: isComposing, keyBindings: keyBindings,
+            isComposing: isComposing, isDirectInput: isDirectInput, keyBindings: keyBindings,
             candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
     }
 
     static func map(_ event: NSEvent, translatedCharacter: String?, isComposing: Bool,
+                    isDirectInput: Bool = false,
                     keyBindings: KeyBindingSettings,
                     candidate2And3ShortcutsEnabled: Bool) -> InputEvent {
         map(event, resolvedCharacters: translatedCharacter,
-            isComposing: isComposing, keyBindings: keyBindings,
+            isComposing: isComposing, isDirectInput: isDirectInput, keyBindings: keyBindings,
             candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
     }
 
     private static func map(_ event: NSEvent, resolvedCharacters: String?, isComposing: Bool,
+                            isDirectInput: Bool,
                             keyBindings: KeyBindingSettings,
                             candidate2And3ShortcutsEnabled: Bool) -> InputEvent {
         guard event.type == .keyDown else { return .passThrough }
@@ -44,6 +47,10 @@ enum InputEventMapper {
         }
         let shortcutFlags = event.modifierFlags.intersection([.command, .control, .option])
         guard shortcutFlags.isEmpty else { return .passThrough }
+
+        if isDirectInput, exactModeFlags.isEmpty, event.keyCode == 36 || event.keyCode == 76 {
+            return .select(1)
+        }
 
         switch event.keyCode {
         case 53: return .cancel
@@ -74,8 +81,16 @@ enum InputEventMapper {
         case "1"..."9" where isComposing && exactModeFlags.isEmpty:
             return .select(Int(characters) ?? 0)
         default:
+            if !isComposing, isASCIIUppercase(characters) {
+                return .letter(characters)
+            }
             return InputCode(characters) != nil ? .letter(characters) : .text(characters)
         }
+    }
+
+    private static func isASCIIUppercase(_ text: String) -> Bool {
+        let bytes = Array(text.utf8)
+        return bytes.count == 1 && (65...90).contains(bytes[0])
     }
 
     private static func usesLegacyDigitBindings(_ settings: KeyBindingSettings) -> Bool {

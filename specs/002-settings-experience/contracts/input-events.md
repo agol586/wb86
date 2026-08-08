@@ -18,10 +18,17 @@
   Caps Lock 按系统 toggle 型修饰事件去重并只切换一次。禁用时所有对应事件均不产生模式副作用。
 - 正常 modifier press/release 必须透传；模式 intent 与原始事件的 handled 返回值分离，不得通过消费
   press 来要求客户端继续交付 release。
-- 组合期间触发模式切换时，按既有安全取消策略清除 marked text，不提交原始编码。
+- 组合期间触发中英文切换时，先原子提交当前原始编码一次并隐藏候选，再切换语言；简繁、全半角等
+  其他模式切换仍安全取消 marked text，不提交原始编码。
 - client 可用时 intent 走正常输入会话路径；client 不可用且会话空闲时可只更新当前会话模式；client
   不可用且组合未结束时必须丢弃 intent、安全复位且不提交文本。
 - 简繁和全半角切换只改变当前会话状态，不写持久化默认。
+- 中文空闲态首个大写 ASCII 字母开启单次原样组合，不改变语言状态；后续本段字符不查询、
+  不转换、不学习，以 marked text 和单一候选显示。空格只提交原文并由输入法消费，不向应用插入空格；
+  适配器同时消费原始 keyDown 与 InputMethodKit `inputText:client:` 文本回调路径；
+  回车提交原文并由输入法消费，
+  不向应用插入换行；适配器同时消费原始 keyDown 与 InputMethodKit `insertNewline:` 命令路径。
+  候选首项提交原文；退格修正，Escape 取消。直接输入组合期间候选快捷键和翻页键不得截获原文符号。
 
 ## Modifier lifecycle
 

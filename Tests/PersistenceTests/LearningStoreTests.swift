@@ -62,6 +62,16 @@ final class LearningStoreTests: XCTestCase {
                        LearningStore.schemaVersion)
     }
 
+    func testDirectInputCandidateCannotEnterLearningPersistence() throws {
+        let store = try makeStore(maxRecords: 10, maximumScore: 100)
+        let query = try XCTUnwrap(CandidateQueryKey(kind: .directInput, code: "MacWubi"))
+        let key = try LearningKey(queryKey: query, candidateText: "MacWubi")
+
+        XCTAssertThrowsError(try store.recordSelection(key: key))
+        XCTAssertTrue(store.snapshot.records.isEmpty)
+        XCTAssertEqual(store.snapshot.generation, 0)
+    }
+
     private func makeStore(maxRecords: Int, maximumScore: Int) throws -> LearningStore {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MacWubiLearningTests-\(UUID().uuidString)", isDirectory: true)

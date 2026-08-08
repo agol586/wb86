@@ -21,7 +21,8 @@
 “消费 modifier press 以换取 release 交付”的 T076 路径。新设计以 Squirrel 的适配边界为参照：
 先于客户端代理解析观察活动 IMK 会话交付的 `flagsChanged`，以聚合 modifier flags 的会话级变化
 识别独立点击，普通 modifier edge 保持透传。客户端对象暂时不可用时不得丢弃或重置该 edge；只有
-在具备安全文本操作条件时才取消组合并切换模式。该方向必须先用契约测试证明，再由 TextEdit、iTerm、
+在具备安全文本操作条件时才解析组合并切换模式；中英文切换提交原始编码，其他切换安全取消。
+该方向必须先用契约测试证明，再由 TextEdit、iTerm、
 Codex、VS Code 和 Chrome 的签名构建实测共同验收。
 
 ## Technical Context
@@ -42,7 +43,7 @@ Codex、VS Code 和 Chrome 的签名构建实测共同验收。
 
 **Constraints**: 完全离线；核心层不得导入 AppKit/InputMethodKit；modifier edge 必须先于客户端代理解析且普通 edge 透传；不得全局监听按键、轮询系统 modifier 状态或按应用身份分支；不得记录输入内容、应用身份或可重建时间线；资源损坏时有界降级；设置保存不得在输入路径执行磁盘 I/O；明确不支持且不实现 VoiceOver/屏幕阅读器专用候选树、公告或焦点
 
-**Scale/Scope**: 34 项功能需求、四组设置页、约 20 个用户设置字段、2 个运行时隐私控制、5 组独立翻页键、3 类模式切换和一个本地连续全拼候选源；支持多个并发输入会话
+**Scale/Scope**: 37 项功能需求、四组设置页、约 20 个用户设置字段、2 个运行时隐私控制、5 组独立翻页键、3 类模式切换和一个本地连续全拼候选源；支持多个并发输入会话
 
 ## Constitution Check
 
@@ -130,7 +131,7 @@ Docs/
    精确 keyCode 只用于增强左右键/交错判定，不作为观察 release 的前置条件。
 3. 普通 modifier press/release 返回未处理。只有完成一个有效独立点击时产生一次内部模式动作；该动作
    与 adapter 是否消费原始 `flagsChanged` 分离。
-4. 随后才解析或复用当前 client proxy。client 可用时沿既有输入会话路径安全取消组合并切换；client
+4. 随后才解析或复用当前 client proxy。client 可用时沿输入会话路径提交当前原始编码并切换语言；client
    不可用且会话空闲时允许只改变会话模式；client 不可用且存在 marked composition 时失败关闭：清除
    recognizer 待定状态，不提交文本、不盲目切换。
 5. 普通 activation/deactivation 不得无条件擦除刚收到的 modifier edge。首次事件、设置代次变化、

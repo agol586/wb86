@@ -27,6 +27,9 @@
 - `activeSnapshot`: 当前组合完整使用的不可变设置快照。
 - `pendingSnapshot`: 组合期间收到的最新快照；只保留最高代次。
 - `sessionMode`: 当前会话语言、脚本、宽度和标点临时状态，不因普通设置保存而重置。
+- `directInput`: 中文空闲态由首个大写字母开启的短期原样组合；保存有界原文和单一候选，不改变
+  `sessionMode`。字母、数字和符号更新组合；空格、回车或选择提交，回车由输入法消费且不插入换行，
+  Escape 取消。
 - `compositionGeneration`: 组合开始时捕获的代次；组合结束前查询、排序、按键和学习决策均使用它。
 
 状态转换：空闲会话立即采纳最新语义快照；组合会话将其置为 pending，并在提交、取消或故障
@@ -46,8 +49,8 @@
 快照只用于同步，孤立 release 不得切换。
 
 完成状态只输出一次 `ModifierModeIntent`，与原始事件是否 handled 分离。intent 应用规则为：client
-可用时走正常安全取消与会话切换；client 不可用且会话空闲时只更新会话模式；client 不可用且正在
-组合时丢弃 intent 并安全复位，不提交原始编码。
+可用时先原样提交当前编码并切换语言；client 不可用且会话空闲时只更新会话模式；client 不可用且
+正在组合时丢弃 intent 并安全复位，不盲目提交原始编码。
 
 ## 4. CompositionKeySequence and Route
 

@@ -2,12 +2,23 @@ import XCTest
 @testable import MacWubi
 
 final class InputEngineTests: XCTestCase {
-    func testModeShortcutsSafelyCancelCompositionWithoutCommittingRawCode() throws {
+    func testLanguageSwitchCommitsRawCodeWhileOtherModeShortcutsCancel() throws {
         let cases: [(InputEvent, (InputMode) -> Bool)] = [
-            (.switchLanguage, { $0.language == .directEnglish }),
             (.switchScript, { $0.script == .traditional }),
             (.switchWidth, { $0.width == .full })
         ]
+
+        let languageEngine = InputEngine(query: query)
+        _ = languageEngine.process(.letter("w"))
+        _ = languageEngine.process(.letter("q"))
+        let languageResult = languageEngine.process(.switchLanguage)
+
+        XCTAssertEqual(languageResult.state, .idle)
+        XCTAssertEqual(languageResult.clientActions.actions, [.commitText("wq")])
+        XCTAssertEqual(languageResult.candidateAction, .hide)
+        XCTAssertNil(languageResult.learningDelta)
+        XCTAssertTrue(languageResult.consumed)
+        XCTAssertEqual(languageEngine.mode.language, .directEnglish)
 
         for (event, modeChanged) in cases {
             let engine = InputEngine(query: query)
@@ -66,7 +77,7 @@ final class InputEngineTests: XCTestCase {
     func testLettersBuildMarkedCodeAndRefreshFromFirstPage() throws {
         let engine = InputEngine(query: query)
 
-        let first = engine.process(.letter("W"))
+        let first = engine.process(.letter("w"))
         XCTAssertEqual(first.clientAction, .setMarkedText("w"))
         XCTAssertEqual(first.candidateAction.page?.pageIndex, 0)
         XCTAssertTrue(first.consumed)
@@ -75,6 +86,74 @@ final class InputEngineTests: XCTestCase {
         XCTAssertEqual(second.state.composition?.code, InputCode("wq"))
         XCTAssertEqual(second.clientAction, .setMarkedText("wq"))
         XCTAssertEqual(second.candidateAction.page?.items.map(\.text), ["候选1", "候选2"])
+    }
+
+    func testUppercaseInitialShowsOneDirectInputCandidateAndCommitsOnSpace() {
+        let engine = InputEngine(query: query)
+
+        let first = engine.process(.letter("W"))
+        XCTAssertTrue(first.consumed)
+        XCTAssertEqual(first.clientAction, .setMarkedText("W"))
+        XCTAssertEqual(first.candidateAction.page?.items.map(\.text), ["W"])
+        XCTAssertEqual(first.state.directInput?.text, "W")
+        XCTAssertEqual(engine.mode.language, .chinese)
+
+        XCTAssertEqual(engine.process(.letter("q")).clientAction, .setMarkedText("Wq"))
+        XCTAssertEqual(engine.process(.letter("V")).clientAction, .setMarkedText("WqV"))
+        let punctuation = engine.process(.text("_"))
+        XCTAssertEqual(punctuation.clientAction, .setMarkedText("WqV_"))
+        XCTAssertEqual(punctuation.candidateAction.page?.items.map(\.text), ["WqV_"])
+
+        let committed = engine.process(.text(" "))
+        XCTAssertEqual(committed.clientAction, .commitText("WqV_"))
+        XCTAssertEqual(committed.candidateAction, .hide)
+        XCTAssertEqual(committed.state, .idle)
+        XCTAssertEqual(engine.mode.language, .chinese)
+
+        let nextChineseInput = engine.process(.letter("w"))
+        XCTAssertTrue(nextChineseInput.consumed)
+        XCTAssertEqual(nextChineseInput.clientAction, .setMarkedText("w"))
+    }
+
+    func testDirectInputSupportsBackspaceCancelReturnAndModeSwitchWithoutLearning() {
+        let engine = InputEngine(query: query)
+        _ = engine.process(.letter("M"))
+        _ = engine.process(.letter("a"))
+
+        let corrected = engine.process(.backspace)
+        XCTAssertEqual(corrected.clientAction, .setMarkedText("M"))
+        XCTAssertEqual(corrected.candidateAction.page?.items.map(\.text), ["M"])
+
+        let returned = engine.process(.select(1))
+        XCTAssertEqual(returned.clientAction, .commitText("M"))
+        XCTAssertTrue(returned.consumed)
+        XCTAssertNil(returned.learningDelta)
+        XCTAssertEqual(returned.state, .idle)
+
+        _ = engine.process(.letter("G"))
+        let switched = engine.process(.switchLanguage)
+        XCTAssertEqual(switched.clientAction, .commitText("G"))
+        XCTAssertEqual(engine.mode.language, .directEnglish)
+        XCTAssertNil(switched.learningDelta)
+
+        _ = engine.process(.switchLanguage)
+        _ = engine.process(.letter("C"))
+        let cancelled = engine.process(.cancel)
+        XCTAssertEqual(cancelled.clientAction, .clearMarkedText)
+        XCTAssertEqual(cancelled.candidateAction, .hide)
+        XCTAssertEqual(cancelled.state, .idle)
+    }
+
+    func testUppercaseAfterCompositionContinuesNormalizedWubiCode() throws {
+        let engine = InputEngine(query: query)
+        _ = engine.process(.letter("w"))
+
+        let result = engine.process(.letter("Q"))
+
+        XCTAssertTrue(result.consumed)
+        XCTAssertEqual(result.clientAction, .setMarkedText("wq"))
+        XCTAssertEqual(result.state.composition?.code, InputCode("wq"))
+        XCTAssertEqual(engine.mode.language, .chinese)
     }
 
     func testSelectionCommitsExactlyOneCandidateAndReturnsIdle() {

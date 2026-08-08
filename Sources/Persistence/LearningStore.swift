@@ -83,6 +83,9 @@ final class LearningStore {
     func recordSelection(key: LearningKey, amount: Int = 1) throws {
         lock.lock(); defer { lock.unlock() }
         guard storedIsEnabled else { return }
+        guard key.queryKey.kind != .directInput else {
+            throw LearningStoreError.invalidCandidate
+        }
         guard amount > 0 else { throw LearningStoreError.invalidAmount }
         try Self.validate(key.candidateText)
         var records = storedSnapshot.records
@@ -227,7 +230,8 @@ final class LearningStore {
               payload.records.count <= maxRecords else { throw LearningStoreError.corruptPayload }
         var unique = Set<LearningKey>()
         let records = try payload.records.map { item -> LearningRecord in
-            guard let queryKey = CandidateQueryKey(kind: item.kind,
+            guard item.kind != .directInput,
+                  let queryKey = CandidateQueryKey(kind: item.kind,
                                                    code: item.normalizedCode),
                   (1...maximumScore).contains(item.score) else {
                 throw LearningStoreError.corruptPayload

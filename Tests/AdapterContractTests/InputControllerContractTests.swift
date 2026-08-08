@@ -92,6 +92,136 @@ final class InputControllerContractTests: XCTestCase {
         ).coreEvent)
     }
 
+    func testIdleUppercaseZRoutesAsDirectInputIntent() throws {
+        let route = InputControllerEventRouter().route(
+            try event(type: .keyDown, keyCode: 6, characters: "Z",
+                      flags: [.shift], timestamp: 1),
+            settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default),
+            isComposing: false
+        )
+
+        XCTAssertEqual(route.coreEvent, .letter("Z"))
+        XCTAssertFalse(route.mustPassThrough)
+    }
+
+    func testDirectInputCompositionKeepsCandidateShortcutCharactersLiteral() throws {
+        let router = InputControllerEventRouter()
+        var settings = InputSettings.default
+        settings.candidate2And3ShortcutsEnabled = true
+        settings.keyBindings.pageKeyGroups = [.commaPeriod]
+        let snapshot = SettingsSnapshot(generation: 1, settings: settings)
+        let cases: [(UInt16, String, InputEvent)] = [
+            (18, "1", .text("1")),
+            (41, ";", .text(";")),
+            (43, ",", .text(",")),
+            (49, " ", .text(" "))
+        ]
+
+        for (keyCode, characters, expected) in cases {
+            let route = router.route(
+                try event(type: .keyDown, keyCode: keyCode, characters: characters,
+                          timestamp: 1),
+                settingsSnapshot: snapshot,
+                isComposing: false
+            )
+            XCTAssertEqual(route.coreEvent, expected)
+            XCTAssertFalse(route.mustPassThrough)
+        }
+    }
+
+    func testDirectInputReturnCommitsTextWithoutPassingReturnToClient() throws {
+        let router = InputControllerEventRouter()
+        let route = router.route(
+            try event(type: .keyDown, keyCode: 36, characters: "\r", timestamp: 1),
+            settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default),
+            isComposing: false,
+            isDirectInput: true
+        )
+
+        XCTAssertEqual(route.coreEvent, .select(1))
+        XCTAssertFalse(route.mustPassThrough)
+    }
+
+    func testDirectInputNewlineCommandCommitsAndConsumesApplicationCommand() {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter)
+        let processor = InputControllerCommandProcessor()
+        XCTAssertTrue(session.handle(.letter("J"), client: client))
+        XCTAssertTrue(session.handle(.letter("t"), client: client))
+
+        XCTAssertTrue(processor.handle(
+            NSSelectorFromString("insertNewline:"),
+            session: session,
+            resolveClient: { client }
+        ))
+
+        XCTAssertEqual(client.actions.last, .committed("Jt"))
+        XCTAssertEqual(session.state, .idle)
+        XCTAssertFalse(presenter.isVisible)
+        XCTAssertFalse(processor.handle(
+            NSSelectorFromString("insertNewline:"),
+            session: session,
+            resolveClient: { client }
+        ))
+    }
+
+    func testDirectInputSpaceTextCallbackCommitsWithoutTrailingSpace() {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter)
+        let processor = InputControllerTextProcessor()
+        XCTAssertTrue(session.handle(.letter("J"), client: client))
+        XCTAssertTrue(session.handle(.letter("t"), client: client))
+
+        XCTAssertTrue(processor.handle(" ", session: session, resolveClient: { client }))
+
+        XCTAssertEqual(client.actions.last, .committed("Jt"))
+        XCTAssertEqual(session.state, .idle)
+        XCTAssertFalse(presenter.isVisible)
+        XCTAssertFalse(processor.handle(" ", session: session, resolveClient: { client }))
+    }
+
+    func testLanguageSwitchCommitsMarkedCodeBeforeChangingMode() {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter)
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default))
+        XCTAssertTrue(session.handle(.letter("w"), client: client))
+        XCTAssertTrue(session.handle(.letter("q"), client: client))
+
+        XCTAssertTrue(session.handle(.switchLanguage, client: client))
+
+        XCTAssertEqual(Array(client.actions.suffix(1)), [.committed("wq")])
+        XCTAssertEqual(session.state, .idle)
+        XCTAssertEqual(session.mode.language, .directEnglish)
+        XCTAssertFalse(presenter.isVisible)
+    }
+
+    func testUppercaseDirectInputRunUsesMarkedTextAndCandidateWithoutChangingSessionMode() {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(query: query),
+                                             presenter: presenter)
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default))
+
+        XCTAssertTrue(session.handle(.letter("M"), client: client))
+        XCTAssertTrue(session.handle(.letter("a"), client: client))
+        XCTAssertTrue(presenter.isVisible)
+        XCTAssertEqual(presenter.page?.items.map(\.text), ["Ma"])
+        XCTAssertEqual(session.mode.language, .chinese)
+
+        XCTAssertTrue(session.handle(.text(" "), client: client))
+        XCTAssertEqual(client.actions, [.marked("M"), .marked("Ma"), .committed("Ma")])
+        XCTAssertFalse(presenter.isVisible)
+
+        XCTAssertTrue(session.handle(.letter("w"), client: client))
+        XCTAssertEqual(client.actions.last, .marked("w"))
+    }
+
     func testConfiguredStandaloneControlAndCapsLockSwitchLanguageAndPassThrough() throws {
         for (binding, events): (ModeSwitchBinding, [(UInt16, NSEvent.ModifierFlags)]) in [
             (.standaloneControl, [(59, [.control]), (59, [])]),

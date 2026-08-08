@@ -28,6 +28,7 @@ enum CompositionRoute: String, Codable, Sendable {
     case wubiOnly
     case pinyinOnly
     case mixed
+    case directInput
 
     static func resolve(sequence: CompositionKeySequence,
                         mixedPinyinEnabled: Bool) -> CompositionRoute {
@@ -40,6 +41,7 @@ enum CompositionRoute: String, Codable, Sendable {
 enum CandidateQueryKind: String, Codable, Sendable {
     case wubi
     case pinyin
+    case directInput
 }
 
 struct CandidateQueryKey: Equatable, Hashable, Codable, Sendable {
@@ -47,6 +49,15 @@ struct CandidateQueryKey: Equatable, Hashable, Codable, Sendable {
     let normalizedCode: String
 
     init?(kind: CandidateQueryKind, code: String) {
+        if kind == .directInput {
+            guard !code.isEmpty, code.utf8.count <= 1_024,
+                  !code.unicodeScalars.contains(where: {
+                      CharacterSet.controlCharacters.contains($0)
+                  }) else { return nil }
+            self.kind = kind
+            normalizedCode = code
+            return
+        }
         guard let sequence = CompositionKeySequence(code) else { return nil }
         if kind == .wubi, sequence.wubiCode == nil { return nil }
         self.kind = kind
