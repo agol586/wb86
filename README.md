@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.2"><img src="https://img.shields.io/badge/release-v1.2-d99b2b?style=flat-square" alt="v1.2"></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.3"><img src="https://img.shields.io/badge/release-v1.3-d99b2b?style=flat-square" alt="v1.3"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-164f49?style=flat-square&logo=apple" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Apple_Silicon-arm64-164f49?style=flat-square" alt="Apple Silicon arm64">
   <img src="https://img.shields.io/badge/Swift-native-f05138?style=flat-square&logo=swift&logoColor=white" alt="Swift">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.2"><strong>查看 v1.2</strong></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.3"><strong>查看 v1.3</strong></a>
   ·
   <a href="Docs/UserGuide.md">用户指南</a>
   ·
@@ -70,7 +70,7 @@ text 和候选框中同步显示且不改变中英文状态，空格或回车后
 
 ## 快速开始
 
-需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。当前 v1.2 Release 提供源码；正式
+需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。当前 v1.3 Release 提供源码；正式
 Developer ID 公证安装包仍需完成最终硬件矩阵与公证门禁。
 
 ```bash

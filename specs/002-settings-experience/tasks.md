@@ -453,3 +453,23 @@ Chrome 五类客户端共同通过物理矩阵。
 - [X] T097 [US2] 修订原样组合的空格结束语义：空格只确认并提交原文，由输入法消费且不附加到
   提交文本；同时覆盖 InputMethodKit `inputText:client:` 文本回调路径，在核心与适配器契约测试中
   验证无尾随空格结果。
+
+---
+
+## Phase 19: Native macOS settings hierarchy
+
+- [X] T098 [US1][US2][US5] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖不可自定义
+  的偏好设置工具栏、当前面板/窗口标题同步、四页面标题说明、Return 保存、Escape 取消及高级页三类
+  操作分区，再在 `Sources/InputMethod/SettingsWindowController.swift` 统一 macOS 原生设置层级，并运行
+  设置目标测试与完整自动化回归。
+- [X] T099 [US1][US2][US5] 根据安装后截图修正隐藏标签页容器与页面固定高度不一致造成的顶部空白；
+  先覆盖四页标题相对内容区的统一紧凑顶距，再让页面高度匹配容器并保持底部操作栏位置不变。
+
+---
+
+## Phase 20: Candidate panel visual hierarchy
+
+- [X] T100 [US4] 先在 `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift` 覆盖纵向整行命中、
+  首选的非颜色形状提示、横向候选间距及独立分页页脚，再在
+  `Sources/InputMethod/CandidatePanelPresenter.swift` 优化候选层级和密度；保留非激活焦点安全、候选语义、
+  高对比度边框与窄宽编码提示降级，并运行目标测试和完整自动化回归。

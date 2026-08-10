@@ -11,8 +11,76 @@ final class SettingsWindowTests: XCTestCase {
 
         XCTAssertTrue(controller.isWindowLoaded)
         XCTAssertTrue(controller.window?.isVisible == true)
-        XCTAssertEqual(controller.window?.title, "Mac Wubi 设置")
+        XCTAssertEqual(controller.window?.title, "常用 — Mac Wubi 设置")
         controller.close()
+    }
+
+    func testSettingsWindowUsesNativePreferenceToolbarAndKeyboardActions() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let window = try XCTUnwrap(controller.window)
+        let toolbar = try XCTUnwrap(window.toolbar)
+
+        XCTAssertEqual(window.toolbarStyle, .preference)
+        XCTAssertFalse(toolbar.allowsUserCustomization)
+        XCTAssertEqual(toolbar.displayMode, .iconAndLabel)
+        XCTAssertEqual(toolbar.selectedItemIdentifier?.rawValue, "常用")
+        XCTAssertEqual(Set(toolbar.items.map { $0.itemIdentifier.rawValue }),
+                       Set(controller.groupTitles))
+        XCTAssertEqual(window.title, "常用 — Mac Wubi 设置")
+        XCTAssertFalse(window.styleMask.contains(.resizable))
+
+        let buttons = controller.registeredControls.compactMap { $0 as? NSButton }
+        XCTAssertEqual(buttons.first { $0.identifier?.rawValue == "保存" }?.keyEquivalent,
+                       "\r")
+        XCTAssertEqual(buttons.first { $0.identifier?.rawValue == "取消" }?.keyEquivalent,
+                       "\u{1b}")
+        XCTAssertTrue(window.defaultButtonCell ===
+                      buttons.first { $0.identifier?.rawValue == "保存" }?.cell)
+    }
+
+    func testEveryPaneHasConsistentHierarchyAndAdvancedSections() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let content = try XCTUnwrap(controller.window?.contentView)
+        let tabView: NSTabView = try XCTUnwrap(firstView(ofType: NSTabView.self, in: content))
+        let paneViews = tabView.tabViewItems.compactMap(\.view)
+        let identifiers = Set(paneViews.flatMap(allViews(in:))
+            .compactMap { $0.identifier?.rawValue })
+
+        for title in controller.groupTitles {
+            XCTAssertTrue(identifiers.contains("\(title)页标题"), title)
+            XCTAssertTrue(identifiers.contains("\(title)页说明"), title)
+        }
+        XCTAssertTrue(identifiers.isSuperset(of: [
+            "运行状态分区", "用户词库分区", "本地数据分区"
+        ]))
+    }
+
+    func testEveryPaneStartsWithACompactConsistentTopMargin() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let content = try XCTUnwrap(controller.window?.contentView)
+        let tabView: NSTabView = try XCTUnwrap(firstView(ofType: NSTabView.self, in: content))
+        var measuredMargins = [CGFloat]()
+
+        for title in controller.groupTitles {
+            tabView.selectTabViewItem(withIdentifier: title)
+            content.layoutSubtreeIfNeeded()
+            let pane = try XCTUnwrap(tabView.tabViewItems.first {
+                ($0.identifier as? String) == title
+            }?.view)
+            let header = try XCTUnwrap(allViews(in: pane).first {
+                $0.identifier?.rawValue == "\(title)页标题"
+            })
+            let headerFrame = header.convert(header.bounds, to: content)
+            let topMargin = content.bounds.maxY - headerFrame.maxY
+            measuredMargins.append(topMargin)
+            XCTAssertLessThanOrEqual(topMargin, 44, title)
+        }
+
+        let firstMargin = try XCTUnwrap(measuredMargins.first)
+        XCTAssertTrue(measuredMargins.allSatisfy { abs($0 - firstMargin) < 1 })
     }
 
     func testAllGroupsAndKeyboardControlsExist() {
@@ -161,7 +229,7 @@ final class SettingsWindowTests: XCTestCase {
             return (identifier, control)
         })
 
-        XCTAssertEqual((controls["外观说明"] as? NSTextField)?.stringValue,
+        XCTAssertEqual((controls["外观页说明"] as? NSTextField)?.stringValue,
                        "调整候选窗口的密度与阅读大小")
         XCTAssertEqual((controls["每页候选标题"] as? NSTextField)?.stringValue, "每页候选")
         XCTAssertEqual((controls["排列方式标题"] as? NSTextField)?.stringValue, "排列方式")
@@ -482,6 +550,10 @@ final class SettingsWindowTests: XCTestCase {
         view.subviews.flatMap { subview in
             ((subview as? NSControl).map { [$0] } ?? []) + allControls(in: subview)
         }
+    }
+
+    private func allViews(in view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap(allViews(in:))
     }
 
     private func firstView<T: NSView>(ofType type: T.Type, in view: NSView) -> T? {

@@ -6,7 +6,10 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private let panel: NonActivatingCandidatePanel
     private let effectView: NSVisualEffectView
     private let candidateStack: NSStackView
+    private let pageSeparator: NSBox
     private let pageLabel: NSTextField
+    private var candidateBottomConstraint: NSLayoutConstraint?
+    private var pageBottomConstraint: NSLayoutConstraint?
     private var selectionHandler: SelectionHandler
     private var anchorTopLeft: NSPoint?
     private var candidateButtons = [Int: NSButton]()
@@ -26,9 +29,24 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     var visualCornerRadius: CGFloat { effectView.layer?.cornerRadius ?? 0 }
     var visualBorderWidth: CGFloat { effectView.layer?.borderWidth ?? 0 }
     var showsPageIndicator: Bool { !pageLabel.isHidden }
+    var displayedPageIndicator: String? { pageLabel.isHidden ? nil : pageLabel.stringValue }
+    var pageIndicatorAlignment: NSTextAlignment { pageLabel.alignment }
+    var usesSeparatedPageFooter: Bool { !pageSeparator.isHidden && !pageLabel.isHidden }
+    var candidateSpacing: CGFloat { candidateStack.spacing }
+    var candidateRowsFillAvailableWidth: Bool {
+        candidateStack.orientation == .vertical && !candidateButtons.isEmpty &&
+            candidateButtons.values.allSatisfy {
+                ($0 as? CandidateRowButton)?.fillsAvailableWidth == true
+            }
+    }
     var emphasizedCandidateOrdinals: [Int] {
         candidateButtons.values.compactMap { button in
             (button as? CandidateRowButton)?.isDefaultCandidate == true ? button.tag : nil
+        }.sorted()
+    }
+    var defaultCandidateIndicatorOrdinals: [Int] {
+        candidateButtons.values.compactMap { button in
+            (button as? CandidateRowButton)?.showsDefaultIndicator == true ? button.tag : nil
         }.sorted()
     }
     var candidateRowsHavePointerFeedback: Bool {
@@ -48,6 +66,7 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         )
         effectView = NSVisualEffectView()
         candidateStack = NSStackView()
+        pageSeparator = NSBox()
         pageLabel = NSTextField(labelWithString: "")
         super.init()
         configurePanel()
@@ -91,15 +110,19 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
             button.font = font
             button.contentTintColor = .labelColor
             button.attributedTitle = styledTitle(for: candidate, row: row, font: font)
-            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
-            candidateButtons[candidate.ordinal] = button
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 30).isActive = true
             candidateStack.addArrangedSubview(button)
+            if candidateStack.orientation == .vertical {
+                button.fillsAvailableWidth = true
+                button.widthAnchor.constraint(equalTo: candidateStack.widthAnchor).isActive = true
+            }
+            candidateButtons[candidate.ordinal] = button
         }
 
         let pageNumber = page.pageIndex + 1
         let pageCount = max(1, (page.totalCount + page.pageSize - 1) / page.pageSize)
-        pageLabel.stringValue = "\(pageNumber) / \(pageCount)"
-        pageLabel.isHidden = page.items.isEmpty || pageCount <= 1
+        pageLabel.stringValue = "第 \(pageNumber) / \(pageCount) 页"
+        setPageFooterVisible(!page.items.isEmpty && pageCount > 1)
         resizeToFit()
 
         if page.items.isEmpty { hide() }
@@ -138,7 +161,9 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     func apply(settings: InputSettings) {
         appearanceSettings = settings
         candidateStack.orientation = settings.candidateLayout == .vertical ? .vertical : .horizontal
-        pageLabel.font = .systemFont(
+        candidateStack.alignment = settings.candidateLayout == .vertical ? .leading : .centerY
+        candidateStack.spacing = settings.candidateLayout == .vertical ? 2 : 8
+        pageLabel.font = .monospacedDigitSystemFont(
             ofSize: CandidateTypography.pagePointSize(for: settings.candidateFontScale),
             weight: .medium
         )
@@ -172,25 +197,48 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
 
         candidateStack.orientation = .vertical
         candidateStack.alignment = .leading
-        candidateStack.spacing = 4
+        candidateStack.spacing = 2
         candidateStack.translatesAutoresizingMaskIntoConstraints = false
 
-        pageLabel.font = .preferredFont(forTextStyle: .caption1)
+        pageSeparator.boxType = .separator
+        pageSeparator.translatesAutoresizingMaskIntoConstraints = false
+        pageSeparator.isHidden = true
+
+        pageLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         pageLabel.textColor = .secondaryLabelColor
+        pageLabel.alignment = .right
         pageLabel.translatesAutoresizingMaskIntoConstraints = false
+        pageLabel.isHidden = true
 
         effectView.addSubview(candidateStack)
+        effectView.addSubview(pageSeparator)
         effectView.addSubview(pageLabel)
+        candidateBottomConstraint = candidateStack.bottomAnchor.constraint(
+            equalTo: effectView.bottomAnchor, constant: -8
+        )
+        pageBottomConstraint = pageLabel.bottomAnchor.constraint(
+            equalTo: effectView.bottomAnchor, constant: -8
+        )
         NSLayoutConstraint.activate([
             candidateStack.leadingAnchor.constraint(equalTo: effectView.leadingAnchor, constant: 10),
             candidateStack.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -10),
             candidateStack.topAnchor.constraint(equalTo: effectView.topAnchor, constant: 8),
+            pageSeparator.leadingAnchor.constraint(equalTo: candidateStack.leadingAnchor),
+            pageSeparator.trailingAnchor.constraint(equalTo: candidateStack.trailingAnchor),
+            pageSeparator.topAnchor.constraint(equalTo: candidateStack.bottomAnchor, constant: 6),
             pageLabel.leadingAnchor.constraint(equalTo: candidateStack.leadingAnchor),
-            pageLabel.trailingAnchor.constraint(lessThanOrEqualTo: effectView.trailingAnchor, constant: -10),
-            pageLabel.topAnchor.constraint(equalTo: candidateStack.bottomAnchor, constant: 4),
-            pageLabel.bottomAnchor.constraint(equalTo: effectView.bottomAnchor, constant: -8)
+            pageLabel.trailingAnchor.constraint(equalTo: candidateStack.trailingAnchor),
+            pageLabel.topAnchor.constraint(equalTo: pageSeparator.bottomAnchor, constant: 4)
         ])
+        candidateBottomConstraint?.isActive = true
         panel.contentView = effectView
+    }
+
+    private func setPageFooterVisible(_ isVisible: Bool) {
+        pageSeparator.isHidden = !isVisible
+        pageLabel.isHidden = !isVisible
+        candidateBottomConstraint?.isActive = !isVisible
+        pageBottomConstraint?.isActive = isVisible
     }
 
     private func resizeToFit() {
@@ -266,7 +314,10 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
 
 private final class CandidateRowButton: NSButton {
     var isDefaultCandidate = false { didSet { refreshBackground() } }
+    var fillsAvailableWidth = false
+    var showsDefaultIndicator: Bool { isDefaultCandidate && !defaultIndicator.isHidden }
     private var isPointerInside = false
+    private let defaultIndicator = CALayer()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -289,6 +340,12 @@ private final class CandidateRowButton: NSButton {
         ))
     }
 
+    override func layout() {
+        super.layout()
+        defaultIndicator.frame = CGRect(x: 1, y: 5, width: 3,
+                                        height: max(0, bounds.height - 10))
+    }
+
     override func mouseEntered(with event: NSEvent) {
         isPointerInside = true
         refreshBackground()
@@ -309,11 +366,15 @@ private final class CandidateRowButton: NSButton {
         wantsLayer = true
         layer?.cornerRadius = 6
         layer?.cornerCurve = .continuous
+        defaultIndicator.backgroundColor = NSColor.controlAccentColor.cgColor
+        defaultIndicator.cornerRadius = 1.5
+        layer?.addSublayer(defaultIndicator)
         refreshBackground()
     }
 
     private func refreshBackground() {
-        let alpha: CGFloat = isPointerInside ? 0.20 : (isDefaultCandidate ? 0.12 : 0)
+        defaultIndicator.isHidden = !isDefaultCandidate
+        let alpha: CGFloat = isPointerInside ? 0.22 : (isDefaultCandidate ? 0.14 : 0)
         layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(alpha).cgColor
     }
 }

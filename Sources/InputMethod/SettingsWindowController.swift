@@ -10,7 +10,8 @@ private enum SettingsWindowValidationError: Error {
     case keyBinding(KeyBindingConflict)
 }
 
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSTabViewDelegate {
+    private static let toolbarIdentifier = NSToolbar.Identifier("MacWubiSettingsToolbar")
     static let shared = SettingsWindowController(
         settings: SettingsCoordinator.shared?.settings ?? .default,
         access: SettingsCoordinator.shared?.access ?? .writable,
@@ -101,11 +102,26 @@ final class SettingsWindowController: NSWindowController {
         appearancePreviewLabel = nil
         feedbackLabel = nil
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 500),
-                              styleMask: [.titled, .closable, .resizable],
+                              styleMask: [.titled, .closable],
                               backing: .buffered, defer: false)
-        window.title = "Mac Wubi 设置"
+        window.title = "常用 — Mac Wubi 设置"
+        window.toolbarStyle = .preference
+        window.tabbingMode = .disallowed
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
+
+        let toolbar = NSToolbar(identifier: Self.toolbarIdentifier)
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.displayMode = .iconAndLabel
+        toolbar.selectedItemIdentifier = toolbarIdentifier(for: "常用")
+        window.toolbar = toolbar
+
         let tabs = NSTabView(frame: NSRect(x: 12, y: 54, width: 656, height: 434))
         tabView = tabs
+        tabs.tabViewType = .noTabsNoBorder
+        tabs.delegate = self
         tabs.autoresizingMask = [.width, .height]
         for title in groupTitles {
             let tab = NSTabViewItem(identifier: title)
@@ -115,14 +131,18 @@ final class SettingsWindowController: NSWindowController {
         }
         let applyButton = makeButton("保存", action: #selector(applyFromControls))
         applyButton.frame = NSRect(x: 560, y: 14, width: 96, height: 30)
+        applyButton.keyEquivalent = "\r"
+        applyButton.bezelStyle = .rounded
         let cancelButton = makeButton("取消", action: #selector(cancelFromControls))
         cancelButton.frame = NSRect(x: 456, y: 14, width: 96, height: 30)
+        cancelButton.keyEquivalent = "\u{1b}"
         let restoreButton = makeButton("恢复默认…", action: #selector(confirmRestoreDefaults))
         restoreButton.frame = NSRect(x: 336, y: 14, width: 112, height: 30)
         window.contentView?.addSubview(tabs)
         window.contentView?.addSubview(applyButton)
         window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
+        window.defaultButtonCell = applyButton.cell as? NSButtonCell
         let feedback = NSTextField(wrappingLabelWithString: lastValidationMessage ?? "")
         feedback.frame = NSRect(x: 12, y: 6, width: 312, height: 40)
         feedback.identifier = NSUserInterfaceItemIdentifier("操作反馈")
@@ -151,6 +171,62 @@ final class SettingsWindowController: NSWindowController {
         focusControls.last?.nextKeyView = focusControls.first
         window.initialFirstResponder = initialResponder
         self.window = window
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        groupTitles.map(toolbarIdentifier(for:))
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarAllowedItemIdentifiers(toolbar)
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarAllowedItemIdentifiers(toolbar)
+    }
+
+    func toolbar(_ toolbar: NSToolbar,
+                 itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        guard let title = groupTitle(for: itemIdentifier) else { return nil }
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = title
+        item.paletteLabel = title
+        item.toolTip = "显示\(title)设置"
+        item.image = NSImage(systemSymbolName: toolbarSymbolName(for: title),
+                             accessibilityDescription: nil)
+        item.target = self
+        item.action = #selector(selectSettingsPane(_:))
+        return item
+    }
+
+    func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        guard let title = tabViewItem?.identifier as? String else { return }
+        window?.title = "\(title) — Mac Wubi 设置"
+        window?.toolbar?.selectedItemIdentifier = toolbarIdentifier(for: title)
+    }
+
+    @objc private func selectSettingsPane(_ sender: NSToolbarItem) {
+        guard let title = groupTitle(for: sender.itemIdentifier) else { return }
+        tabView?.selectTabViewItem(withIdentifier: title)
+    }
+
+    private func toolbarIdentifier(for title: String) -> NSToolbarItem.Identifier {
+        NSToolbarItem.Identifier(title)
+    }
+
+    private func groupTitle(for identifier: NSToolbarItem.Identifier) -> String? {
+        groupTitles.first { toolbarIdentifier(for: $0) == identifier }
+    }
+
+    private func toolbarSymbolName(for title: String) -> String {
+        switch title {
+        case "常用": return "slider.horizontal.3"
+        case "按键": return "keyboard"
+        case "外观": return "textformat.size"
+        case "高级": return "lock.shield"
+        default: return "gearshape"
+        }
     }
 
     func apply(_ value: InputSettings) throws {
@@ -244,34 +320,41 @@ final class SettingsWindowController: NSWindowController {
         switch title {
         case "常用":
             addCommonControls(to: view)
-            return view
+            return finalizedGroupView(view)
         case "按键":
             addKeyControls(to: view)
-            return view
+            return finalizedGroupView(view)
         case "外观":
             addAppearanceControls(to: view)
-            return view
+            return finalizedGroupView(view)
         case "高级":
+            addPageHeader(title: "高级", summary: "管理运行时状态、用户词库与本地数据", to: view)
+            addSectionCard(identifier: "运行状态分区",
+                           frame: NSRect(x: 24, y: 254, width: 592, height: 68), to: view)
+            let runtimeLabel = sectionLabel("运行状态", identifier: "运行状态标题")
+            runtimeLabel.frame = NSRect(x: 34, y: 326, width: 160, height: 20)
+            view.addSubview(runtimeLabel)
             for (index, title) in ["私密模式", "本地学习"].enumerated() {
                 let control = makeButton(title, action: nil)
                 control.target = self
                 control.action = #selector(runtimePolicyChanged(_:))
-                control.frame = NSRect(x: 24, y: 330 - index * 48, width: 430, height: 30)
+                control.frame = NSRect(x: 44 + index * 260, y: 273, width: 230, height: 30)
                 view.addSubview(control)
             }
+            addSectionCard(identifier: "用户词库分区",
+                           frame: NSRect(x: 24, y: 108, width: 592, height: 116), to: view)
+            let lexiconLabel = sectionLabel("用户词库", identifier: "用户词库标题")
+            lexiconLabel.frame = NSRect(x: 34, y: 228, width: 160, height: 20)
+            view.addSubview(lexiconLabel)
             let actionButtons: [(String, Selector, NSRect)] = [
-                ("清除学习数据…", #selector(confirmClearLearning),
-                 NSRect(x: 24, y: 226, width: 170, height: 30)),
-                ("隐私与数据管理…", #selector(showPrivacyData),
-                 NSRect(x: 204, y: 226, width: 190, height: 30)),
                 ("搜索用户词条", #selector(searchUserLexicon),
-                 NSRect(x: 24, y: 178, width: 135, height: 30)),
+                 NSRect(x: 44, y: 170, width: 135, height: 30)),
                 ("添加词条", #selector(addUserLexiconEntry),
-                 NSRect(x: 169, y: 178, width: 105, height: 30)),
+                 NSRect(x: 189, y: 170, width: 105, height: 30)),
                 ("编辑词条", #selector(editUserLexiconEntry),
-                 NSRect(x: 284, y: 178, width: 105, height: 30)),
+                 NSRect(x: 304, y: 170, width: 105, height: 30)),
                 ("删除词条…", #selector(deleteUserLexiconEntry),
-                 NSRect(x: 399, y: 178, width: 125, height: 30))
+                 NSRect(x: 419, y: 170, width: 125, height: 30))
             ]
             for (buttonTitle, action, frame) in actionButtons {
                 let control = makeActionButton(buttonTitle, action: action)
@@ -279,26 +362,43 @@ final class SettingsWindowController: NSWindowController {
                 view.addSubview(control)
             }
             let importButton = makeButton("导入用户词库…", action: #selector(importLexicon))
-            importButton.frame = NSRect(x: 24, y: 122, width: 150, height: 30)
+            importButton.frame = NSRect(x: 44, y: 126, width: 150, height: 30)
             view.addSubview(importButton)
             let exportButton = makeButton("导出用户词库…", action: #selector(exportLexicon))
-            exportButton.frame = NSRect(x: 184, y: 122, width: 150, height: 30)
+            exportButton.frame = NSRect(x: 204, y: 126, width: 150, height: 30)
             view.addSubview(exportButton)
-            return view
+            addSectionCard(identifier: "本地数据分区",
+                           frame: NSRect(x: 24, y: 12, width: 592, height: 66), to: view)
+            let dataLabel = sectionLabel("本地数据", identifier: "本地数据标题")
+            dataLabel.frame = NSRect(x: 34, y: 82, width: 160, height: 20)
+            view.addSubview(dataLabel)
+            let clearButton = makeActionButton("清除学习数据…", action: #selector(confirmClearLearning))
+            clearButton.frame = NSRect(x: 44, y: 30, width: 170, height: 30)
+            view.addSubview(clearButton)
+            let privacyButton = makeActionButton("隐私与数据管理…", action: #selector(showPrivacyData))
+            privacyButton.frame = NSRect(x: 224, y: 30, width: 190, height: 30)
+            view.addSubview(privacyButton)
+            return finalizedGroupView(view)
         default:
             return view
         }
     }
 
+    private func finalizedGroupView(_ view: NSView) -> NSView {
+        // The hidden-tab NSTabView content area is 434 pt tall. The original pages were
+        // 390 pt tall, so AppKit centered them vertically and left a conspicuous blank band
+        // below the preference toolbar. Match the container and preserve the original 24 pt
+        // page margin by moving the existing layout into the added height.
+        let addedHeight: CGFloat = 44
+        view.frame.size.height += addedHeight
+        for subview in view.subviews {
+            subview.frame.origin.y += addedHeight
+        }
+        return view
+    }
+
     private func addAppearanceControls(to view: NSView) {
-        let heading = identifiedLabel("候选窗口", identifier: "外观标题",
-                                      font: .systemFont(ofSize: 17, weight: .semibold))
-        heading.frame = NSRect(x: 24, y: 342, width: 300, height: 24)
-        let summary = identifiedLabel("调整候选窗口的密度与阅读大小", identifier: "外观说明",
-                                      color: .secondaryLabelColor)
-        summary.frame = NSRect(x: 24, y: 316, width: 420, height: 20)
-        view.addSubview(heading)
-        view.addSubview(summary)
+        addPageHeader(title: "外观", summary: "调整候选窗口的密度与阅读大小", to: view)
 
         let settingsCard = appearanceCard(frame: NSRect(x: 24, y: 66, width: 330, height: 230))
         let previewCard = appearanceCard(frame: NSRect(x: 370, y: 66, width: 246, height: 230))
@@ -402,6 +502,29 @@ final class SettingsWindowController: NSWindowController {
         return label
     }
 
+    private func addPageHeader(title: String, summary: String, to view: NSView) {
+        let heading = identifiedLabel(title, identifier: "\(title)页标题",
+                                      font: .systemFont(ofSize: 17, weight: .semibold))
+        heading.frame = NSRect(x: 24, y: 342, width: 300, height: 24)
+        let description = identifiedLabel(summary, identifier: "\(title)页说明",
+                                          color: .secondaryLabelColor)
+        description.frame = NSRect(x: 24, y: 316, width: 560, height: 20)
+        view.addSubview(heading)
+        view.addSubview(description)
+    }
+
+    private func sectionLabel(_ title: String, identifier: String) -> NSTextField {
+        identifiedLabel(title, identifier: identifier,
+                        font: .systemFont(ofSize: 12, weight: .semibold),
+                        color: .secondaryLabelColor)
+    }
+
+    private func addSectionCard(identifier: String, frame: NSRect, to view: NSView) {
+        let box = appearanceCard(frame: frame)
+        box.identifier = NSUserInterfaceItemIdentifier(identifier)
+        view.addSubview(box, positioned: .below, relativeTo: nil)
+    }
+
     private func appearanceCard(frame: NSRect) -> NSBox {
         let box = NSBox(frame: frame)
         box.boxType = .custom
@@ -414,6 +537,12 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func addCommonControls(to view: NSView) {
+        addPageHeader(title: "常用", summary: "设置新输入会话的默认状态与输入效率", to: view)
+        addSectionCard(identifier: "新会话默认分区",
+                       frame: NSRect(x: 24, y: 164, width: 592, height: 136), to: view)
+        let defaultsLabel = sectionLabel("新会话默认", identifier: "新会话默认标题")
+        defaultsLabel.frame = NSRect(x: 34, y: 304, width: 160, height: 20)
+        view.addSubview(defaultsLabel)
         let popupRows: [(String, [String], Int)] = [
             ("初始语言", ["中文", "英文"], draftSettings.defaultMode.language == .chinese ? 0 : 1),
             ("初始简繁体", ["简体", "繁体"], draftSettings.defaultMode.script == .simplified ? 0 : 1),
@@ -422,10 +551,14 @@ final class SettingsWindowController: NSWindowController {
              draftSettings.defaultMode.punctuation == .english ? 0 : 1)
         ]
         for (index, row) in popupRows.enumerated() {
+            let column = index / 2
+            let itemRow = index % 2
+            let baseX: CGFloat = 44 + CGFloat(column) * 288
+            let y: CGFloat = 254 - CGFloat(itemRow) * 54
             let caption = NSTextField(labelWithString: row.0)
-            caption.frame = NSRect(x: 24, y: 340 - index * 44, width: 130, height: 24)
-            let popup = NSPopUpButton(frame: NSRect(x: 162, y: 334 - index * 44,
-                                                    width: 170, height: 30))
+            caption.frame = NSRect(x: baseX, y: y + 4, width: 104, height: 24)
+            let popup = NSPopUpButton(frame: NSRect(x: baseX + 108, y: y,
+                                                    width: 126, height: 30))
             popup.addItems(withTitles: row.1)
             popup.selectItem(at: row.2)
             register(popup, label: row.0)
@@ -434,6 +567,11 @@ final class SettingsWindowController: NSWindowController {
             view.addSubview(popup)
         }
 
+        addSectionCard(identifier: "输入效率分区",
+                       frame: NSRect(x: 24, y: 18, width: 592, height: 112), to: view)
+        let efficiencyLabel = sectionLabel("输入效率", identifier: "输入效率标题")
+        efficiencyLabel.frame = NSRect(x: 34, y: 134, width: 160, height: 20)
+        view.addSubview(efficiencyLabel)
         let options = [
             "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
             "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键"
@@ -444,13 +582,19 @@ final class SettingsWindowController: NSWindowController {
             button.action = #selector(commonOptionChanged(_:))
             let column = index / 3
             let row = index % 3
-            button.frame = NSRect(x: 24 + column * 300, y: 130 - row * 42,
-                                  width: 285, height: 30)
+            button.frame = NSRect(x: 44 + column * 288, y: 88 - row * 31,
+                                  width: 260, height: 26)
             view.addSubview(button)
         }
     }
 
     private func addKeyControls(to view: NSView) {
+        addPageHeader(title: "按键", summary: "按你的键盘习惯配置切换与候选翻页", to: view)
+        addSectionCard(identifier: "模式切换分区",
+                       frame: NSRect(x: 24, y: 158, width: 592, height: 142), to: view)
+        let bindingsLabel = sectionLabel("模式切换", identifier: "模式切换标题")
+        bindingsLabel.frame = NSRect(x: 34, y: 304, width: 160, height: 20)
+        view.addSubview(bindingsLabel)
         let bindingRows: [(String, ModeSwitchBinding)] = [
             ("中英文切换", draftSettings.keyBindings.languageSwitch),
             ("简繁切换", draftSettings.keyBindings.scriptSwitch),
@@ -458,9 +602,9 @@ final class SettingsWindowController: NSWindowController {
         ]
         for (index, row) in bindingRows.enumerated() {
             let caption = NSTextField(labelWithString: row.0)
-            caption.frame = NSRect(x: 24, y: 340 - index * 44, width: 130, height: 24)
-            let popup = NSPopUpButton(frame: NSRect(x: 162, y: 334 - index * 44,
-                                                    width: 220, height: 30))
+            caption.frame = NSRect(x: 44, y: 255 - index * 40, width: 110, height: 24)
+            let popup = NSPopUpButton(frame: NSRect(x: 154, y: 249 - index * 40,
+                                                    width: 170, height: 30))
             let choices = bindingChoices(for: row.0, current: row.1)
             bindingChoicesByLabel[row.0] = choices
             popup.addItems(withTitles: choices.map(\.title))
@@ -472,9 +616,9 @@ final class SettingsWindowController: NSWindowController {
         }
 
         let layoutCaption = NSTextField(labelWithString: "键盘布局")
-        layoutCaption.frame = NSRect(x: 24, y: 208, width: 130, height: 24)
-        let keyboardLayout = NSPopUpButton(frame: NSRect(x: 162, y: 202,
-                                                        width: 220, height: 30))
+        layoutCaption.frame = NSRect(x: 350, y: 255, width: 100, height: 24)
+        let keyboardLayout = NSPopUpButton(frame: NSRect(x: 440, y: 249,
+                                                        width: 150, height: 30))
         keyboardLayout.addItems(withTitles: ["美国 ANSI", "跟随系统布局"])
         keyboardLayout.selectItem(at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1)
         register(keyboardLayout, label: "键盘布局")
@@ -482,6 +626,11 @@ final class SettingsWindowController: NSWindowController {
         view.addSubview(layoutCaption)
         view.addSubview(keyboardLayout)
 
+        addSectionCard(identifier: "候选翻页分区",
+                       frame: NSRect(x: 24, y: 18, width: 592, height: 104), to: view)
+        let pagingLabel = sectionLabel("候选翻页", identifier: "候选翻页标题")
+        pagingLabel.frame = NSRect(x: 34, y: 126, width: 160, height: 20)
+        view.addSubview(pagingLabel)
         let pageOptions = [
             "逗号句号翻页", "减号等号翻页", "中括号翻页",
             "Tab/Shift-Tab 翻页", "上下方向键翻页"
@@ -490,8 +639,8 @@ final class SettingsWindowController: NSWindowController {
             let button = makeButton(title, action: nil)
             let column = index / 3
             let row = index % 3
-            button.frame = NSRect(x: 24 + column * 300, y: 150 - row * 40,
-                                  width: 285, height: 30)
+            button.frame = NSRect(x: 44 + column * 288, y: 82 - row * 30,
+                                  width: 260, height: 26)
             view.addSubview(button)
         }
     }

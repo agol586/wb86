@@ -125,4 +125,46 @@ final class CandidatePanelPresenterTests: XCTestCase {
         XCTAssertFalse(presenter.usesHorizontalLayout)
         XCTAssertEqual(presenter.displayedCandidateTitles, ["1  输入法"])
     }
+
+    func testVerticalCandidatesUseFullRowsAndSeparatedPaginationFooter() throws {
+        let presenter = CandidatePanelPresenter()
+        var settings = InputSettings.default
+        settings.candidateLayout = .vertical
+        presenter.apply(settings: settings)
+        let code = try XCTUnwrap(InputCode("wq"))
+        presenter.update(with: try CandidatePage(items: [
+            Candidate(text: "甲", code: code, source: .base, baseRank: 0,
+                      learnedScore: 0, ordinal: 1),
+            Candidate(text: "乙", code: code, source: .base, baseRank: 1,
+                      learnedScore: 0, ordinal: 2)
+        ], pageIndex: 0, pageSize: 5, totalCount: 7))
+
+        XCTAssertTrue(presenter.candidateRowsFillAvailableWidth)
+        XCTAssertEqual(presenter.defaultCandidateIndicatorOrdinals, [1],
+                       "The default choice needs a non-color shape cue")
+        XCTAssertEqual(presenter.displayedPageIndicator, "第 1 / 2 页")
+        XCTAssertEqual(presenter.pageIndicatorAlignment, .right)
+        XCTAssertTrue(presenter.usesSeparatedPageFooter)
+        XCTAssertFalse(presenter.canTakeKeyboardFocus)
+    }
+
+    func testHorizontalCandidatesUseClearerInterCandidateSpacingWithoutEmptyFooter() throws {
+        let presenter = CandidatePanelPresenter()
+        var settings = InputSettings.default
+        settings.candidateLayout = .horizontal
+        presenter.apply(settings: settings)
+        let code = try XCTUnwrap(InputCode("wq"))
+        presenter.update(with: try CandidatePage(items: [
+            Candidate(text: "甲", code: code, source: .base, baseRank: 0,
+                      learnedScore: 0, ordinal: 1),
+            Candidate(text: "乙", code: code, source: .base, baseRank: 1,
+                      learnedScore: 0, ordinal: 2)
+        ], pageIndex: 0, pageSize: 5, totalCount: 2))
+
+        XCTAssertTrue(presenter.usesHorizontalLayout)
+        XCTAssertGreaterThan(presenter.candidateSpacing, 4)
+        XCTAssertFalse(presenter.candidateRowsFillAvailableWidth)
+        XCTAssertNil(presenter.displayedPageIndicator)
+        XCTAssertFalse(presenter.usesSeparatedPageFooter)
+    }
 }
