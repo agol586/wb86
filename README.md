@@ -18,6 +18,8 @@
 </p>
 
 <p align="center">
+  <a href="https://agol586.github.io/wb86/"><strong>官方网站</strong></a>
+  ·
   <a href="https://github.com/agol586/wb86/releases/tag/v1.4"><strong>查看 v1.4</strong></a>
   ·
   <a href="Docs/UserGuide.md">用户指南</a>

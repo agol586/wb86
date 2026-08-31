@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#073b3a">
+    <meta
+      name="description"
+      content="Mac Wubi 86 是一款为 Apple Silicon Mac 打造的原生五笔 86 输入法。纯 Swift、完全离线、轻快安静。"
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Mac Wubi 86 — 真正属于 Mac 的五笔输入法">
+    <meta
+      property="og:description"
+      content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。"
+    >
+    <meta property="og:image" content="https://agol586.github.io/wb86/assets/og.png">
+    <meta property="og:url" content="https://agol586.github.io/wb86/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Mac Wubi 86 — 真正属于 Mac 的五笔输入法">
+    <meta
+      name="twitter:description"
+      content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。"
+    >
+    <meta name="twitter:image" content="https://agol586.github.io/wb86/assets/og.png">
+    <title>Mac Wubi 86 — 真正属于 Mac 的五笔输入法</title>
+    <link rel="canonical" href="https://agol586.github.io/wb86/">
+    <link rel="icon" href="assets/macwubi-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Mac Wubi 86 首页">
+        <img src="assets/macwubi-icon.svg" width="36" height="36" alt="">
+        <span>Mac Wubi 86</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="#features">特点</a>
+        <a href="#install">安装</a>
+        <a href="https://github.com/agol586/wb86">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> 为 Apple Silicon 原生打造</p>
+          <h1>五笔留在手上，<br>隐私留在 Mac 里。</h1>
+          <p class="lede">
+            一款真正属于 Mac 的五笔 86 输入法。纯 Swift、完全离线，
+            五笔优先，忘码时用本地拼音自然接上。
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="#install">开始使用</a>
+            <a class="button button-secondary" href="https://github.com/agol586/wb86">查看源码 <span aria-hidden="true">↗</span></a>
+          </div>
+          <ul class="requirements" aria-label="系统要求">
+            <li>macOS 13+</li>
+            <li>Apple Silicon</li>
+            <li>无网络连接</li>
+          </ul>
+        </div>
+
+        <div class="product-visual" aria-label="输入 wqvb 后出现你好候选的界面示意">
+          <div class="icon-wrap">
+            <img src="assets/macwubi-icon.svg" width="176" height="176" alt="Mac Wubi 86 应用图标">
+          </div>
+          <div class="composition-card">
+            <div class="composition-code">wqvb<span class="caret" aria-hidden="true"></span></div>
+            <div class="candidate-row">
+              <span class="candidate selected"><b>1</b> 你好</span>
+              <span class="candidate"><b>2</b> 您好</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof-strip" aria-label="产品指标">
+        <div><strong>&lt; 2 ms</strong><span>候选查询发布门禁</span></div>
+        <div><strong>&lt; 15 MiB</strong><span>正常输入内存门禁</span></div>
+        <div><strong>0</strong><span>账户、广告与遥测</span></div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="section-heading">
+          <p class="eyebrow">少一点打扰，多一点顺手</p>
+          <h2>只做输入法该做的事。</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="feature-number">01</span>
+            <h3>五笔优先，拼音兜底</h3>
+            <p>熟悉的一至四码、简码与词组输入不变。忘记编码时，直接输入全拼继续找字。</p>
+          </article>
+          <article>
+            <span class="feature-number">02</span>
+            <h3>完全离线，真正私密</h3>
+            <p>没有账户、云同步、在线候选或遥测。输入、词库和本地学习不离开你的 Mac。</p>
+          </article>
+          <article>
+            <span class="feature-number">03</span>
+            <h3>原生轻快，长期可靠</h3>
+            <p>Swift 与 InputMethodKit 原生实现，支持本地调频、用户词库、原子迁移与故障恢复。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="experience section">
+        <div class="experience-copy">
+          <p class="eyebrow">自然的日常工作流</p>
+          <h2>会五笔，就会用。</h2>
+          <p>
+            空格提交首选，数字键选词，Escape 取消，Backspace 修码。
+            支持简繁切换、中英文标点、全半角、候选翻页与鼠标选择。
+          </p>
+          <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/UserGuide.md">阅读完整用户指南 <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="typing-demo" aria-label="五笔与拼音输入示例">
+          <div class="demo-row">
+            <code>wqvb</code>
+            <span>你好</span>
+            <small>五笔词组</small>
+          </div>
+          <div class="demo-row">
+            <code>sm</code>
+            <span>机 · 机会 · 机构</span>
+            <small>本地联想</small>
+          </div>
+          <div class="demo-row">
+            <code>shenm</code>
+            <span>什么</span>
+            <small>拼音预测</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="install section" id="install">
+        <div>
+          <p class="eyebrow">开始使用</p>
+          <h2>从源码构建，保持透明。</h2>
+        </div>
+        <div class="install-content">
+          <p>
+            当前版本提供完整源码。需要 Apple Silicon Mac、macOS 13 或更高版本，以及 Xcode。
+            正式 Developer ID 公证安装包仍在完成最终发布门禁。
+          </p>
+          <pre aria-label="构建命令"><code>git clone https://github.com/agol586/wb86.git
+cd wb86
+Scripts/build-release.sh</code></pre>
+          <div class="install-links">
+            <a class="button button-primary" href="https://github.com/agol586/wb86/releases/latest">查看最新版本</a>
+            <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/SigningAndDistribution.md">安装与签名说明 <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-brand">
+        <img src="assets/macwubi-icon.svg" width="44" height="44" alt="">
+        <div><strong>Mac Wubi 86</strong><span>快、轻、安静。</span></div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/agol586/wb86">GitHub</a>
+        <a href="https://github.com/agol586/wb86/blob/main/Docs/Privacy.md">隐私</a>
+        <a href="https://github.com/agol586/wb86/issues">反馈问题</a>
+      </div>
+      <p class="copyright">© 2026 Mac Wubi 86</p>
+    </footer>
+  </body>
+</html>
