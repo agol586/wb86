@@ -19,12 +19,13 @@ final class DataMigrator {
     private let steps: [DataDomain: [UInt32: Step]]
 
     init(writer: SnapshotWriter,
-         currentVersions: [DataDomain: UInt32] = [.settings: 2, .userLexicon: 1, .learning: 2],
+         currentVersions: [DataDomain: UInt32] = [.settings: 3, .userLexicon: 1, .learning: 2],
          steps: [DataDomain: [UInt32: Step]]? = nil) {
         self.writer = writer
         self.currentVersions = currentVersions
         self.steps = steps ?? [
-            .settings: [1: SettingsStore.migrateV1Payload],
+            .settings: [1: SettingsStore.migrateV1Payload,
+                        2: SettingsStore.migrateV2Payload],
             .learning: [1: LearningStore.migrateV1Payload]
         ]
     }

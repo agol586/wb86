@@ -50,6 +50,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(fresh.mixedPinyinEnabled)
         XCTAssertTrue(fresh.codeHintEnabled)
         XCTAssertFalse(fresh.candidate2And3ShortcutsEnabled)
+        XCTAssertFalse(fresh.extendedCharacterSetEnabled)
         XCTAssertEqual(InputSettings.default, fresh)
 
         let compatible = InputSettings.migrationCompatibilityDefault
@@ -60,6 +61,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(compatible.mixedPinyinEnabled)
         XCTAssertFalse(compatible.codeHintEnabled)
         XCTAssertFalse(compatible.candidate2And3ShortcutsEnabled)
+        XCTAssertFalse(compatible.extendedCharacterSetEnabled)
 
         XCTAssertThrowsError(try InputSettings(candidatePageSize: 4))
         XCTAssertThrowsError(try InputSettings(candidateFontScale: 3))

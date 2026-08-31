@@ -12,7 +12,7 @@ Scripts/test.sh
 必须通过 Core、AdapterContract、Dictionary、Persistence、Migration、FailureRecovery、Privacy、
 Performance、ReleaseContract 和 Integration 测试。重点确认：
 
-- Settings v1→v2 golden migration、future-schema 只读、中断和 previous 恢复。
+- Settings v1→v2→v3 golden migration、future-schema 只读、中断和 previous 恢复。
 - 新安装默认与升级兼容默认不同且都精确匹配。
 - 4 码零/一/多候选、五码复合动作、拼音前缀优先和每事件至多一次提交。
 - 五组翻页键全部组合、候选 2/3、精确 modifiers、边界消费和空闲透传。
@@ -49,7 +49,7 @@ Scripts/privacy-audit.sh
    窗口标题随面板同步；四页均显示标题、简短说明和清晰分组。确认 Return 保存、Escape 取消，恢复
    默认不是默认按钮。
 2. 打开“常用”，确认全新安装默认：中文/简体/半角/英文标点；四码唯一开；五码和调频关；
-   混输与提示开；分号/单引号关。
+   混输与提示开；分号/单引号及扩展汉字关。
 3. 打开“按键”，确认中英文切换依次提供 Shift、Control、Caps Lock、禁用且默认 Shift；
    简繁为 Control-Shift-F、宽度禁用；四个默认翻页组开启、方向键关闭；US 布局。
 4. 只用普通键盘逐项修改、保存、取消，并检查冲突错误将键盘焦点定位到对应控件。
@@ -91,6 +91,8 @@ Scripts/privacy-audit.sh
   `shenme` 时切换为精确候选；提示开关不改变候选/提交；断网结果完全一致。
 - 输入 `sm` 时首项为 `机`，并可翻页找到 `机会`、`机构`、`机场`、`机器`、`机遇`；开启提示时
   联想词只显示 `wf`、`sq`、`fn`、`kk`、`jm` 等尚未输入的后续码。
+- 输入 `wqvb`，确认默认只显示 `你好`、`您好`；在常用页开启“显示扩展汉字”后重新组合，确认
+  `𠛈` 恢复为第三候选，关闭后再次隐藏。
 - 中文/英文标点与半/全角遵循“先标点映射，再转换仍为 ASCII 的字符”。
 
 ## 6. InputMethodKit physical regression

@@ -473,3 +473,15 @@ Chrome 五类客户端共同通过物理矩阵。
   首选的非颜色形状提示、横向候选间距及独立分页页脚，再在
   `Sources/InputMethod/CandidatePanelPresenter.swift` 优化候选层级和密度；保留非激活焦点安全、候选语义、
   高对比度边框与窄宽编码提示降级，并运行目标测试和完整自动化回归。
+
+---
+
+## Phase 21: Rime-compatible extended CJK filtering
+
+- [X] T101 [US4][US5] 先在 `Tests/CoreTests/CandidateQueryTests.swift`、
+  `Tests/IntegrationTests/PersonalizationIntegrationTests.swift`、`Tests/PersistenceTests/SettingsStoreTests.swift`、
+  `Tests/MigrationTests/DataMigratorTests.swift` 与 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖
+  Rime 扩展 A...J/兼容区边界、`wqvb` 默认过滤与开关恢复、Settings v2→v3 原子迁移和常用页回显；
+  再在 `Sources/Core/`、`Sources/Persistence/SettingsStore.swift`、`Sources/Persistence/DataMigrator.swift`、
+  `Sources/Core/InputEngine.swift` 与 `Sources/InputMethod/SettingsWindowController.swift` 实现默认“常用”及
+  可选“显示扩展汉字”，最后运行目标、完整、性能与资源可复现验证。

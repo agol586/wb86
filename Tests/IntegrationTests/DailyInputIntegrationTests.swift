@@ -30,11 +30,11 @@ final class DailyInputIntegrationTests: XCTestCase {
             }
         }
 
-        let expectedCycle = "工你来来往往中国输入法你好𠝻,"
+        let expectedCycle = "工你来来往往中国输入法你好剘,"
         XCTAssertEqual(transcript, String(repeating: expectedCycle, count: 20))
-        XCTAssertEqual(transcript.utf8.count, 880)
+        XCTAssertEqual(transcript.utf8.count, 860)
         XCTAssertEqual(String(format: "%016llx", DictionaryChecksum.fnv1a64(Data(transcript.utf8))),
-                       "9ff0a32a41036925")
+                       "1f85c8ea3a92bba5")
         XCTAssertEqual(engine.state, .idle)
     }
 

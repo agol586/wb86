@@ -212,6 +212,7 @@ private extension InputSettings {
     func candidateRankingPolicy(generation: UInt64) -> CandidateRankingPolicy {
         CandidateRankingPolicy(settingsGeneration: generation,
                                pageSize: candidatePageSize,
-                               automaticFrequency: automaticFrequency)
+                               automaticFrequency: automaticFrequency,
+                               extendedCharacterSetEnabled: extendedCharacterSetEnabled)
     }
 }

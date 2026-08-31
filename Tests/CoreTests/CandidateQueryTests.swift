@@ -3,6 +3,71 @@ import XCTest
 @testable import MacWubi
 
 final class CandidateQueryTests: XCTestCase {
+    func testRimeExtendedCJKRangesAndCompatibilityBlocksAreDeterministic() throws {
+        let ranges: [ClosedRange<UInt32>] = [
+            0x3400...0x4DBF,
+            0x20000...0x2A6DF,
+            0x2A700...0x2B73F,
+            0x2B740...0x2B81F,
+            0x2B820...0x2CEAF,
+            0x2CEB0...0x2EBEF,
+            0x2EBF0...0x2EE5F,
+            0x30000...0x3134F,
+            0x31350...0x323AF,
+            0x323B0...0x3347F,
+            0xF900...0xFAFF,
+            0x2F800...0x2FA1F
+        ]
+        for range in ranges {
+            for value in [range.lowerBound, range.upperBound] {
+                let text = String(try XCTUnwrap(UnicodeScalar(value)))
+                XCTAssertFalse(ExtendedCJKFilter.permits(text), String(format: "U+%04X", value))
+                XCTAssertFalse(ExtendedCJKFilter.permits("常用\(text)词组"))
+            }
+        }
+        for value: UInt32 in [0x33FF, 0x4DC0, 0x4E00, 0x1FFFF, 0x2A6E0, 0x2FA20, 0x33480] {
+            XCTAssertTrue(ExtendedCJKFilter.permits(String(try XCTUnwrap(UnicodeScalar(value)))),
+                          String(format: "U+%04X", value))
+        }
+    }
+
+    func testCommonAndExtendedPoliciesFilterBeforePagingAcrossCandidateSources() throws {
+        let code = try XCTUnwrap(InputCode("wqvb"))
+        let records = try [
+            DictionaryEntryRecord(code: code, rank: 0, text: "你好"),
+            DictionaryEntryRecord(code: code, rank: 1, text: "您好"),
+            DictionaryEntryRecord(code: code, rank: 2, text: "𠛈")
+        ]
+        let commonPolicy = CandidateRankingPolicy(
+            settingsGeneration: 1, pageSize: 5, automaticFrequency: false,
+            extendedCharacterSetEnabled: false
+        )
+        let extendedPolicy = CandidateRankingPolicy(
+            settingsGeneration: 2, pageSize: 5, automaticFrequency: false,
+            extendedCharacterSetEnabled: true
+        )
+
+        let common = try CandidateRanker(policy: commonPolicy).mixedPage(
+            for: XCTUnwrap(CompositionKeySequence("wqvb")), wubiRecords: records,
+            userEntries: [UserCandidateRanking(code: code, text: "𠛈用户", fixedRank: nil)],
+            pinyinCandidates: [PinyinLookupCandidate(text: "𠛈拼音", weight: 1,
+                                                     baseRank: 0, wubiHint: nil)],
+            learningRecords: [], learningEnabled: false, scriptConverter: nil,
+            outputScript: .simplified, pageIndex: 0
+        )
+        let extended = try CandidateRanker(policy: extendedPolicy).mixedPage(
+            for: XCTUnwrap(CompositionKeySequence("wqvb")), wubiRecords: records,
+            userEntries: [UserCandidateRanking(code: code, text: "𠛈用户", fixedRank: nil)],
+            pinyinCandidates: [PinyinLookupCandidate(text: "𠛈拼音", weight: 1,
+                                                     baseRank: 0, wubiHint: nil)],
+            learningRecords: [], learningEnabled: false, scriptConverter: nil,
+            outputScript: .simplified, pageIndex: 0
+        )
+
+        XCTAssertEqual(common.items.map(\.text), ["你好", "您好"])
+        XCTAssertEqual(extended.items.map(\.text), ["你好", "您好", "𠛈", "𠛈用户", "𠛈拼音"])
+    }
+
     func testWubiPrefixAssociationsKeepExactCandidateFirstAndUseFullHints() throws {
         let code = try XCTUnwrap(InputCode("sm"))
         let records = try [
@@ -68,7 +133,10 @@ final class CandidateQueryTests: XCTestCase {
             DictionaryEntryRecord(code: code, rank: 0, text: "你好")
         ]
 
-        let page = try CandidateRanker(pageSize: 5).page(
+        let page = try CandidateRanker(policy: CandidateRankingPolicy(
+            settingsGeneration: 0, pageSize: 5, automaticFrequency: true,
+            extendedCharacterSetEnabled: true
+        )).page(
             for: code, records: records, pageIndex: 0
         )
 

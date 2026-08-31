@@ -11,11 +11,11 @@ final class DataMigratorTests: XCTestCase {
         try writer.commit(legacy)
 
         let migrator = DataMigrator(writer: writer)
-        XCTAssertEqual(try migrator.migrate(.settings), .migrated(from: 1, to: 2))
+        XCTAssertEqual(try migrator.migrate(.settings), .migrated(from: 1, to: 3))
 
         let migrated = try XCTUnwrap(writer.load(.settings))
         XCTAssertEqual(migrated.schemaVersion, InputSettings.schemaVersion)
-        XCTAssertEqual(migrated.generation, 42)
+        XCTAssertEqual(migrated.generation, 43)
         let settings = try JSONDecoder().decode(InputSettings.self, from: migrated.payload)
         XCTAssertEqual(settings.candidatePageSize, 8)
         XCTAssertEqual(settings.candidateLayout, .horizontal)
@@ -36,12 +36,13 @@ final class DataMigratorTests: XCTestCase {
         XCTAssertFalse(settings.mixedPinyinEnabled)
         XCTAssertFalse(settings.codeHintEnabled)
         XCTAssertFalse(settings.candidate2And3ShortcutsEnabled)
-        XCTAssertEqual(try writer.loadPrevious(.settings), legacy)
+        XCTAssertFalse(settings.extendedCharacterSetEnabled)
+        XCTAssertEqual(try writer.loadPrevious(.settings)?.schemaVersion, 2)
 
         let stableBytes = try Data(contentsOf: writer.currentURL(for: .settings))
         XCTAssertEqual(try migrator.migrate(.settings), .current)
         XCTAssertEqual(try Data(contentsOf: writer.currentURL(for: .settings)), stableBytes)
-        XCTAssertEqual(try writer.load(.settings)?.generation, 42)
+        XCTAssertEqual(try writer.load(.settings)?.generation, 43)
     }
 
     func testSettingsV1LegacyPresetAndNewFieldsUseConservativeDefaults() throws {
@@ -51,7 +52,7 @@ final class DataMigratorTests: XCTestCase {
                                             generation: 3, payload: payload))
 
         XCTAssertEqual(try DataMigrator(writer: writer).migrate(.settings),
-                       .migrated(from: 1, to: 2))
+                       .migrated(from: 1, to: 3))
         let migrated = try XCTUnwrap(writer.load(.settings))
         let settings = try JSONDecoder().decode(InputSettings.self, from: migrated.payload)
         XCTAssertEqual(settings, .migrationCompatibilityDefault)
@@ -79,6 +80,29 @@ final class DataMigratorTests: XCTestCase {
             XCTAssertEqual(try writer.load(.settings), legacy)
             XCTAssertNil(try writer.loadPrevious(.settings))
         }
+    }
+
+    func testSettingsV2MigratesToV3WithExtendedCharactersDisabled() throws {
+        let writer = try SnapshotWriter(rootURL: temporaryRoot())
+        let encoded = try JSONEncoder.sorted.encode(InputSettings.newInstallDefault)
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object.removeValue(forKey: "extendedCharacterSetEnabled")
+        let v2Payload = try JSONSerialization.data(withJSONObject: object,
+                                                   options: [.sortedKeys])
+        try writer.commit(try DataSnapshot(domain: .settings, schemaVersion: 2,
+                                            generation: 7, payload: v2Payload))
+
+        XCTAssertEqual(try DataMigrator(writer: writer).migrate(.settings),
+                       .migrated(from: 2, to: 3))
+        let migrated = try XCTUnwrap(writer.load(.settings))
+        XCTAssertEqual(migrated.schemaVersion, 3)
+        XCTAssertEqual(migrated.generation, 8)
+        let settings = try JSONDecoder().decode(InputSettings.self, from: migrated.payload)
+        XCTAssertFalse(settings.extendedCharacterSetEnabled)
+        XCTAssertEqual(settings.candidatePageSize,
+                       InputSettings.newInstallDefault.candidatePageSize)
     }
 
     func testSequentialMigrationAndIdempotencyForEveryDomain() throws {
@@ -139,7 +163,7 @@ final class DataMigratorTests: XCTestCase {
 
             let restarted = try SnapshotWriter(rootURL: root)
             XCTAssertEqual(try restarted.recover(.settings,
-                                                 supportedSchemaVersions: [1, 2]), legacy,
+                                                 supportedSchemaVersions: [1, 2, 3]), legacy,
                            "stage \(stage)")
             XCTAssertEqual(try restarted.load(.settings), legacy, "stage \(stage)")
         }

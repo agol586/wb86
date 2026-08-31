@@ -568,21 +568,22 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         }
 
         addSectionCard(identifier: "输入效率分区",
-                       frame: NSRect(x: 24, y: 18, width: 592, height: 112), to: view)
+                       frame: NSRect(x: 24, y: 18, width: 592, height: 136), to: view)
         let efficiencyLabel = sectionLabel("输入效率", identifier: "输入效率标题")
-        efficiencyLabel.frame = NSRect(x: 34, y: 134, width: 160, height: 20)
+        efficiencyLabel.frame = NSRect(x: 34, y: 158, width: 160, height: 20)
         view.addSubview(efficiencyLabel)
         let options = [
             "四码唯一时直接上屏", "第五码将首选词上屏", "五笔自动调频",
-            "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键"
+            "五笔拼音混合输入", "开启编码提示", "分号和单引号候选快捷键",
+            "显示扩展汉字"
         ]
         for (index, title) in options.enumerated() {
             let button = makeButton(title, action: nil)
             button.target = self
             button.action = #selector(commonOptionChanged(_:))
-            let column = index / 3
-            let row = index % 3
-            button.frame = NSRect(x: 44 + column * 288, y: 88 - row * 31,
+            let column = index / 4
+            let row = index % 4
+            button.frame = NSRect(x: 44 + column * 288, y: 112 - row * 30,
                                   width: 260, height: 26)
             view.addSubview(button)
         }
@@ -676,6 +677,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         updated.mixedPinyinEnabled = isOn("五笔拼音混合输入")
         updated.codeHintEnabled = isOn("开启编码提示")
         updated.candidate2And3ShortcutsEnabled = isOn("分号和单引号候选快捷键")
+        updated.extendedCharacterSetEnabled = isOn("显示扩展汉字")
         updated.candidatePageSize = Int(pageSizeStepper?.integerValue ?? 5)
         updated.candidateLayout = layoutPopup?.indexOfSelectedItem == 1 ? .horizontal : .vertical
         updated.candidateFontScale = fontScaleSlider?.doubleValue ?? 1
@@ -706,6 +708,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         case "开启编码提示": draftSettings.codeHintEnabled = enabled
         case "分号和单引号候选快捷键":
             draftSettings.candidate2And3ShortcutsEnabled = enabled
+        case "显示扩展汉字": draftSettings.extendedCharacterSetEnabled = enabled
         default: return
         }
     }
@@ -760,6 +763,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         case "开启编码提示": button.state = draftSettings.codeHintEnabled ? .on : .off
         case "分号和单引号候选快捷键":
             button.state = draftSettings.candidate2And3ShortcutsEnabled ? .on : .off
+        case "显示扩展汉字":
+            button.state = draftSettings.extendedCharacterSetEnabled ? .on : .off
         case "逗号句号翻页":
             button.state = draftSettings.keyBindings.pageKeyGroups.contains(.commaPeriod) ? .on : .off
         case "减号等号翻页":

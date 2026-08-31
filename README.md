@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.3"><img src="https://img.shields.io/badge/release-v1.3-d99b2b?style=flat-square" alt="v1.3"></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.4"><img src="https://img.shields.io/badge/release-v1.4-d99b2b?style=flat-square" alt="v1.4"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-164f49?style=flat-square&logo=apple" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Apple_Silicon-arm64-164f49?style=flat-square" alt="Apple Silicon arm64">
   <img src="https://img.shields.io/badge/Swift-native-f05138?style=flat-square&logo=swift&logoColor=white" alt="Swift">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.3"><strong>查看 v1.3</strong></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.4"><strong>查看 v1.4</strong></a>
   ·
   <a href="Docs/UserGuide.md">用户指南</a>
   ·
@@ -53,7 +53,8 @@ Mac Wubi 86 是为 Apple Silicon Mac 从头构建的原生五笔输入法。它�
 | `shenme` | 完整拼音继续优先返回精确候选 |
 
 空格提交首选，数字键或鼠标选词，Escape 取消，Backspace 修码。翻页键、Shift 中英文切换、
-简繁、全半角、中文标点、自动上屏和候选数量都可以配置。拼音混输可随时关闭，恢复纯五笔体验。
+简繁、全半角、中文标点、自动上屏和候选数量都可以配置。拼音混输可随时关闭，恢复纯五笔体验；
+扩展汉字默认隐藏，也可在“常用”设置中完整显示。
 组合中按 Shift 会先把当前原始编码上屏再切换；中文状态以大写字母开头时，本段原文会在 marked
 text 和候选框中同步显示且不改变中英文状态，空格或回车后整段上屏并恢复五笔处理；结束用的
 空格或回车本身不会附加到文字。
@@ -63,14 +64,14 @@ text 和候选框中同步显示且不改变中英文状态，空格或回车后
 - 标准五笔 86 一至四码、简码、全码、单字、词组及稳定重码候选。
 - 五笔优先、全拼随后，支持拼音前缀预测、候选去重和当前简繁模式。
 - 本地有界学习、用户词库搜索/编辑、UTF-8 与产品归档格式导入导出。
-- 中英文、简繁、全半角、标点、四码唯一及五码首选等独立选项。
+- 中英文、简繁、全半角、标点、扩展汉字、四码唯一及五码首选等独立选项。
 - 每页 5–9 个候选、横向/纵向布局、字号缩放、深浅色和高对比度。
 - 私密模式、关闭学习、分域删除、保留数据卸载及显式彻底清理。
 - 系统级安装、原子升级、回滚、严格签名检查与完整隐私审计脚本。
 
 ## 快速开始
 
-需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。当前 v1.3 Release 提供源码；正式
+需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。当前 v1.4 Release 提供源码；正式
 Developer ID 公证安装包仍需完成最终硬件矩阵与公证门禁。
 
 ```bash

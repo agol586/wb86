@@ -3,6 +3,35 @@ import XCTest
 @testable import MacWubi
 
 final class PersonalizationIntegrationTests: XCTestCase {
+    func testBundledWQVBDefaultsToCommonCharactersAndCanRestoreExtendedCandidate() throws {
+        let resourceURL = try XCTUnwrap(
+            Bundle.main.url(forResource: "wb86", withExtension: "bin")
+                ?? Bundle(for: Self.self).url(forResource: "wb86", withExtension: "bin")
+        )
+        let coordinator = PersonalizationCoordinator(
+            index: DictionaryIndex(image: try DictionaryLoader.load(from: resourceURL)),
+            userStore: nil, learningStore: nil
+        )
+        let sequence = try XCTUnwrap(CompositionKeySequence("wqvb"))
+        let common = try coordinator.page(
+            for: sequence, pageIndex: 0,
+            policy: CandidateRankingPolicy(settingsGeneration: 1, pageSize: 5,
+                                           automaticFrequency: false,
+                                           extendedCharacterSetEnabled: false),
+            mode: .default, mixedPinyinEnabled: false, scriptConverter: nil
+        )
+        let extended = try coordinator.page(
+            for: sequence, pageIndex: 0,
+            policy: CandidateRankingPolicy(settingsGeneration: 2, pageSize: 5,
+                                           automaticFrequency: false,
+                                           extendedCharacterSetEnabled: true),
+            mode: .default, mixedPinyinEnabled: false, scriptConverter: nil
+        )
+
+        XCTAssertEqual(common.page.items.map(\.text), ["你好", "您好"])
+        XCTAssertEqual(extended.page.items.map(\.text), ["你好", "您好", "𠛈"])
+    }
+
     func testBundledPinyinPredictsShenmeFromShenmAndThenUsesExactKey() throws {
         let bundle = Bundle(for: Self.self)
         let wb86URL = try XCTUnwrap(

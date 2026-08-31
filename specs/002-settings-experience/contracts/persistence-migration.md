@@ -1,10 +1,16 @@
-# Contract: schema v2 迁移与中断恢复
+# Contract: schema v3 迁移与中断恢复
 
 ## Settings v1 → v2
 
 - 使用与 v1 完全匹配的私有 DTO 严格解码；未知/缺失必需旧字段、非法枚举或越界值均使迁移失败。
 - 构造 v2 后运行完整 v2 验证，写入 stage，重新读回验证，再以原子 rename 替换 current。
 - 每一步失败或进程终止均保留可恢复的 v1 current/previous；迁移可重复且不会重复增加语义变化。
+
+## Settings v2 → v3
+
+- 使用与 v2 完全匹配的私有 DTO 严格解码；未知/缺失必需旧字段、非法枚举或越界值均使迁移失败。
+- 新增 `extendedCJK=false`，使升级安装与全新安装都默认只显示常用字符；迁移不得修改其他设置。
+- v1 快照按 v1→v2→v3 逐步迁移，每一步均完整验证并保留同样的 stage、原子替换和 previous 恢复语义。
 
 ## Learning v1 → v2
 

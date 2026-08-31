@@ -91,7 +91,8 @@ final class PersonalizationCoordinator {
         let effectivePolicy = CandidateRankingPolicy(
             settingsGeneration: policy.settingsGeneration,
             pageSize: policy.pageSize,
-            automaticFrequency: includeLearning
+            automaticFrequency: includeLearning,
+            extendedCharacterSetEnabled: policy.extendedCharacterSetEnabled
         )
         let learningRecords: [LearnedCandidateRanking]
         if includeLearning, let snapshot = learningStore?.snapshot {
@@ -124,7 +125,8 @@ final class PersonalizationCoordinator {
         let effectivePolicy = CandidateRankingPolicy(
             settingsGeneration: policy.settingsGeneration,
             pageSize: policy.pageSize,
-            automaticFrequency: includeLearning
+            automaticFrequency: includeLearning,
+            extendedCharacterSetEnabled: policy.extendedCharacterSetEnabled
         )
         let learningRecords = includeLearning ? currentLearningRecords() : []
         let wubiRecords: [DictionaryEntryRecord] = sequence.wubiCode.map { code in

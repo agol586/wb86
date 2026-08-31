@@ -109,6 +109,35 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertFalse(controller.registeredControls.contains {
             $0.identifier?.rawValue == "候选纵向排列"
         })
+        let extended = controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "显示扩展汉字" }
+        XCTAssertEqual(extended?.state, .off)
+    }
+
+    func testExtendedCharacterSettingUpdatesDraftSavesAndRestarts() throws {
+        var persisted = [InputSettings]()
+        let controller = SettingsWindowController(settings: .newInstallDefault) {
+            persisted.append($0)
+        }
+        controller.loadWindow()
+        let toggle = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "显示扩展汉字" })
+        toggle.performClick(nil)
+        XCTAssertTrue(controller.draftSettings.extendedCharacterSetEnabled)
+
+        let save = try XCTUnwrap(controller.registeredControls.compactMap { $0 as? NSButton }
+            .first { $0.identifier?.rawValue == "保存" })
+        save.performClick(nil)
+        let saved = try XCTUnwrap(persisted.last)
+        XCTAssertTrue(saved.extendedCharacterSetEnabled)
+
+        let restarted = SettingsWindowController(settings: saved)
+        restarted.loadWindow()
+        let restartedToggle = try XCTUnwrap(
+            restarted.registeredControls.compactMap { $0 as? NSButton }
+                .first { $0.identifier?.rawValue == "显示扩展汉字" }
+        )
+        XCTAssertEqual(restartedToggle.state, .on)
     }
 
     func testAdvancedOperationsAreActionButtonsWithFeedbackSurface() throws {

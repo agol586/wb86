@@ -9,12 +9,15 @@ struct CandidateRankingPolicy: Equatable, Sendable {
     let settingsGeneration: UInt64
     let pageSize: Int
     let automaticFrequency: Bool
+    let extendedCharacterSetEnabled: Bool
 
-    init(settingsGeneration: UInt64, pageSize: Int, automaticFrequency: Bool) {
+    init(settingsGeneration: UInt64, pageSize: Int, automaticFrequency: Bool,
+         extendedCharacterSetEnabled: Bool = false) {
         precondition((5...9).contains(pageSize))
         self.settingsGeneration = settingsGeneration
         self.pageSize = pageSize
         self.automaticFrequency = automaticFrequency
+        self.extendedCharacterSetEnabled = extendedCharacterSetEnabled
     }
 }
 
@@ -70,7 +73,9 @@ struct CandidateRanker: Sendable {
             throw CandidateQueryError.mismatchedCode
         }
 
-        let matchingUsers = userEntries.filter { $0.code == code }
+        let matchingUsers = userEntries.filter {
+            $0.code == code && permits($0.text)
+        }
         let queryKey = CandidateQueryKey.wubi(code)
         let matchingLearning = learningEnabled
             ? learningRecords.filter { $0.queryKey == queryKey } : []
@@ -90,7 +95,7 @@ struct CandidateRanker: Sendable {
         let exactRoots = Set(records.filter { $0.code == code }.map(\.text)
             + matchingUsers.map(\.text))
         var values = [String: RankedValue]()
-        for record in records {
+        for record in records where permits(record.text) {
             let isExact = record.code == code
             guard isExact || exactRoots.contains(where: {
                 record.text != $0 && record.text.hasPrefix($0)
@@ -287,6 +292,7 @@ struct CandidateRanker: Sendable {
         merged.reserveCapacity(wubiTier.count + pinyinTier.count)
         for value in wubiTier + pinyinTier {
             let displayText = scriptConverter?.convert(value.text, to: outputScript) ?? value.text
+            guard permits(displayText) else { continue }
             guard seenDisplayText.insert(displayText).inserted else { continue }
             merged.append(MixedValue(
                 text: displayText, queryKey: value.queryKey, source: value.source,
@@ -320,6 +326,10 @@ struct CandidateRanker: Sendable {
             scores[record.candidateText] = max(scores[record.candidateText] ?? 0, record.score)
         }
         return scores
+    }
+
+    private func permits(_ text: String) -> Bool {
+        policy.extendedCharacterSetEnabled || ExtendedCJKFilter.permits(text)
     }
 
     static func rank(candidates: [Candidate], learningEnabled: Bool) -> [Candidate] {

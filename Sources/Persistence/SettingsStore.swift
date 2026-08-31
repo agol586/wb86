@@ -21,7 +21,8 @@ struct SettingsSnapshot: Equatable, Sendable {
     var candidateRankingPolicy: CandidateRankingPolicy {
         CandidateRankingPolicy(settingsGeneration: generation,
                                pageSize: settings.candidatePageSize,
-                               automaticFrequency: settings.automaticFrequency)
+                               automaticFrequency: settings.automaticFrequency,
+                               extendedCharacterSetEnabled: settings.extendedCharacterSetEnabled)
     }
 }
 
@@ -32,7 +33,7 @@ enum SettingsStoreAccess: Equatable, Sendable {
 }
 
 struct InputSettings: Equatable, Codable, Sendable {
-    static let schemaVersion: UInt32 = 2
+    static let schemaVersion: UInt32 = 3
 
     var candidatePageSize: Int
     var candidateLayout: CandidateLayout
@@ -45,6 +46,7 @@ struct InputSettings: Equatable, Codable, Sendable {
     var mixedPinyinEnabled: Bool
     var codeHintEnabled: Bool
     var candidate2And3ShortcutsEnabled: Bool
+    var extendedCharacterSetEnabled: Bool
 
     /// Defaults shown to a new install and restored by the explicit Reset action.
     static let newInstallDefault = try! InputSettings(
@@ -59,7 +61,8 @@ struct InputSettings: Equatable, Codable, Sendable {
         automaticFrequency: false,
         mixedPinyinEnabled: true,
         codeHintEnabled: true,
-        candidate2And3ShortcutsEnabled: false
+        candidate2And3ShortcutsEnabled: false,
+        extendedCharacterSetEnabled: false
     )
 
     /// Conservative values used only when schema-v1 data is migrated.
@@ -74,7 +77,8 @@ struct InputSettings: Equatable, Codable, Sendable {
         automaticFrequency: true,
         mixedPinyinEnabled: false,
         codeHintEnabled: false,
-        candidate2And3ShortcutsEnabled: false
+        candidate2And3ShortcutsEnabled: false,
+        extendedCharacterSetEnabled: false
     )
 
     static let `default` = newInstallDefault
@@ -86,7 +90,8 @@ struct InputSettings: Equatable, Codable, Sendable {
                                             width: .half, script: .simplified),
          automaticFrequency: Bool = false, mixedPinyinEnabled: Bool = true,
          codeHintEnabled: Bool = true,
-         candidate2And3ShortcutsEnabled: Bool = false) throws {
+         candidate2And3ShortcutsEnabled: Bool = false,
+         extendedCharacterSetEnabled: Bool = false) throws {
         guard (5...9).contains(candidatePageSize) else {
             throw SettingsValidationError.invalidPageSize
         }
@@ -104,6 +109,7 @@ struct InputSettings: Equatable, Codable, Sendable {
         self.mixedPinyinEnabled = mixedPinyinEnabled
         self.codeHintEnabled = codeHintEnabled
         self.candidate2And3ShortcutsEnabled = candidate2And3ShortcutsEnabled
+        self.extendedCharacterSetEnabled = extendedCharacterSetEnabled
     }
 
     init(candidatePageSize: Int = 5, candidateLayout: CandidateLayout = .vertical,
@@ -122,7 +128,8 @@ struct InputSettings: Equatable, Codable, Sendable {
                       automaticFrequency: learningEnabled,
                       mixedPinyinEnabled: true,
                       codeHintEnabled: true,
-                      candidate2And3ShortcutsEnabled: false)
+                      candidate2And3ShortcutsEnabled: false,
+                      extendedCharacterSetEnabled: false)
     }
 
     /// Source-compatible name for existing runtime policy call sites.
@@ -142,7 +149,8 @@ struct InputSettings: Equatable, Codable, Sendable {
                           automaticFrequency: automaticFrequency,
                           mixedPinyinEnabled: mixedPinyinEnabled,
                           codeHintEnabled: codeHintEnabled,
-                          candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled)
+                          candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled,
+                          extendedCharacterSetEnabled: extendedCharacterSetEnabled)
     }
 }
 
@@ -167,10 +175,11 @@ final class SettingsStore {
         do {
             _ = try writer.recover(
                 .settings,
-                supportedSchemaVersions: [1, InputSettings.schemaVersion],
+                supportedSchemaVersions: [1, 2, InputSettings.schemaVersion],
                 validatePayload: Self.isValidSupportedPayload
             )
-            if try writer.load(.settings)?.schemaVersion == 1 {
+            if let version = try writer.load(.settings)?.schemaVersion,
+               version < InputSettings.schemaVersion {
                 _ = try DataMigrator(writer: writer).migrate(.settings)
             }
         } catch {
@@ -181,7 +190,7 @@ final class SettingsStore {
         if let recovered = try writer.recover(
             .settings,
             supportedSchemaVersions: [InputSettings.schemaVersion],
-            validatePayload: Self.isValidV2Payload
+            validatePayload: Self.isValidV3Payload
         ) {
             guard let decoded = try? JSONDecoder().decode(InputSettings.self,
                                                           from: recovered.payload) else {
@@ -227,17 +236,74 @@ final class SettingsStore {
         } catch {
             throw SettingsValidationError.corruptPayload
         }
-        let settings = try legacy.v2Settings().validated()
+        let settings = try legacy.v2Settings()
+        _ = try settings.v3Settings().validated()
         return try JSONEncoder.sorted.encode(settings)
     }
 
-    private static func isValidV2Payload(_ data: Data) -> Bool {
+    static func migrateV2Payload(_ data: Data) throws -> Data {
+        try InputSettingsV2.validateExactShape(data)
+        let legacy: InputSettingsV2
+        do {
+            legacy = try JSONDecoder().decode(InputSettingsV2.self, from: data)
+        } catch {
+            throw SettingsValidationError.corruptPayload
+        }
+        return try JSONEncoder.sorted.encode(try legacy.v3Settings().validated())
+    }
+
+    private static func isValidV3Payload(_ data: Data) -> Bool {
         (try? JSONDecoder().decode(InputSettings.self, from: data).validated()) != nil
     }
 
     private static func isValidSupportedPayload(_ data: Data) -> Bool {
-        isValidV2Payload(data) || (try? migrateV1Payload(data)) != nil
+        isValidV3Payload(data) || (try? migrateV2Payload(data)) != nil
+            || (try? migrateV1Payload(data)) != nil
     }
+}
+
+private struct InputSettingsV2: Codable {
+    let candidatePageSize: Int
+    let candidateLayout: CandidateLayout
+    let candidateFontScale: Double
+    let keyBindings: KeyBindingSettings
+    let autoCommitAtFour: Bool
+    let autoCommitFirstAtFive: Bool
+    let defaultMode: InputMode
+    let automaticFrequency: Bool
+    let mixedPinyinEnabled: Bool
+    let codeHintEnabled: Bool
+    let candidate2And3ShortcutsEnabled: Bool
+
+    func v3Settings() throws -> InputSettings {
+        try InputSettings(
+            candidatePageSize: candidatePageSize,
+            candidateLayout: candidateLayout,
+            candidateFontScale: candidateFontScale,
+            keyBindings: keyBindings,
+            autoCommitAtFour: autoCommitAtFour,
+            autoCommitFirstAtFive: autoCommitFirstAtFive,
+            defaultMode: defaultMode,
+            automaticFrequency: automaticFrequency,
+            mixedPinyinEnabled: mixedPinyinEnabled,
+            codeHintEnabled: codeHintEnabled,
+            candidate2And3ShortcutsEnabled: candidate2And3ShortcutsEnabled,
+            extendedCharacterSetEnabled: false
+        )
+    }
+
+    static func validateExactShape(_ data: Data) throws {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys) == topLevelKeys else {
+            throw SettingsValidationError.corruptPayload
+        }
+    }
+
+    private static let topLevelKeys: Set<String> = [
+        "candidatePageSize", "candidateLayout", "candidateFontScale", "keyBindings",
+        "autoCommitAtFour", "autoCommitFirstAtFive", "defaultMode", "automaticFrequency",
+        "mixedPinyinEnabled", "codeHintEnabled", "candidate2And3ShortcutsEnabled"
+    ]
 }
 
 private struct InputSettingsV1: Decodable {
@@ -249,12 +315,12 @@ private struct InputSettingsV1: Decodable {
     let defaultMode: InputMode
     let learningEnabled: Bool
 
-    func v2Settings() throws -> InputSettings {
-        try InputSettings(
+    func v2Settings() throws -> InputSettingsV2 {
+        InputSettingsV2(
             candidatePageSize: candidatePageSize,
             candidateLayout: candidateLayout,
             candidateFontScale: candidateFontScale,
-            keyBindings: keyBindings.v2Settings(),
+            keyBindings: try keyBindings.v2Settings(),
             autoCommitAtFour: autoCommitAtFour,
             autoCommitFirstAtFive: false,
             defaultMode: defaultMode,

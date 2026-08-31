@@ -14,7 +14,7 @@ final class SettingsIntegrationTests: XCTestCase {
                                             generation: 6, payload: legacyPayload))
 
         let upgraded = try SettingsStore(writer: SnapshotWriter(rootURL: root))
-        XCTAssertEqual(upgraded.generation, 7)
+        XCTAssertEqual(upgraded.generation, 8)
         XCTAssertEqual(upgraded.settings.candidatePageSize, 7)
         XCTAssertEqual(upgraded.settings.candidateLayout, .horizontal)
         XCTAssertEqual(upgraded.settings.candidateFontScale, 1.25)
@@ -24,6 +24,7 @@ final class SettingsIntegrationTests: XCTestCase {
         XCTAssertTrue(upgraded.settings.autoCommitAtFour)
         XCTAssertFalse(upgraded.settings.automaticFrequency)
         XCTAssertFalse(upgraded.settings.mixedPinyinEnabled)
+        XCTAssertFalse(upgraded.settings.extendedCharacterSetEnabled)
 
         let afterInputMethodRestart = try SettingsStore(writer: SnapshotWriter(rootURL: root))
         XCTAssertEqual(afterInputMethodRestart.snapshot, upgraded.snapshot)

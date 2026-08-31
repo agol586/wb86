@@ -1,24 +1,25 @@
 # Data Model: 设置体验增强
 
-## 1. SettingsSnapshot v2
+## 1. SettingsSnapshot v3
 
 `SettingsSnapshot` 是设置域唯一可发布单元：
 
 | Field | Type / values | Validation |
 |-------|---------------|------------|
-| schemaVersion | UInt32 = 2 | 仅支持 2；未来版本只读保留 |
+| schemaVersion | UInt32 = 3 | 仅支持 3；未来版本只读保留 |
 | generation | UInt64 | 成功替换时单调递增 |
 | initialMode | language, script, width, punctuation | 每个枚举必须为已知值 |
 | autoCommit | uniqueAtFour, firstAtFive | Bool |
 | ranking | automaticFrequency | Bool；私密/禁止学习为更严格覆盖 |
 | assistance | mixedPinyin, codeHint, candidate2And3 | Bool |
+| characterSet | extendedCJK | Bool；默认 false，关闭时使用固定 Rime 扩展 CJK 范围过滤 |
 | bindings | language, script, width | 结构化预设，范围冲突时拒绝 |
 | pageKeyGroups | Set<PageKeyGroup> | 五个已知组的任意集合 |
 | keyboardLayout | followSystem / us | 保存时必须可用 |
 | appearance | 既有页大小、布局、字号缩放 | 延续既有边界 |
 
-全新安装或“恢复默认”使用规格中的 `newInstallDefault`；v1 升级使用单独的
-`migrationCompatibilityDefault`，绝不以新安装默认覆盖旧习惯。
+全新安装或“恢复默认”使用规格中的 `newInstallDefault`；v1/v2 升级使用单独的
+`migrationCompatibilityDefault`，新增 `extendedCJK` 一律为 false，绝不以新安装默认覆盖旧习惯。
 
 ## 2. SessionSettingsState
 

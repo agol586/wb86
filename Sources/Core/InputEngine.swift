@@ -203,7 +203,8 @@ final class InputEngine {
         rankingPolicy = CandidateRankingPolicy(
             settingsGeneration: generation,
             pageSize: settings.candidatePageSize,
-            automaticFrequency: settings.automaticFrequency
+            automaticFrequency: settings.automaticFrequency,
+            extendedCharacterSetEnabled: settings.extendedCharacterSetEnabled
         )
     }
 
