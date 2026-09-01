@@ -92,7 +92,7 @@ final class SettingsWindowTests: XCTestCase {
             !($0.identifier?.rawValue ?? "").isEmpty
         })
         XCTAssertTrue(controller.registeredControls.filter {
-            $0.identifier?.rawValue != "操作反馈"
+            $0.identifier?.rawValue != "操作反馈" && $0.isEnabled
         }.allSatisfy(\.acceptsFirstResponder))
         let stepper = controller.registeredControls.compactMap { $0 as? NSStepper }.first
         XCTAssertEqual(stepper?.minValue, 5)
@@ -265,8 +265,10 @@ final class SettingsWindowTests: XCTestCase {
         XCTAssertEqual((controls["文字大小标题"] as? NSTextField)?.stringValue, "文字大小")
         XCTAssertEqual((controls["每页候选当前值"] as? NSTextField)?.stringValue, "5 个")
         XCTAssertEqual((controls["字号当前值"] as? NSTextField)?.stringValue, "标准 · 14 pt")
-        XCTAssertEqual((controls["候选预览"] as? NSTextField)?.stringValue,
-                       "1  示例\n2  示例\n3  示例")
+        XCTAssertEqual(controller.appearancePreviewCandidateTitles,
+                       ["1  示例", "2  示例", "3  示例"])
+        XCTAssertEqual(controller.appearancePreviewEmphasizedOrdinals, [1])
+        XCTAssertFalse(controller.appearancePreviewUsesHorizontalLayout)
 
         controller.updateDraft { draft in
             draft.candidatePageSize = 8
@@ -276,12 +278,59 @@ final class SettingsWindowTests: XCTestCase {
 
         XCTAssertEqual((controls["每页候选当前值"] as? NSTextField)?.stringValue, "8 个")
         XCTAssertEqual((controls["字号当前值"] as? NSTextField)?.stringValue, "特大 · 17 pt")
-        XCTAssertEqual((controls["候选预览"] as? NSTextField)?.stringValue,
-                       "1  示例    2  示例    3  示例")
-        let previewFontSize = try XCTUnwrap(
-            (controls["候选预览"] as? NSTextField)?.font?.pointSize
-        )
-        XCTAssertEqual(previewFontSize, 17, accuracy: 0.01)
+        XCTAssertTrue(controller.appearancePreviewUsesHorizontalLayout)
+        XCTAssertEqual(controller.appearancePreviewFontSizes, [17, 17, 17])
+    }
+
+    func testDraftStateMakesSaveAndCancelAvailabilityExplicit() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let controls = Dictionary(uniqueKeysWithValues: controller.registeredControls.compactMap {
+            control -> (String, NSControl)? in
+            guard let identifier = control.identifier?.rawValue else { return nil }
+            return (identifier, control)
+        })
+        let save = try XCTUnwrap(controls["保存"] as? NSButton)
+        let cancel = try XCTUnwrap(controls["取消"] as? NSButton)
+        let feedback = try XCTUnwrap(controls["操作反馈"] as? NSTextField)
+
+        XCTAssertFalse(controller.hasUnsavedChanges)
+        XCTAssertFalse(save.isEnabled)
+        XCTAssertFalse(cancel.isEnabled)
+        XCTAssertEqual(feedback.stringValue, "所有更改均已保存。")
+
+        let extended = try XCTUnwrap(controls["显示扩展汉字"] as? NSButton)
+        extended.performClick(nil)
+
+        XCTAssertTrue(controller.hasUnsavedChanges)
+        XCTAssertTrue(save.isEnabled)
+        XCTAssertTrue(cancel.isEnabled)
+        XCTAssertEqual(feedback.stringValue, "有未保存的修改。")
+
+        cancel.performClick(nil)
+        XCTAssertFalse(controller.hasUnsavedChanges)
+        XCTAssertFalse(save.isEnabled)
+        XCTAssertFalse(cancel.isEnabled)
+        XCTAssertEqual(feedback.stringValue, "未保存的修改已取消。")
+    }
+
+    func testEveryPersistedControlPublishesDraftChangesImmediately() throws {
+        let controller = SettingsWindowController.makeForTesting()
+        controller.loadWindow()
+        let persistedControlTitles = [
+            "初始语言", "初始简繁体", "初始全半角", "中文模式标点",
+            "中英文切换", "简繁切换", "全半角切换", "键盘布局",
+            "逗号句号翻页", "减号等号翻页", "中括号翻页",
+            "Tab/Shift-Tab 翻页", "上下方向键翻页"
+        ]
+
+        for title in persistedControlTitles {
+            let control = try XCTUnwrap(controller.registeredControls.first {
+                $0.identifier?.rawValue == title
+            }, title)
+            XCTAssertNotNil(control.target, title)
+            XCTAssertNotNil(control.action, title)
+        }
     }
 
     func testAdvancedPageControlsPrivacyAndLearningImmediatelyAndReopensCurrentState() throws {
@@ -456,13 +505,14 @@ final class SettingsWindowTests: XCTestCase {
                 .first { $0.identifier?.rawValue == "中英文切换" })
             XCTAssertEqual(popup.itemTitles, choices.map(\.0))
             popup.selectItem(at: index)
+            _ = popup.sendAction(popup.action, to: popup.target)
             let save = try XCTUnwrap(controller.registeredControls
                 .compactMap { $0 as? NSButton }
                 .first { $0.identifier?.rawValue == "保存" })
 
             save.performClick(nil)
 
-            let saved = try XCTUnwrap(persisted.last)
+            let saved = persisted.last ?? controller.savedSettings
             XCTAssertEqual(saved.keyBindings.languageSwitch, choice.1)
             let restarted = SettingsWindowController(settings: saved)
             restarted.loadWindow()

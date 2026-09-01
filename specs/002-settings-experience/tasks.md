@@ -485,3 +485,32 @@ Chrome 五类客户端共同通过物理矩阵。
   再在 `Sources/Core/`、`Sources/Persistence/SettingsStore.swift`、`Sources/Persistence/DataMigrator.swift`、
   `Sources/Core/InputEngine.swift` 与 `Sources/InputMethod/SettingsWindowController.swift` 实现默认“常用”及
   可选“显示扩展汉字”，最后运行目标、完整、性能与资源可复现验证。
+
+---
+
+## Phase 22: System visual preference responsiveness
+
+- [X] T102 [US4] 先在 `Tests/AdapterContractTests/CandidatePanelPresenterTests.swift` 覆盖“减少透明度”
+  与“增强对比度”的候选窗表面策略，再在 `Sources/InputMethod/CandidatePanelPresenter.swift` 监听系统
+  视觉偏好变化：普通状态保留系统浮层材质，任一偏好开启时使用自适应实色背景，增强对比度同时加强
+  边框；不得改变候选顺序、焦点、选择、提交或输入性能语义。
+
+---
+
+## Phase 23: Cohesive native and website experience
+
+- [X] T103 [US1][US4] 先在 `Tests/AdapterContractTests/SettingsWindowTests.swift` 覆盖保存/取消可用状态、
+  全量持久化控件即时 draft 绑定，以及带序号、首选强调、纵横布局和真实字号的候选预览；再在
+  `Sources/InputMethod/SettingsWindowController.swift` 实现，不给高频候选出现、键盘切页或提交增加动画。
+- [X] T104 [US1][US5] 先在 `Tests/ReleaseContractTests/ReleaseContractTests.swift` 覆盖官网完整任务路径、
+  v1.5 诚实发布状态、深浅色、减少动态效果、hover 门禁和禁止宽泛动画；再重构 `website/index.html`
+  与 `website/styles.css`，保留零依赖静态 GitHub Pages 架构和既有品牌资源。
+
+---
+
+## Phase 24: v1.5 local signed package
+
+- [X] T105 [US1][US4][US5] 将当前体验升级编号为 1.5 (12)，同步项目版本、发布合同、README、官网与
+  发布说明；运行完整测试后使用现有 Apple Development 身份构建 Release，验证 arm64、Hardened
+  Runtime、空 entitlement、系统依赖和隐私合同，生成可校验归档并原子升级本机输入法。本地验证阶段
+  不创建远端标签或 GitHub Release，且任何后续源码发布都不得声称 Developer ID 公证门禁已通过。

@@ -1,5 +1,20 @@
 import AppKit
 
+struct CandidateVisualPreferences: Equatable, Sendable {
+    let reduceMotion: Bool
+    let increaseContrast: Bool
+    let reduceTransparency: Bool
+
+    static var system: CandidateVisualPreferences {
+        let workspace = NSWorkspace.shared
+        return CandidateVisualPreferences(
+            reduceMotion: workspace.accessibilityDisplayShouldReduceMotion,
+            increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast,
+            reduceTransparency: workspace.accessibilityDisplayShouldReduceTransparency
+        )
+    }
+}
+
 final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     typealias SelectionHandler = (Int) -> Void
 
@@ -16,6 +31,8 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private var appearanceSettings = InputSettings.migrationCompatibilityDefault
     private var currentPage: CandidatePage?
     private let layoutController = CandidateLayoutController()
+    private let visualPreferencesProvider: () -> CandidateVisualPreferences
+    private var solidVisualBackground = false
 
     var isVisible: Bool { panel.isVisible }
     var canTakeKeyboardFocus: Bool { panel.canBecomeKey || panel.canBecomeMain }
@@ -55,9 +72,19 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     var usesCandidateTextHierarchy: Bool {
         candidateButtons.values.allSatisfy { $0.attributedTitle.length > 0 }
     }
+    var usesSolidVisualBackground: Bool { solidVisualBackground }
+    var usesTranslucentPopoverMaterial: Bool {
+        effectView.material == .popover
+            && effectView.blendingMode == .behindWindow
+            && effectView.state == .active
+            && !solidVisualBackground
+    }
 
-    init(selectionHandler: @escaping SelectionHandler = { _ in }) {
+    init(visualPreferencesProvider: @escaping () -> CandidateVisualPreferences = {
+        .system
+    }, selectionHandler: @escaping SelectionHandler = { _ in }) {
         self.selectionHandler = selectionHandler
+        self.visualPreferencesProvider = visualPreferencesProvider
         panel = NonActivatingCandidatePanel(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -71,6 +98,16 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         super.init()
         configurePanel()
         configureContent()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(accessibilityDisplayOptionsDidChange),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
     func update(with page: CandidatePage) {
@@ -174,6 +211,10 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         resizeToFit()
     }
 
+    func refreshVisualPreferences() {
+        refreshVisualStyle(using: visualPreferencesProvider())
+    }
+
     private func configurePanel() {
         panel.level = .popUpMenu
         panel.hidesOnDeactivate = false
@@ -232,6 +273,7 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         ])
         candidateBottomConstraint?.isActive = true
         panel.contentView = effectView
+        refreshVisualStyle(using: visualPreferencesProvider())
     }
 
     private func setPageFooterVisible(_ isVisible: Bool) {
@@ -254,21 +296,47 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private func positionAtAnchorIfAvailable() {
         guard let anchorTopLeft else { return }
         let targetScreen = NSScreen.screens.first { $0.frame.contains(anchorTopLeft) } ?? NSScreen.main
+        let visualPreferences = visualPreferencesProvider()
+        refreshVisualStyle(using: visualPreferences)
         let result = layoutController.layout(
             contentSize: panel.frame.size,
             anchorTopLeft: anchorTopLeft,
             environment: CandidateLayoutEnvironment(
                 visibleFrames: NSScreen.screens.map(\.visibleFrame),
-                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-                increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+                reduceMotion: visualPreferences.reduceMotion,
+                increaseContrast: visualPreferences.increaseContrast,
                 backingScale: targetScreen?.backingScaleFactor ?? 1
             )
         )
-        effectView.layer?.borderWidth = result.usesHighContrastBorder ? 2 : 1
-        effectView.layer?.borderColor = result.usesHighContrastBorder
+        panel.setFrame(result.frame, display: true, animate: result.animates && panel.isVisible)
+    }
+
+    private func refreshVisualStyle(using preferences: CandidateVisualPreferences) {
+        solidVisualBackground = preferences.reduceTransparency || preferences.increaseContrast
+        if solidVisualBackground {
+            effectView.material = .windowBackground
+            effectView.blendingMode = .withinWindow
+            effectView.state = .inactive
+            effectView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        } else {
+            effectView.material = .popover
+            effectView.blendingMode = .behindWindow
+            effectView.state = .active
+            effectView.layer?.backgroundColor = NSColor.clear.cgColor
+        }
+        effectView.layer?.borderWidth = preferences.increaseContrast ? 2 : 1
+        effectView.layer?.borderColor = preferences.increaseContrast
             ? NSColor.labelColor.cgColor
             : NSColor.separatorColor.withAlphaComponent(0.55).cgColor
-        panel.setFrame(result.frame, display: true, animate: result.animates && panel.isVisible)
+    }
+
+    @objc private func accessibilityDisplayOptionsDidChange() {
+        precondition(Thread.isMainThread)
+        if anchorTopLeft == nil {
+            refreshVisualPreferences()
+        } else {
+            positionAtAnchorIfAvailable()
+        }
     }
 
     @objc private func selectCandidate(_ sender: NSButton) {

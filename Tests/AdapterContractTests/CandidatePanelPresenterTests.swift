@@ -68,6 +68,34 @@ final class CandidatePanelPresenterTests: XCTestCase {
         XCTAssertEqual(result.backingScale, 2)
     }
 
+    func testReducedTransparencyAndHighContrastUseASolidCandidateSurface() {
+        var preferences = CandidateVisualPreferences(
+            reduceMotion: false,
+            increaseContrast: false,
+            reduceTransparency: true
+        )
+        let presenter = CandidatePanelPresenter(
+            visualPreferencesProvider: { preferences }
+        )
+
+        presenter.refreshVisualPreferences()
+
+        XCTAssertTrue(presenter.usesSolidVisualBackground)
+        XCTAssertFalse(presenter.usesTranslucentPopoverMaterial)
+        XCTAssertEqual(presenter.visualBorderWidth, 1)
+
+        preferences = CandidateVisualPreferences(
+            reduceMotion: false,
+            increaseContrast: true,
+            reduceTransparency: false
+        )
+        presenter.refreshVisualPreferences()
+
+        XCTAssertTrue(presenter.usesSolidVisualBackground)
+        XCTAssertFalse(presenter.usesTranslucentPopoverMaterial)
+        XCTAssertEqual(presenter.visualBorderWidth, 2)
+    }
+
     func testRowLayoutDropsHintBeforeTruncatingCandidateBody() throws {
         let candidate = try Candidate(
             text: "这是必须优先保留的候选正文",

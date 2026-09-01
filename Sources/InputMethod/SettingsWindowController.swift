@@ -10,6 +10,134 @@ private enum SettingsWindowValidationError: Error {
     case keyBinding(KeyBindingConflict)
 }
 
+private final class CandidatePreviewView: NSView {
+    private let rows = (1...3).map { CandidatePreviewRow(ordinal: $0, text: "示例") }
+    private(set) var usesHorizontalLayout = false
+
+    var candidateTitles: [String] { rows.map(\.candidateTitle) }
+    var emphasizedOrdinals: [Int] { rows.filter(\.isEmphasized).map(\.ordinal) }
+    var candidateFontSizes: [CGFloat] { rows.map(\.candidateFontSize) }
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 9
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+        layer?.masksToBounds = true
+        rows.enumerated().forEach { index, row in
+            row.isEmphasized = index == 0
+            addSubview(row)
+        }
+        updateColors()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func update(layout: CandidateLayout, pointSize: CGFloat) {
+        usesHorizontalLayout = layout == .horizontal
+        rows.forEach { $0.candidateFontSize = pointSize }
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
+    override func layout() {
+        super.layout()
+        let inset: CGFloat = 8
+        if usesHorizontalLayout {
+            let spacing: CGFloat = 5
+            let availableWidth = bounds.width - inset * 2 - spacing * 2
+            let rowWidth = floor(availableWidth / 3)
+            let rowHeight: CGFloat = min(42, bounds.height - inset * 2)
+            for (index, row) in rows.enumerated() {
+                row.frame = NSRect(x: inset + CGFloat(index) * (rowWidth + spacing),
+                                   y: (bounds.height - rowHeight) / 2,
+                                   width: rowWidth, height: rowHeight)
+            }
+        } else {
+            let spacing: CGFloat = 3
+            let rowHeight = floor((bounds.height - inset * 2 - spacing * 2) / 3)
+            for (index, row) in rows.enumerated() {
+                row.frame = NSRect(x: inset,
+                                   y: inset + CGFloat(index) * (rowHeight + spacing),
+                                   width: bounds.width - inset * 2, height: rowHeight)
+            }
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+        rows.forEach { $0.updateColors() }
+    }
+
+    private func updateColors() {
+        layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.72).cgColor
+        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+    }
+}
+
+private final class CandidatePreviewRow: NSView {
+    let ordinal: Int
+    private let ordinalLabel: NSTextField
+    private let candidateLabel: NSTextField
+    private let defaultIndicator = NSView()
+
+    var isEmphasized = false {
+        didSet {
+            defaultIndicator.isHidden = !isEmphasized
+            updateColors()
+        }
+    }
+    var candidateTitle: String { "\(ordinal)  \(candidateLabel.stringValue)" }
+    var candidateFontSize: CGFloat {
+        get { candidateLabel.font?.pointSize ?? 0 }
+        set { candidateLabel.font = .systemFont(ofSize: newValue, weight: .regular) }
+    }
+
+    init(ordinal: Int, text: String) {
+        self.ordinal = ordinal
+        ordinalLabel = NSTextField(labelWithString: "\(ordinal)")
+        candidateLabel = NSTextField(labelWithString: text)
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.cornerCurve = .continuous
+        ordinalLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
+        ordinalLabel.alignment = .center
+        candidateLabel.lineBreakMode = .byTruncatingTail
+        addSubview(defaultIndicator)
+        addSubview(ordinalLabel)
+        addSubview(candidateLabel)
+        updateColors()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func layout() {
+        super.layout()
+        defaultIndicator.frame = NSRect(x: 1, y: 6, width: 3,
+                                        height: max(0, bounds.height - 12))
+        ordinalLabel.frame = NSRect(x: 8, y: (bounds.height - 16) / 2,
+                                    width: 18, height: 16)
+        candidateLabel.frame = NSRect(x: 29, y: (bounds.height - 22) / 2,
+                                      width: max(0, bounds.width - 35), height: 22)
+    }
+
+    func updateColors() {
+        layer?.backgroundColor = isEmphasized
+            ? NSColor.controlAccentColor.withAlphaComponent(0.14).cgColor
+            : NSColor.clear.cgColor
+        defaultIndicator.wantsLayer = true
+        defaultIndicator.layer?.cornerRadius = 1.5
+        defaultIndicator.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        ordinalLabel.textColor = .secondaryLabelColor
+        candidateLabel.textColor = .labelColor
+    }
+}
+
 final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSTabViewDelegate {
     private static let toolbarIdentifier = NSToolbar.Identifier("MacWubiSettingsToolbar")
     static let shared = SettingsWindowController(
@@ -51,12 +179,14 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
     private var fontScaleSlider: NSSlider?
     private weak var pageSizeValueLabel: NSTextField?
     private weak var fontScaleValueLabel: NSTextField?
-    private weak var appearancePreviewLabel: NSTextField?
+    private weak var appearancePreviewView: CandidatePreviewView?
     private var popupsByLabel = [String: NSPopUpButton]()
     private var bindingChoicesByLabel = [String: [(title: String, binding: ModeSwitchBinding)]]()
     private var titlesByControl = [ObjectIdentifier: String]()
     private weak var tabView: NSTabView?
     private weak var feedbackLabel: NSTextField?
+    private weak var saveButton: NSButton?
+    private weak var cancelButton: NSButton?
     private let panelController = ImportExportPanelController()
     private let importReportController = ImportReportViewController()
     private var privacyWindowController: NSWindowController?
@@ -65,6 +195,20 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
             self?.personalizationCoordinator.userLexiconService
         }
     )
+
+    var hasUnsavedChanges: Bool { draftSettings != settings }
+    var appearancePreviewCandidateTitles: [String] {
+        appearancePreviewView?.candidateTitles ?? []
+    }
+    var appearancePreviewEmphasizedOrdinals: [Int] {
+        appearancePreviewView?.emphasizedOrdinals ?? []
+    }
+    var appearancePreviewUsesHorizontalLayout: Bool {
+        appearancePreviewView?.usesHorizontalLayout ?? false
+    }
+    var appearancePreviewFontSizes: [CGFloat] {
+        appearancePreviewView?.candidateFontSizes ?? []
+    }
 
     init(settings: InputSettings,
          access: SettingsStoreAccess = .writable,
@@ -99,8 +243,10 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         fontScaleSlider = nil
         pageSizeValueLabel = nil
         fontScaleValueLabel = nil
-        appearancePreviewLabel = nil
+        appearancePreviewView = nil
         feedbackLabel = nil
+        saveButton = nil
+        cancelButton = nil
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 500),
                               styleMask: [.titled, .closable],
                               backing: .buffered, defer: false)
@@ -133,9 +279,11 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         applyButton.frame = NSRect(x: 560, y: 14, width: 96, height: 30)
         applyButton.keyEquivalent = "\r"
         applyButton.bezelStyle = .rounded
+        saveButton = applyButton
         let cancelButton = makeButton("取消", action: #selector(cancelFromControls))
         cancelButton.frame = NSRect(x: 456, y: 14, width: 96, height: 30)
         cancelButton.keyEquivalent = "\u{1b}"
+        self.cancelButton = cancelButton
         let restoreButton = makeButton("恢复默认…", action: #selector(confirmRestoreDefaults))
         restoreButton.frame = NSRect(x: 336, y: 14, width: 112, height: 30)
         window.contentView?.addSubview(tabs)
@@ -143,7 +291,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         window.contentView?.addSubview(cancelButton)
         window.contentView?.addSubview(restoreButton)
         window.defaultButtonCell = applyButton.cell as? NSButtonCell
-        let feedback = NSTextField(wrappingLabelWithString: lastValidationMessage ?? "")
+        let feedback = NSTextField(wrappingLabelWithString:
+            lastValidationMessage ?? "所有更改均已保存。")
         feedback.frame = NSRect(x: 12, y: 6, width: 312, height: 40)
         feedback.identifier = NSUserInterfaceItemIdentifier("操作反馈")
         feedback.isSelectable = true
@@ -171,6 +320,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         focusControls.last?.nextKeyView = focusControls.first
         window.initialFirstResponder = initialResponder
         self.window = window
+        refreshDraftState(publishesMessage: false)
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -246,6 +396,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
             try apply(value)
             lastFocusedControlTitle = nil
             publishMessage("设置已保存。")
+            refreshDraftState(publishesMessage: false)
             return true
         } catch SettingsValidationError.invalidPageSize {
             reject("设置无效：候选数量必须为 5 至 9。", focus: "每页候选数量 5 至 9")
@@ -273,6 +424,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         lastFocusedControlTitle = nil
         refreshAllControls()
         publishMessage("未保存的修改已取消。")
+        refreshDraftState(publishesMessage: false)
     }
 
     @discardableResult
@@ -281,12 +433,14 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         try apply(.default)
         refreshAllControls()
         publishMessage("已恢复默认设置。")
+        refreshDraftState(publishesMessage: false)
         return true
     }
 
     func updateDraft(_ update: (inout InputSettings) -> Void) {
         update(&draftSettings)
         refreshAllControls()
+        refreshDraftState()
     }
 
     func confirmationMessage(for action: SettingsDestructiveAction) -> String {
@@ -471,21 +625,10 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         let previewHelp = identifiedLabel("保存前确认实际密度", identifier: "候选预览说明",
                                           color: .secondaryLabelColor)
         previewHelp.frame = NSRect(x: 390, y: 230, width: 180, height: 18)
-        let preview = NSTextField(wrappingLabelWithString: "")
+        let preview = CandidatePreviewView(frame: NSRect(x: 390, y: 91,
+                                                         width: 206, height: 124))
         preview.identifier = NSUserInterfaceItemIdentifier("候选预览")
-        preview.frame = NSRect(x: 390, y: 91, width: 206, height: 124)
-        preview.drawsBackground = true
-        preview.backgroundColor = .textBackgroundColor.withAlphaComponent(0.72)
-        preview.isBezeled = false
-        preview.isEditable = false
-        preview.isSelectable = false
-        preview.maximumNumberOfLines = 3
-        preview.wantsLayer = true
-        preview.layer?.cornerRadius = 8
-        preview.layer?.cornerCurve = .continuous
-        preview.layer?.masksToBounds = true
-        preview.alignment = .center
-        appearancePreviewLabel = preview
+        appearancePreviewView = preview
         view.addSubview(previewTitle)
         view.addSubview(previewHelp)
         view.addSubview(preview)
@@ -561,6 +704,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
                                                     width: 126, height: 30))
             popup.addItems(withTitles: row.1)
             popup.selectItem(at: row.2)
+            popup.target = self
+            popup.action = #selector(persistedControlChanged(_:))
             register(popup, label: row.0)
             popupsByLabel[row.0] = popup
             view.addSubview(caption)
@@ -610,6 +755,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
             bindingChoicesByLabel[row.0] = choices
             popup.addItems(withTitles: choices.map(\.title))
             popup.selectItem(at: choices.firstIndex { $0.binding == row.1 } ?? 0)
+            popup.target = self
+            popup.action = #selector(persistedControlChanged(_:))
             register(popup, label: row.0)
             popupsByLabel[row.0] = popup
             view.addSubview(caption)
@@ -622,6 +769,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
                                                         width: 150, height: 30))
         keyboardLayout.addItems(withTitles: ["美国 ANSI", "跟随系统布局"])
         keyboardLayout.selectItem(at: draftSettings.keyBindings.keyboardLayout == .us ? 0 : 1)
+        keyboardLayout.target = self
+        keyboardLayout.action = #selector(persistedControlChanged(_:))
         register(keyboardLayout, label: "键盘布局")
         popupsByLabel["键盘布局"] = keyboardLayout
         view.addSubview(layoutCaption)
@@ -638,6 +787,8 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         ]
         for (index, title) in pageOptions.enumerated() {
             let button = makeButton(title, action: nil)
+            button.target = self
+            button.action = #selector(persistedControlChanged(_:))
             let column = index / 3
             let row = index % 3
             button.frame = NSRect(x: 44 + column * 288, y: 82 - row * 30,
@@ -670,6 +821,12 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
     }
 
     @objc private func applyFromControls() {
+        draftSettings = settingsFromControls()
+        _ = validateAndApply(draftSettings)
+        refreshDraftState(publishesMessage: false)
+    }
+
+    private func settingsFromControls() -> InputSettings {
         var updated = draftSettings
         updated.autoCommitAtFour = isOn("四码唯一时直接上屏")
         updated.autoCommitFirstAtFive = isOn("第五码将首选词上屏")
@@ -694,8 +851,12 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         })
         keyBindings.keyboardLayout = selectedIndex("键盘布局") == 0 ? .us : .followSystem
         updated.keyBindings = keyBindings
-        draftSettings = updated
-        _ = validateAndApply(updated)
+        return updated
+    }
+
+    @objc private func persistedControlChanged(_ sender: NSControl) {
+        draftSettings = settingsFromControls()
+        refreshDraftState()
     }
 
     @objc private func commonOptionChanged(_ sender: NSButton) {
@@ -711,6 +872,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         case "显示扩展汉字": draftSettings.extendedCharacterSetEnabled = enabled
         default: return
         }
+        refreshDraftState()
     }
 
     @objc private func appearanceControlChanged(_ sender: NSControl) {
@@ -725,6 +887,7 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
                 ?? draftSettings.candidateFontScale
         }
         refreshAppearanceControls()
+        refreshDraftState()
     }
 
     @objc private func runtimePolicyChanged(_ sender: NSButton) {
@@ -807,17 +970,21 @@ final class SettingsWindowController: NSWindowController, NSToolbarDelegate, NST
         )
         let displayName = CandidateTypography.displayName(for: draftSettings.candidateFontScale)
         fontScaleValueLabel?.stringValue = "\(displayName) · \(Int(pointSize.rounded())) pt"
-        let isHorizontal = draftSettings.candidateLayout == .horizontal
-        appearancePreviewLabel?.stringValue = isHorizontal
-            ? "1  示例    2  示例    3  示例"
-            : "1  示例\n2  示例\n3  示例"
-        appearancePreviewLabel?.font = .systemFont(ofSize: pointSize, weight: .regular)
-        appearancePreviewLabel?.alignment = isHorizontal ? .center : .left
+        appearancePreviewView?.update(layout: draftSettings.candidateLayout,
+                                      pointSize: pointSize)
     }
 
     private func refreshRuntimePolicyControls() {
         controlsByTitle["私密模式"]?.state = privacyController.privateMode ? .on : .off
         controlsByTitle["本地学习"]?.state = privacyController.learningEnabled ? .on : .off
+    }
+
+    private func refreshDraftState(publishesMessage: Bool = true) {
+        let isDirty = hasUnsavedChanges && !isReadOnly
+        saveButton?.isEnabled = isDirty
+        cancelButton?.isEnabled = isDirty
+        guard publishesMessage, !isReadOnly else { return }
+        publishMessage(isDirty ? "有未保存的修改。" : "所有更改均已保存。")
     }
 
     private func publishMessage(_ message: String) {

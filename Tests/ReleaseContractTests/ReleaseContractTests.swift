@@ -13,6 +13,8 @@ final class ReleaseContractTests: XCTestCase {
     func testBundleHasRequiredInputMethodMetadata() throws {
         let info = try XCTUnwrap(Bundle.main.infoDictionary)
         XCTAssertEqual(info["CFBundleIdentifier"] as? String, "org.macwubi.inputmethod.MacWubi")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.5")
+        XCTAssertEqual(info["CFBundleVersion"] as? String, "12")
         XCTAssertEqual(info["LSUIElement"] as? Bool, true)
         XCTAssertNil(info["LSBackgroundOnly"],
                      "an input method that owns a settings window cannot be background-only")
@@ -44,6 +46,28 @@ final class ReleaseContractTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: root.appendingPathComponent("MacWubi.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved").path
         ))
+    }
+
+    func testOfficialWebsiteCoversTheCompleteDecisionAndInstallJourney() throws {
+        let website = repositoryRoot().appendingPathComponent("website")
+        let html = try String(contentsOf: website.appendingPathComponent("index.html"),
+                              encoding: .utf8)
+        let css = try String(contentsOf: website.appendingPathComponent("styles.css"),
+                             encoding: .utf8)
+
+        for section in ["experience", "privacy", "install", "faq"] {
+            XCTAssertTrue(html.contains("id=\"\(section)\""), "missing website section: \(section)")
+        }
+        XCTAssertTrue(html.contains("跳到正文"))
+        XCTAssertTrue(html.contains("v1.5"))
+        XCTAssertTrue(html.contains("releases/tag/v1.5"),
+                      "published v1.5 website must link to the immutable release")
+        XCTAssertTrue(html.contains("aria-label=\"主导航\""))
+        XCTAssertTrue(css.contains("prefers-color-scheme: dark"))
+        XCTAssertTrue(css.contains("prefers-reduced-motion: reduce"))
+        XCTAssertTrue(css.contains("(hover: hover) and (pointer: fine)"))
+        XCTAssertFalse(css.contains("transition: all"))
+        XCTAssertFalse(css.contains("ease-in;"))
     }
 
     func testPinyinManifestProvenanceAndLicenseShipInBundle() throws {

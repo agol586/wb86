@@ -3,25 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#073b3a">
-    <meta
-      name="description"
-      content="Mac Wubi 86 是一款为 Apple Silicon Mac 打造的原生五笔 86 输入法。纯 Swift、完全离线、轻快安静。"
-    >
+    <meta name="theme-color" content="#f3f1e9" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#101716" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="Mac Wubi 86 是为 Apple Silicon Mac 打造的原生五笔 86 输入法。纯 Swift、完全离线，五笔优先，拼音兜底。">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Mac Wubi 86 — 真正属于 Mac 的五笔输入法">
-    <meta
-      property="og:description"
-      content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。"
-    >
+    <meta property="og:description" content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。">
     <meta property="og:image" content="https://agol586.github.io/wb86/assets/og.png">
     <meta property="og:url" content="https://agol586.github.io/wb86/">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Mac Wubi 86 — 真正属于 Mac 的五笔输入法">
-    <meta
-      name="twitter:description"
-      content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。"
-    >
+    <meta name="twitter:description" content="快、轻、安静。五笔优先，拼音兜底，所有输入与学习都留在本机。">
     <meta name="twitter:image" content="https://agol586.github.io/wb86/assets/og.png">
     <title>Mac Wubi 86 — 真正属于 Mac 的五笔输入法</title>
     <link rel="canonical" href="https://agol586.github.io/wb86/">
@@ -30,144 +22,164 @@
   </head>
   <body>
     <a class="skip-link" href="#main">跳到正文</a>
-
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="Mac Wubi 86 首页">
-        <img src="assets/macwubi-icon.svg" width="36" height="36" alt="">
-        <span>Mac Wubi 86</span>
-      </a>
-      <nav aria-label="主导航">
-        <a href="#features">特点</a>
-        <a href="#install">安装</a>
-        <a href="https://github.com/agol586/wb86">GitHub</a>
-      </nav>
+      <div class="header-inner">
+        <a class="brand" href="#top" aria-label="Mac Wubi 86 首页">
+          <img src="assets/macwubi-icon.svg" width="34" height="34" alt="">
+          <span>Mac Wubi 86</span>
+        </a>
+        <nav aria-label="主导航">
+          <a href="#experience">体验</a><a href="#privacy">隐私</a>
+          <a href="#install">安装</a><a href="#faq">常见问题</a>
+        </nav>
+        <a class="header-action" href="https://github.com/agol586/wb86/releases/tag/v1.5">获取 v1.5 <span aria-hidden="true">↗</span></a>
+      </div>
     </header>
 
     <main id="main">
-      <section class="hero" id="top">
+      <section class="hero page-width" id="top">
         <div class="hero-copy">
-          <p class="eyebrow"><span></span> 为 Apple Silicon 原生打造</p>
-          <h1>五笔留在手上，<br>隐私留在 Mac 里。</h1>
-          <p class="lede">
-            一款真正属于 Mac 的五笔 86 输入法。纯 Swift、完全离线，
-            五笔优先，忘码时用本地拼音自然接上。
-          </p>
+          <a class="release-note" href="https://github.com/agol586/wb86/releases/tag/v1.5">
+            <span>v1.5 已发布</span><span aria-hidden="true">查看更新 →</span>
+          </a>
+          <p class="eyebrow">为 Apple Silicon 原生打造</p>
+          <h1>五笔留在手上，<br><span>隐私留在 Mac 里。</span></h1>
+          <p class="lede">一款真正属于 Mac 的五笔 86 输入法。五笔优先，忘码时用本地拼音自然接上；没有账户、云候选、广告和遥测。</p>
           <div class="actions">
-            <a class="button button-primary" href="#install">开始使用</a>
-            <a class="button button-secondary" href="https://github.com/agol586/wb86">查看源码 <span aria-hidden="true">↗</span></a>
+            <a class="button button-primary" href="https://github.com/agol586/wb86/releases/tag/v1.5">获取 v1.5 源码</a>
+            <a class="button button-secondary" href="#install">查看安装步骤</a>
           </div>
-          <ul class="requirements" aria-label="系统要求">
-            <li>macOS 13+</li>
-            <li>Apple Silicon</li>
-            <li>无网络连接</li>
-          </ul>
+          <ul class="requirements" aria-label="系统要求"><li>macOS 13+</li><li>Apple Silicon</li><li>完全离线</li></ul>
         </div>
-
-        <div class="product-visual" aria-label="输入 wqvb 后出现你好候选的界面示意">
-          <div class="icon-wrap">
-            <img src="assets/macwubi-icon.svg" width="176" height="176" alt="Mac Wubi 86 应用图标">
-          </div>
-          <div class="composition-card">
-            <div class="composition-code">wqvb<span class="caret" aria-hidden="true"></span></div>
-            <div class="candidate-row">
-              <span class="candidate selected"><b>1</b> 你好</span>
-              <span class="candidate"><b>2</b> 您好</span>
+        <div class="hero-visual" aria-label="Mac Wubi 86 输入体验示意">
+          <div class="app-window">
+            <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><small>备忘录</small></div>
+            <div class="document">
+              <p>把注意力留给文字，</p><p>把输入交给熟悉的肌肉记忆。</p>
+              <div class="marked-text">wqvb<span class="caret" aria-hidden="true"></span></div>
             </div>
           </div>
+          <div class="candidate-panel" aria-label="候选词：第一项你好，第二项您好">
+            <div class="candidate selected"><b>1</b><span>你好</span></div>
+            <div class="candidate"><b>2</b><span>您好</span></div>
+            <div class="candidate-hint">五笔 86</div>
+          </div>
+          <div class="local-badge"><span aria-hidden="true">●</span>仅在本机处理</div>
         </div>
       </section>
 
-      <section class="proof-strip" aria-label="产品指标">
-        <div><strong>&lt; 2 ms</strong><span>候选查询发布门禁</span></div>
-        <div><strong>&lt; 15 MiB</strong><span>正常输入内存门禁</span></div>
-        <div><strong>0</strong><span>账户、广告与遥测</span></div>
+      <section class="proof page-width" aria-label="产品发布门禁">
+        <div><strong>&lt; 2 ms</strong><span>每个候选查询发布样本</span></div>
+        <div><strong>&lt; 15 MiB</strong><span>正常输入 physical footprint</span></div>
+        <div><strong>0</strong><span>网络、账户、广告与遥测</span></div>
+        <div><strong>100%</strong><span>Swift 原生输入核心</span></div>
       </section>
 
-      <section class="section" id="features">
-        <div class="section-heading">
-          <p class="eyebrow">少一点打扰，多一点顺手</p>
-          <h2>只做输入法该做的事。</h2>
+      <section class="section page-width" id="experience">
+        <div class="section-heading split-heading">
+          <div><p class="eyebrow">熟悉，不意味着守旧</p><h2>会五笔，就会用。</h2></div>
+          <p>空格提交首选，数字键选词，Escape 取消，Backspace 修码。日常操作保持直接，复杂能力藏在需要时才出现的设置里。</p>
+        </div>
+        <div class="input-journey">
+          <article class="journey-card journey-primary">
+            <div class="journey-label"><span>01</span> 五笔词组</div><code>wqvb</code>
+            <div class="journey-result"><strong>你好</strong><small>首选直接提交</small></div>
+          </article>
+          <article class="journey-card">
+            <div class="journey-label"><span>02</span> 本地联想</div><code>sm</code>
+            <div class="journey-result"><strong>机 · 机会 · 机构</strong><small>编码提示只显示未输入部分</small></div>
+          </article>
+          <article class="journey-card">
+            <div class="journey-label"><span>03</span> 拼音兜底</div><code>shenm</code>
+            <div class="journey-result"><strong>什么</strong><small>本地前缀预测，不联网</small></div>
+          </article>
         </div>
         <div class="feature-grid">
-          <article>
-            <span class="feature-number">01</span>
-            <h3>五笔优先，拼音兜底</h3>
-            <p>熟悉的一至四码、简码与词组输入不变。忘记编码时，直接输入全拼继续找字。</p>
-          </article>
-          <article>
-            <span class="feature-number">02</span>
-            <h3>完全离线，真正私密</h3>
-            <p>没有账户、云同步、在线候选或遥测。输入、词库和本地学习不离开你的 Mac。</p>
-          </article>
-          <article>
-            <span class="feature-number">03</span>
-            <h3>原生轻快，长期可靠</h3>
-            <p>Swift 与 InputMethodKit 原生实现，支持本地调频、用户词库、原子迁移与故障恢复。</p>
-          </article>
+          <article><span class="feature-icon" aria-hidden="true">⌘</span><h3>尊重肌肉记忆</h3><p>中英文、简繁、全半角、标点与五组翻页键独立配置，常用路径无需重新学习。</p></article>
+          <article><span class="feature-icon" aria-hidden="true">字</span><h3>候选清楚克制</h3><p>横向或纵向布局、5–9 个候选和有界字号，首选同时使用颜色与形状表达。</p></article>
+          <article><span class="feature-icon" aria-hidden="true">↻</span><h3>本地学习可控</h3><p>候选调频与用户词库留在本机；私密模式、关闭学习和分域删除随时可用。</p></article>
         </div>
       </section>
 
-      <section class="experience section">
-        <div class="experience-copy">
-          <p class="eyebrow">自然的日常工作流</p>
-          <h2>会五笔，就会用。</h2>
-          <p>
-            空格提交首选，数字键选词，Escape 取消，Backspace 修码。
-            支持简繁切换、中英文标点、全半角、候选翻页与鼠标选择。
-          </p>
-          <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/UserGuide.md">阅读完整用户指南 <span aria-hidden="true">→</span></a>
+      <section class="settings-showcase page-width" aria-labelledby="settings-title">
+        <div class="settings-copy">
+          <p class="eyebrow">原生设置，不打断输入</p><h2 id="settings-title">复杂能力，保持清楚。</h2>
+          <p>四个原生偏好面板把日常、按键、外观与本地数据分开。外观预览即时更新，保存与取消只在有修改时变为可用。</p>
+          <ul class="check-list"><li>设置草稿与已保存值清楚区分</li><li>候选密度与字号保存前即可预览</li><li>危险数据操作独立分组并再次确认</li></ul>
         </div>
-        <div class="typing-demo" aria-label="五笔与拼音输入示例">
-          <div class="demo-row">
-            <code>wqvb</code>
-            <span>你好</span>
-            <small>五笔词组</small>
+        <div class="settings-window" aria-label="Mac Wubi 设置窗口示意">
+          <div class="settings-toolbar">
+            <div class="toolbar-item"><span>☷</span><small>常用</small></div>
+            <div class="toolbar-item"><span>⌨</span><small>按键</small></div>
+            <div class="toolbar-item active"><span>A</span><small>外观</small></div>
+            <div class="toolbar-item"><span>◇</span><small>高级</small></div>
           </div>
-          <div class="demo-row">
-            <code>sm</code>
-            <span>机 · 机会 · 机构</span>
-            <small>本地联想</small>
+          <div class="settings-body">
+            <div class="settings-form"><div><span>每页候选</span><strong>5 个</strong></div><div><span>排列方式</span><strong>纵向</strong></div><div><span>文字大小</span><strong>标准 · 14 pt</strong></div></div>
+            <div class="preview-panel"><small>候选预览</small><div class="preview-choice active"><b>1</b> 示例</div><div class="preview-choice"><b>2</b> 示例</div><div class="preview-choice"><b>3</b> 示例</div></div>
           </div>
-          <div class="demo-row">
-            <code>shenm</code>
-            <span>什么</span>
-            <small>拼音预测</small>
-          </div>
+          <div class="settings-footer"><span>所有更改均已保存。</span><button type="button" disabled>保存</button></div>
         </div>
       </section>
 
-      <section class="install section" id="install">
-        <div>
-          <p class="eyebrow">开始使用</p>
-          <h2>从源码构建，保持透明。</h2>
+      <section class="privacy-section" id="privacy">
+        <div class="privacy-inner page-width">
+          <div class="section-heading split-heading">
+            <div><p class="eyebrow">隐私不是设置项，是架构</p><h2>输入不需要经过互联网。</h2></div>
+            <p>Mac Wubi 86 没有网络 entitlement，不创建网络连接，也不记录按键、候选、提交文本、应用身份或可重建输入过程的时间线。</p>
+          </div>
+          <div class="privacy-grid">
+            <article><strong>01</strong><h3>本地查询</h3><p>基础词库随应用签名发布，五笔与拼音候选都在进程内完成。</p></article>
+            <article><strong>02</strong><h3>分域保存</h3><p>设置、用户词库与学习数据独立版本化，损坏不会污染其他数据域。</p></article>
+            <article><strong>03</strong><h3>随时清理</h3><p>可单独删除学习、用户词库或全部个性化数据，不损坏基础输入法。</p></article>
+          </div>
+          <a class="privacy-link" href="https://github.com/agol586/wb86/blob/main/Docs/Privacy.md">阅读完整隐私说明 <span aria-hidden="true">→</span></a>
         </div>
-        <div class="install-content">
-          <p>
-            当前版本提供完整源码。需要 Apple Silicon Mac、macOS 13 或更高版本，以及 Xcode。
-            正式 Developer ID 公证安装包仍在完成最终发布门禁。
-          </p>
-          <pre aria-label="构建命令"><code>git clone https://github.com/agol586/wb86.git
+      </section>
+
+      <section class="section page-width" id="install">
+        <div class="section-heading split-heading">
+          <div><p class="eyebrow">当前发布方式</p><h2>三步开始使用。</h2></div>
+          <p>v1.5 已作为源码 Release 发布。正式 Developer ID 公证安装包仍在完成最终发布门禁，因此这里不会把开发签名版本包装成“一键安装”。</p>
+        </div>
+        <ol class="install-steps">
+          <li><span>1</span><div><h3>获取源码</h3><p>从 v1.5 Release 下载源码归档，或克隆仓库并检出 <code>v1.5</code> 标签。</p></div></li>
+          <li><span>2</span><div><h3>使用 Xcode 构建</h3><p>需要 Apple Silicon Mac、macOS 13+ 与 Xcode。</p></div></li>
+          <li><span>3</span><div><h3>在系统设置启用</h3><p>前往“键盘 → 文本输入 → 编辑”，在中文输入源中添加 Mac Wubi 86。</p></div></li>
+        </ol>
+        <div class="command-card">
+          <div class="command-heading"><span>终端</span><small>构建原生 arm64 Release</small></div>
+          <pre><code>git clone https://github.com/agol586/wb86.git
 cd wb86
 Scripts/build-release.sh</code></pre>
-          <div class="install-links">
-            <a class="button button-primary" href="https://github.com/agol586/wb86/releases/latest">查看最新版本</a>
-            <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/SigningAndDistribution.md">安装与签名说明 <span aria-hidden="true">→</span></a>
+          <div class="command-actions">
+            <a class="button button-primary" href="https://github.com/agol586/wb86/releases/tag/v1.5">获取 v1.5 源码</a>
+            <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/UserGuide.md">完整用户指南 <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="https://github.com/agol586/wb86/blob/main/Docs/SigningAndDistribution.md">签名与安装说明 <span aria-hidden="true">→</span></a>
           </div>
         </div>
       </section>
-    </main>
 
-    <footer>
-      <div class="footer-brand">
-        <img src="assets/macwubi-icon.svg" width="44" height="44" alt="">
-        <div><strong>Mac Wubi 86</strong><span>快、轻、安静。</span></div>
-      </div>
-      <div class="footer-links">
-        <a href="https://github.com/agol586/wb86">GitHub</a>
-        <a href="https://github.com/agol586/wb86/blob/main/Docs/Privacy.md">隐私</a>
-        <a href="https://github.com/agol586/wb86/issues">反馈问题</a>
-      </div>
-      <p class="copyright">© 2026 Mac Wubi 86</p>
+      <section class="faq section page-width" id="faq">
+        <div class="faq-heading"><p class="eyebrow">常见问题</p><h2>开始之前，先说清楚。</h2></div>
+        <div class="faq-list">
+          <details><summary>可以直接下载安装吗？<span aria-hidden="true">＋</span></summary><p>v1.5 Release 提供源码归档。Developer ID 公证与 Gatekeeper 最终证据仍在完成，因此目前仍需使用 Xcode 构建并签名。</p></details>
+          <details><summary>忘记五笔编码时怎么办？<span aria-hidden="true">＋</span></summary><p>默认开启五笔拼音混输。直接输入全拼即可继续找字，五笔候选仍然排在前面；也可以在设置中关闭混输。</p></details>
+          <details><summary>输入内容会上传吗？<span aria-hidden="true">＋</span></summary><p>不会。产品不具备网络客户端或服务端 entitlement，候选查询、学习和用户词库全部在本机完成。</p></details>
+          <details><summary>支持哪些 Mac？<span aria-hidden="true">＋</span></summary><p>支持 Apple Silicon 与 macOS 13 或更高版本。Intel Mac、Rosetta、五笔 98/新世纪、双拼和云候选不在支持范围。</p></details>
+        </div>
+      </section>
+
+      <section class="closing page-width">
+        <img src="assets/macwubi-icon.svg" width="72" height="72" alt="">
+        <div><p class="eyebrow">Mac Wubi 86</p><h2>让输入重新安静下来。</h2></div>
+        <a class="button button-primary" href="https://github.com/agol586/wb86/releases/tag/v1.5">获取 v1.5 源码</a>
+      </section>
+    </main>
+    <footer class="page-width">
+      <div class="footer-brand"><img src="assets/macwubi-icon.svg" width="40" height="40" alt=""><div><strong>Mac Wubi 86</strong><span>快、轻、安静。</span></div></div>
+      <div class="footer-links"><a href="https://github.com/agol586/wb86">GitHub</a><a href="https://github.com/agol586/wb86/blob/main/Docs/Privacy.md">隐私</a><a href="https://github.com/agol586/wb86/issues">反馈问题</a></div>
+      <p>© 2026 Mac Wubi 86</p>
     </footer>
   </body>
 </html>

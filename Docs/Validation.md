@@ -15,10 +15,10 @@ Scripts/measure-memory.sh /absolute/path/to/MacWubi.app
 Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
 ```
 
-The 2026-08-31 extended-character filtering run passed 264/264 main XCTest cases and 9/9 Release XCTest
-cases (273/273 total) plus deterministic dictionary compilation. The measured full-feature lookup samples
-remained below 2 ms; exact environment, sample maxima, commands and release-candidate hashes are recorded
-in `specs/002-settings-experience/evidence/v1.4-release.md`.
+The 2026-09-01 v1.5 local-release run passed 268/268 main XCTest cases and 10/10 Release XCTest cases
+(278/278 total) plus deterministic dictionary compilation. The strict full-feature lookup contract
+remained below 2 ms; the exact environment, commands and release-candidate hashes are recorded in
+`specs/002-settings-experience/evidence/v1.5-release.md`.
 The prior development-signed native arm64 Release build, release verification, privacy audit and 15 MiB
 steady-footprint evidence remain in `specs/002-settings-experience/evidence/`; the 30-logical-day,
 one-million-committed-character verdict is in `evidence/monthly-volume-stress.md`.
