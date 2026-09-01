@@ -129,5 +129,5 @@ Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
    仍可辨识，页面不依赖外部字体、脚本、跟踪或 cookie。
 3. 开启“减少动态效果”，确认位移动画消失但信息不缺失；触屏宽度不残留 hover 状态，精细指针下
    按钮只提供轻量、不超过 300ms 的 transform/opacity 反馈。
-4. 确认 v1.5 Release 链接、macOS 13+、Apple Silicon、源码发布和 Developer ID 公证门禁描述与 README
+4. 确认 v1.5.1 Release 链接、macOS 13+、Apple Silicon、源码发布和 Developer ID 公证门禁描述与 README
    一致；线上官网发布继续由 main 分支现有 GitHub Pages 工作流触发。

@@ -104,6 +104,54 @@ final class InputControllerContractTests: XCTestCase {
         XCTAssertFalse(route.mustPassThrough)
     }
 
+    func testIdleLowercaseZBeginsCompositionAndShowsCandidates() throws {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(sequencePolicyQuery: {
+            sequence, pageIndex, policy, _, mixedPinyinEnabled in
+            XCTAssertEqual(sequence.letters, "z")
+            XCTAssertTrue(mixedPinyinEnabled)
+            let queryKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "z"))
+            let candidate = try Candidate(text: "字", queryKey: queryKey,
+                                          source: .localPinyin, baseRank: 0,
+                                          learnedScore: 0, ordinal: 1)
+            return SequenceQueryResult(
+                pinyinState: .viablePrefix,
+                page: try CandidatePage(items: [candidate], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 1)
+            )
+        }), presenter: presenter)
+        let processor = InputControllerEventProcessor()
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        session.stage(settingsSnapshot: snapshot)
+
+        let consumed = processor.handle(
+            try event(type: .keyDown, keyCode: 6, characters: "z", timestamp: 1),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { client }
+        )
+
+        XCTAssertTrue(consumed)
+        XCTAssertEqual(client.actions, [.marked("z")])
+        XCTAssertTrue(presenter.isVisible)
+        XCTAssertEqual(presenter.page?.items.map(\.text), ["字"])
+    }
+
+    func testIdleLowercaseZRemainsTextWhenMixedPinyinIsDisabled() throws {
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = false
+
+        let route = InputControllerEventRouter().route(
+            try event(type: .keyDown, keyCode: 6, characters: "z", timestamp: 1),
+            settingsSnapshot: SettingsSnapshot(generation: 1, settings: settings),
+            isComposing: false
+        )
+
+        XCTAssertEqual(route.coreEvent, .text("z"))
+        XCTAssertFalse(route.mustPassThrough)
+    }
+
     func testDirectInputCompositionKeepsCandidateShortcutCharactersLiteral() throws {
         let router = InputControllerEventRouter()
         var settings = InputSettings.default

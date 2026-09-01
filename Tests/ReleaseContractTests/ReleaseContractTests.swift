@@ -13,8 +13,8 @@ final class ReleaseContractTests: XCTestCase {
     func testBundleHasRequiredInputMethodMetadata() throws {
         let info = try XCTUnwrap(Bundle.main.infoDictionary)
         XCTAssertEqual(info["CFBundleIdentifier"] as? String, "org.macwubi.inputmethod.MacWubi")
-        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.5")
-        XCTAssertEqual(info["CFBundleVersion"] as? String, "12")
+        XCTAssertEqual(info["CFBundleShortVersionString"] as? String, "1.5.1")
+        XCTAssertEqual(info["CFBundleVersion"] as? String, "13")
         XCTAssertEqual(info["LSUIElement"] as? Bool, true)
         XCTAssertNil(info["LSBackgroundOnly"],
                      "an input method that owns a settings window cannot be background-only")
@@ -59,9 +59,9 @@ final class ReleaseContractTests: XCTestCase {
             XCTAssertTrue(html.contains("id=\"\(section)\""), "missing website section: \(section)")
         }
         XCTAssertTrue(html.contains("跳到正文"))
-        XCTAssertTrue(html.contains("v1.5"))
-        XCTAssertTrue(html.contains("releases/tag/v1.5"),
-                      "published v1.5 website must link to the immutable release")
+        XCTAssertTrue(html.contains("v1.5.1"))
+        XCTAssertTrue(html.contains("releases/tag/v1.5.1"),
+                      "published v1.5.1 website must link to the immutable release")
         XCTAssertTrue(html.contains("aria-label=\"主导航\""))
         XCTAssertTrue(css.contains("prefers-color-scheme: dark"))
         XCTAssertTrue(css.contains("prefers-reduced-motion: reduce"))

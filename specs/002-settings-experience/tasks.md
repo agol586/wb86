@@ -514,3 +514,12 @@ Chrome 五类客户端共同通过物理矩阵。
   发布说明；运行完整测试后使用现有 Apple Development 身份构建 Release，验证 arm64、Hardened
   Runtime、空 entitlement、系统依赖和隐私合同，生成可校验归档并原子升级本机输入法。本地验证阶段
   不创建远端标签或 GitHub Release，且任何后续源码发布都不得声称 Developer ID 公证门禁已通过。
+
+---
+
+## Phase 25: v1.5.1 mixed-Pinyin hotfix release
+
+- [X] T109 [US4][US5] 修复默认混输开启时 `z` 未进入本地拼音组合的问题，同时保持混输关闭时普通
+  文本兼容；将 Bundle 升级为 1.5.1 (13)，同步发布合同、README、官网、回归测试和发布说明；运行
+  完整测试、发布验证与隐私审计，使用现有 Apple Development 身份原子升级本机输入法，最后以不可变
+  `v1.5.1` 标签发布源码。不得声称 Developer ID、公证、staple 或 Gatekeeper 公开分发门禁已通过。

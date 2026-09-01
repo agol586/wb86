@@ -50,7 +50,8 @@ final class InputControllerEventRouter {
                 isComposing: isComposing,
                 isDirectInput: isDirectInput,
                 keyBindings: settings.keyBindings,
-                candidate2And3ShortcutsEnabled: settings.candidate2And3ShortcutsEnabled
+                candidate2And3ShortcutsEnabled: settings.candidate2And3ShortcutsEnabled,
+                mixedPinyinEnabled: settings.mixedPinyinEnabled
             ),
             mustPassThrough: false
         )

@@ -15,6 +15,12 @@ Scripts/measure-memory.sh /absolute/path/to/MacWubi.app
 Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
 ```
 
+The 2026-09-01 v1.5.1 hotfix run passed 270/270 main XCTest cases and 10/10 Release XCTest cases,
+the deterministic dictionary fixture, signed arm64 Release verification, the static privacy audit, archive
+round-trip verification, atomic local upgrade, and installed TextEdit checks for both `wqvb` and the repaired
+`z` mixed-Pinyin path. Exact evidence is recorded in
+`specs/002-settings-experience/evidence/v1.5.1-release.md`.
+
 The 2026-09-01 v1.5 local-release run passed 268/268 main XCTest cases and 10/10 Release XCTest cases
 (278/278 total) plus deterministic dictionary compilation. The strict full-feature lookup contract
 remained below 2 ms; the exact environment, commands and release-candidate hashes are recorded in
