@@ -536,7 +536,7 @@ Chrome 五类客户端共同通过物理矩阵。
 
 ## Phase 27: v1.5.2 pagination release
 
-- [ ] T111 [US4] 将横排页码修复打包为 1.5.2 (14)，同步版本合同、README、官网和发布说明；
+- [X] T111 [US4] 将横排页码修复打包为 1.5.2 (14)，同步版本合同、README、官网和发布说明；
   运行完整测试、Apple Development Release 构建、发布验证与隐私审计，生成并验证本地归档，
   原子升级本机输入法并核对安装版本；提交源码，以不可变 `v1.5.2` 标签和 GitHub 源码 Release 发布。
   沿用 v1.5.1 的源码分发边界，Developer ID、公证、staple 和公开分发 Gatekeeper 门禁仍独立保留。
