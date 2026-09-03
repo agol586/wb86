@@ -25,6 +25,9 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private let pageLabel: NSTextField
     private var candidateBottomConstraint: NSLayoutConstraint?
     private var pageBottomConstraint: NSLayoutConstraint?
+    private var verticalPageConstraints = [NSLayoutConstraint]()
+    private var horizontalPageConstraints = [NSLayoutConstraint]()
+    private var pageWidthConstraint: NSLayoutConstraint?
     private var selectionHandler: SelectionHandler
     private var anchorTopLeft: NSPoint?
     private var candidateButtons = [Int: NSButton]()
@@ -34,6 +37,9 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private let visualPreferencesProvider: () -> CandidateVisualPreferences
     private var solidVisualBackground = false
 
+    var displayedPanelSize: NSSize { panel.frame.size }
+    var pageIndicatorFrame: NSRect { pageLabel.frame }
+    var candidateContentFrame: NSRect { candidateStack.frame }
     var isVisible: Bool { panel.isVisible }
     var canTakeKeyboardFocus: Bool { panel.canBecomeKey || panel.canBecomeMain }
     var usesHorizontalLayout: Bool { candidateStack.orientation == .horizontal }
@@ -158,8 +164,10 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
 
         let pageNumber = page.pageIndex + 1
         let pageCount = max(1, (page.totalCount + page.pageSize - 1) / page.pageSize)
-        pageLabel.stringValue = "第 \(pageNumber) / \(pageCount) 页"
-        setPageFooterVisible(!page.items.isEmpty && pageCount > 1)
+        pageLabel.stringValue = usesHorizontalLayout
+            ? "\(pageNumber)/\(pageCount)"
+            : "第 \(pageNumber) / \(pageCount) 页"
+        configurePagination(hasCandidates: !page.items.isEmpty, pageCount: pageCount)
         resizeToFit()
 
         if page.items.isEmpty { hide() }
@@ -250,6 +258,7 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         pageLabel.alignment = .right
         pageLabel.translatesAutoresizingMaskIntoConstraints = false
         pageLabel.isHidden = true
+        pageLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         effectView.addSubview(candidateStack)
         effectView.addSubview(pageSeparator)
@@ -260,27 +269,49 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         pageBottomConstraint = pageLabel.bottomAnchor.constraint(
             equalTo: effectView.bottomAnchor, constant: -8
         )
+        verticalPageConstraints = [
+            candidateStack.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -10),
+            pageLabel.leadingAnchor.constraint(equalTo: candidateStack.leadingAnchor),
+            pageLabel.topAnchor.constraint(equalTo: pageSeparator.bottomAnchor, constant: 4)
+        ]
+        let pageWidth = pageLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 0)
+        pageWidthConstraint = pageWidth
+        horizontalPageConstraints = [
+            pageLabel.leadingAnchor.constraint(equalTo: candidateStack.trailingAnchor, constant: 12),
+            pageLabel.centerYAnchor.constraint(equalTo: candidateStack.centerYAnchor),
+            pageWidth
+        ]
         NSLayoutConstraint.activate([
             candidateStack.leadingAnchor.constraint(equalTo: effectView.leadingAnchor, constant: 10),
-            candidateStack.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -10),
             candidateStack.topAnchor.constraint(equalTo: effectView.topAnchor, constant: 8),
             pageSeparator.leadingAnchor.constraint(equalTo: candidateStack.leadingAnchor),
             pageSeparator.trailingAnchor.constraint(equalTo: candidateStack.trailingAnchor),
             pageSeparator.topAnchor.constraint(equalTo: candidateStack.bottomAnchor, constant: 6),
-            pageLabel.leadingAnchor.constraint(equalTo: candidateStack.leadingAnchor),
-            pageLabel.trailingAnchor.constraint(equalTo: candidateStack.trailingAnchor),
-            pageLabel.topAnchor.constraint(equalTo: pageSeparator.bottomAnchor, constant: 4)
+            pageLabel.trailingAnchor.constraint(equalTo: effectView.trailingAnchor, constant: -10)
         ])
+        NSLayoutConstraint.activate(verticalPageConstraints)
         candidateBottomConstraint?.isActive = true
         panel.contentView = effectView
         refreshVisualStyle(using: visualPreferencesProvider())
     }
 
-    private func setPageFooterVisible(_ isVisible: Bool) {
-        pageSeparator.isHidden = !isVisible
-        pageLabel.isHidden = !isVisible
-        candidateBottomConstraint?.isActive = !isVisible
-        pageBottomConstraint?.isActive = isVisible
+    private func configurePagination(hasCandidates: Bool, pageCount: Int) {
+        NSLayoutConstraint.deactivate(verticalPageConstraints + horizontalPageConstraints)
+        candidateBottomConstraint?.isActive = false
+        pageBottomConstraint?.isActive = false
+        let showsFooter = !usesHorizontalLayout && hasCandidates && pageCount > 1
+        pageSeparator.isHidden = !showsFooter
+        pageLabel.isHidden = !hasCandidates || (!usesHorizontalLayout && !showsFooter)
+        if usesHorizontalLayout {
+            // Reserve two digits on each side for the bounded candidate result set.
+            let font = pageLabel.font ?? NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+            pageWidthConstraint?.constant = ceil(("99/99" as NSString).size(withAttributes: [.font: font]).width) + 4
+            NSLayoutConstraint.activate(horizontalPageConstraints)
+        } else {
+            NSLayoutConstraint.activate(verticalPageConstraints)
+        }
+        candidateBottomConstraint?.isActive = !showsFooter
+        pageBottomConstraint?.isActive = showsFooter
     }
 
     private func resizeToFit() {

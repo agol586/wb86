@@ -523,3 +523,20 @@ Chrome 五类客户端共同通过物理矩阵。
   文本兼容；将 Bundle 升级为 1.5.1 (13)，同步发布合同、README、官网、回归测试和发布说明；运行
   完整测试、发布验证与隐私审计，使用现有 Apple Development 身份原子升级本机输入法，最后以不可变
   `v1.5.1` 标签发布源码。不得声称 Developer ID、公证、staple 或 Gatekeeper 公开分发门禁已通过。
+
+---
+
+## Phase 26: Horizontal candidate pagination
+
+- [X] T110 [US4] 横向候选页码改为常驻第一排末尾的 `当前页/总页数`，单页显示 `1/1` 并预留
+  页码宽度；先更新候选面板测试覆盖首排位置、单页/多页尺寸稳定和纵横切换，再修改布局；
+  保留纵向页脚，通过候选及相关适配/集成测试并记录证据。
+
+---
+
+## Phase 27: v1.5.2 pagination release
+
+- [ ] T111 [US4] 将横排页码修复打包为 1.5.2 (14)，同步版本合同、README、官网和发布说明；
+  运行完整测试、Apple Development Release 构建、发布验证与隐私审计，生成并验证本地归档，
+  原子升级本机输入法并核对安装版本；提交源码，以不可变 `v1.5.2` 标签和 GitHub 源码 Release 发布。
+  沿用 v1.5.1 的源码分发边界，Developer ID、公证、staple 和公开分发 Gatekeeper 门禁仍独立保留。

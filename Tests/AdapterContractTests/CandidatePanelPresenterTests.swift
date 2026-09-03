@@ -142,7 +142,7 @@ final class CandidatePanelPresenterTests: XCTestCase {
                        [CandidateTypography.candidatePointSize(for: 1.5)])
         XCTAssertGreaterThanOrEqual(presenter.visualCornerRadius, 8)
         XCTAssertEqual(presenter.visualBorderWidth, 1)
-        XCTAssertFalse(presenter.showsPageIndicator)
+        XCTAssertTrue(presenter.showsPageIndicator)
         XCTAssertEqual(presenter.emphasizedCandidateOrdinals, [1])
         XCTAssertTrue(presenter.usesCandidateTextHierarchy)
 
@@ -192,7 +192,46 @@ final class CandidatePanelPresenterTests: XCTestCase {
         XCTAssertTrue(presenter.usesHorizontalLayout)
         XCTAssertGreaterThan(presenter.candidateSpacing, 4)
         XCTAssertFalse(presenter.candidateRowsFillAvailableWidth)
-        XCTAssertNil(presenter.displayedPageIndicator)
+        XCTAssertEqual(presenter.displayedPageIndicator, "1/1")
         XCTAssertFalse(presenter.usesSeparatedPageFooter)
     }
+
+    func testHorizontalPageIndicatorStaysOnFirstRowWithoutResizingForPagination() throws {
+        let presenter = CandidatePanelPresenter()
+        var settings = InputSettings.default
+        let code = try XCTUnwrap(InputCode("wq"))
+        let items = try [
+            Candidate(text: "甲", code: code, source: .base, baseRank: 0,
+                      learnedScore: 0, ordinal: 1),
+            Candidate(text: "乙", code: code, source: .base, baseRank: 1,
+                      learnedScore: 0, ordinal: 2)
+        ]
+        for scale in [0.8, 1.0, 2.0] {
+            settings.candidateFontScale = scale
+            settings.candidateLayout = .horizontal
+            presenter.apply(settings: settings)
+            presenter.update(with: try CandidatePage(items: items, pageIndex: 0,
+                                                     pageSize: 5, totalCount: 2))
+            let singlePageSize = presenter.displayedPanelSize
+            for (index, count, label) in [(0, 50, "1/10"), (9, 50, "10/10"), (0, 2, "1/1")] {
+                presenter.update(with: try CandidatePage(items: items, pageIndex: index,
+                                                         pageSize: 5, totalCount: count))
+                XCTAssertEqual(presenter.displayedPageIndicator, label)
+                XCTAssertEqual(presenter.displayedPanelSize.width, singlePageSize.width, accuracy: 0.5)
+                XCTAssertEqual(presenter.displayedPanelSize.height, singlePageSize.height, accuracy: 0.5)
+                XCTAssertEqual(presenter.pageIndicatorFrame.midY, presenter.candidateContentFrame.midY,
+                               accuracy: 0.5)
+                XCTAssertGreaterThan(presenter.pageIndicatorFrame.minX, presenter.candidateContentFrame.maxX)
+                XCTAssertFalse(presenter.usesSeparatedPageFooter)
+            }
+            settings.candidateLayout = .vertical
+            presenter.apply(settings: settings)
+            XCTAssertNil(presenter.displayedPageIndicator)
+            presenter.update(with: try CandidatePage(items: items, pageIndex: 0,
+                                                     pageSize: 5, totalCount: 50))
+            XCTAssertEqual(presenter.displayedPageIndicator, "第 1 / 10 页")
+            XCTAssertTrue(presenter.usesSeparatedPageFooter)
+        }
+    }
+
 }

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.5.1"><img src="https://img.shields.io/badge/release-v1.5.1-164f49?style=flat-square" alt="v1.5.1 release"></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.5.2"><img src="https://img.shields.io/badge/release-v1.5.2-164f49?style=flat-square" alt="v1.5.2 release"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-164f49?style=flat-square&logo=apple" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Apple_Silicon-arm64-164f49?style=flat-square" alt="Apple Silicon arm64">
   <img src="https://img.shields.io/badge/Swift-native-f05138?style=flat-square&logo=swift&logoColor=white" alt="Swift">
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://agol586.github.io/wb86/"><strong>官方网站</strong></a>
   ·
-  <a href="https://github.com/agol586/wb86/releases/tag/v1.5.1"><strong>获取 v1.5.1</strong></a>
+  <a href="https://github.com/agol586/wb86/releases/tag/v1.5.2"><strong>获取 v1.5.2</strong></a>
   ·
   <a href="Docs/UserGuide.md">用户指南</a>
   ·
@@ -67,13 +67,14 @@ text 和候选框中同步显示且不改变中英文状态，空格或回车后
 - 五笔优先、全拼随后，支持拼音前缀预测、候选去重和当前简繁模式。
 - 本地有界学习、用户词库搜索/编辑、UTF-8 与产品归档格式导入导出。
 - 中英文、简繁、全半角、标点、扩展汉字、四码唯一及五码首选等独立选项。
-- 每页 5–9 个候选、横向/纵向布局、字号缩放、深浅色和高对比度。
+- 每页 5–9 个候选、横向/纵向布局、字号缩放、深浅色和高对比度。横排页码常驻同排末尾，
+  仅显示 `1/10` 这样的格式，单页显示 `1/1`，预留页码空间避免分页状态改变时窗口跳动。
 - 私密模式、关闭学习、分域删除、保留数据卸载及显式彻底清理。
 - 系统级安装、原子升级、回滚、严格签名检查与完整隐私审计脚本。
 
 ## 快速开始
 
-需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。v1.5.1 以源码 Release 发布；正式 Developer
+需要 Apple Silicon Mac、macOS 13 或更高版本以及 Xcode。v1.5.2 以源码 Release 发布；正式 Developer
 ID 公证安装包仍需完成最终硬件矩阵与公证门禁。
 
 ```bash
