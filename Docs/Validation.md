@@ -15,6 +15,14 @@ Scripts/measure-memory.sh /absolute/path/to/MacWubi.app
 Scripts/run-long-stress.sh /absolute/path/to/MacWubi.app 1000000
 ```
 
+The 2026-09-11 v1.5.3 release run passed 273/273 main XCTest cases and 10/10 Release XCTest cases,
+the deterministic dictionary fixture, signed arm64 Release verification, static and running-process privacy
+audits, archive round-trip verification, and atomic local upgrade. The installed bundle reports 1.5.3 (15),
+matches the verified executable byte for byte, and is the single selected MacWubi input source. After refreshing
+the installed input-method process and TextEdit session, the unmatched `aaac` code displayed its raw candidate
+in the real client. Exact evidence is recorded in
+`specs/002-settings-experience/evidence/v1.5.3-release.md`.
+
 The 2026-09-01 v1.5.1 hotfix run passed 270/270 main XCTest cases and 10/10 Release XCTest cases,
 the deterministic dictionary fixture, signed arm64 Release verification, the static privacy audit, archive
 round-trip verification, atomic local upgrade, and installed TextEdit checks for both `wqvb` and the repaired

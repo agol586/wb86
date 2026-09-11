@@ -168,13 +168,62 @@ final class InputEngineTests: XCTestCase {
         XCTAssertEqual(result.learningDelta?.candidateText, "候选2")
     }
 
-    func testEmptyResultNeverCommitsAndBoundaryPagingPassesThrough() throws {
-        let emptyEngine = InputEngine(query: { code, page in
+    func testEmptyWubiResultShowsSelectableRawCandidateWithoutLearning() throws {
+        for rawCode in ["a", "ab", "abc", "abcd"] {
+            let engine = InputEngine(query: { _, page in
+                try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+            })
+            var composed: InputProcessingResult?
+            for letter in rawCode {
+                composed = engine.process(.letter(String(letter)))
+            }
+
+            XCTAssertEqual(composed?.clientAction, .setMarkedText(rawCode))
+            XCTAssertEqual(composed?.candidateAction.page?.items.map(\.text), [rawCode])
+            XCTAssertEqual(composed?.candidateAction.page?.items.first?.source, .directInput)
+        }
+
+        let emptyEngine = InputEngine(query: { _, page in
             try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
         })
         _ = emptyEngine.process(.letter("a"))
-        XCTAssertEqual(emptyEngine.process(.selectFirst).clientAction, .none)
-        XCTAssertEqual(emptyEngine.process(.select(1)).clientAction, .none)
+        let selected = emptyEngine.process(.selectFirst)
+        XCTAssertEqual(selected.clientAction, .commitText("a"))
+        XCTAssertNil(selected.learningDelta)
+
+        let numberedEngine = InputEngine(query: { _, page in
+            try CandidatePage(items: [], pageIndex: page, pageSize: 5, totalCount: 0)
+        })
+        _ = numberedEngine.process(.letter("a"))
+        XCTAssertEqual(numberedEngine.process(.select(1)).clientAction, .commitText("a"))
+    }
+
+    func testEmptyViablePinyinResultShowsRawCandidateWithoutFifthCodeCommit() throws {
+        let engine = InputEngine(sequencePolicyQuery: { _, pageIndex, policy, _, _ in
+            SequenceQueryResult(
+                pinyinState: .viablePrefix,
+                page: try CandidatePage(items: [], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 0)
+            )
+        })
+        var settings = InputSettings.default
+        settings.autoCommitAtFour = true
+        settings.autoCommitFirstAtFive = true
+        settings.mixedPinyinEnabled = true
+        engine.apply(settings: settings)
+
+        var result: InputProcessingResult?
+        for letter in ["s", "h", "a", "n", "g"] {
+            result = engine.process(.letter(letter))
+        }
+
+        XCTAssertEqual(result?.clientActions.actions, [.setMarkedText("shang")])
+        XCTAssertEqual(result?.candidateAction.page?.items.map(\.text), ["shang"])
+        XCTAssertEqual(result?.candidateAction.page?.items.first?.source, .directInput)
+        XCTAssertEqual(result?.state.composition?.route, .pinyinOnly)
+    }
+
+    func testBoundaryPagingPassesThrough() throws {
 
         let engine = InputEngine(query: query)
         _ = engine.process(.letter("w"))
@@ -282,6 +331,10 @@ final class InputEngineTests: XCTestCase {
                 XCTAssertEqual(result.clientAction, .setMarkedText("wqvb"), testCase.name)
                 XCTAssertEqual(result.state.composition?.code, InputCode("wqvb"), testCase.name)
                 XCTAssertNil(result.learningDelta, testCase.name)
+                if testCase.items == 0 {
+                    XCTAssertEqual(result.candidateAction.page?.items.map(\.text), ["wqvb"])
+                    XCTAssertEqual(result.candidateAction.page?.items.first?.source, .directInput)
+                }
             }
         }
     }
@@ -316,7 +369,7 @@ final class InputEngineTests: XCTestCase {
         }.count, 1)
     }
 
-    func testFifthCodeWithoutOldCandidateStartsNewCompositionWithoutEmptyCommit() throws {
+    func testFifthCodeWithRawFallbackCandidateCommitsItThenStartsNewComposition() throws {
         let engine = InputEngine { code, pageIndex in
             let candidates: [Candidate]
             if code.letters == "wqvb" {
@@ -336,7 +389,8 @@ final class InputEngineTests: XCTestCase {
         for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
         let result = engine.process(.letter("a"))
 
-        XCTAssertEqual(result.clientActions.actions, [.setMarkedText("a")])
+        XCTAssertEqual(result.clientActions.actions,
+                       [.commitText("wqvb"), .setMarkedText("a")])
         XCTAssertEqual(result.state.composition?.code, InputCode("a"))
         XCTAssertNil(result.learningDelta)
     }
@@ -364,7 +418,8 @@ final class InputEngineTests: XCTestCase {
         for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
         let result = engine.process(.letter("a"))
 
-        XCTAssertEqual(result.clientActions.actions, [.setMarkedText("a")])
+        XCTAssertEqual(result.clientActions.actions,
+                       [.commitText("wqvb"), .setMarkedText("a")])
         XCTAssertFalse(result.clientActions.actions.contains(.commitText("已显示首选")))
         XCTAssertFalse(result.clientActions.actions.contains(.commitText("已变化首选")))
         XCTAssertEqual(result.state.composition?.code, InputCode("a"))

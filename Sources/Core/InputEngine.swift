@@ -248,7 +248,7 @@ final class InputEngine {
 
         do {
             let nextResponse = try query(sequence: nextSequence, pageIndex: 0)
-            let nextPage = nextResponse.page
+            let nextPage = try pageWithRawFallback(nextResponse.page, sequence: nextSequence)
             let nextRoute = route(for: nextSequence, pinyinState: nextResponse.pinyinState)
             guard nextRoute != .invalid else { return recoverFromError() }
             let nextState = try CompositionState.composing(
@@ -261,6 +261,7 @@ final class InputEngine {
 
             var actions = [ClientTextAction]()
             var learning: LearningDelta?
+            var committedPreviousCandidate = false
             if previous.pageIndex == 0,
                let shownFirst = previous.candidates.items.first,
                shownFirst.queryKey.kind == .wubi {
@@ -270,12 +271,16 @@ final class InputEngine {
                    currentFirst.queryKey == shownFirst.queryKey,
                    currentFirst.text == shownFirst.text {
                     actions.append(.commitText(shownFirst.text))
+                    committedPreviousCandidate = true
                     if !secureInput, !privateMode, learningEnabled {
                         learning = LearningDelta(code: previousCode,
                                                  candidateText: shownFirst.text,
                                                  amount: 1)
                     }
                 }
+            }
+            if !committedPreviousCandidate {
+                actions.append(.commitText(previous.sequence.letters))
             }
             actions.append(.setMarkedText(nextSequence.letters))
             state = nextState
@@ -428,7 +433,8 @@ final class InputEngine {
         }
 
         state = .idle
-        let learning = secureInput || privateMode || !learningEnabled ? nil
+        let learning = secureInput || privateMode || !learningEnabled
+            || candidate.queryKey.kind == .directInput ? nil
             : LearningDelta(queryKey: candidate.queryKey,
                             candidateText: candidate.text,
                             amount: 1)
@@ -472,9 +478,9 @@ final class InputEngine {
         -> InputProcessingResult {
         do {
             let response = try suppliedResponse ?? query(sequence: sequence, pageIndex: pageIndex)
-            let page = response.page
             let resolvedRoute = route(for: sequence, pinyinState: response.pinyinState)
             guard resolvedRoute != .invalid else { return recoverFromError() }
+            let page = try pageWithRawFallback(response.page, sequence: sequence)
             let next = try CompositionState.composing(
                 sequence: sequence,
                 route: resolvedRoute,
@@ -484,7 +490,8 @@ final class InputEngine {
             )
             state = next
             if autoCommitAtFour, sequence.length == 4, pageIndex == 0,
-               page.totalCount == 1, page.items.count == 1 {
+               page.totalCount == 1, page.items.count == 1,
+               page.items[0].queryKey.kind == .wubi {
                 return processSelection(1)
             }
             return result(
@@ -496,6 +503,26 @@ final class InputEngine {
         } catch {
             return recoverFromError()
         }
+    }
+
+    private func pageWithRawFallback(_ page: CandidatePage,
+                                     sequence: CompositionKeySequence) throws -> CandidatePage {
+        guard page.pageIndex == 0, page.totalCount == 0, page.items.isEmpty else {
+            return page
+        }
+        guard let queryKey = CandidateQueryKey(kind: .directInput, code: sequence.letters) else {
+            throw InputEngineQueryError.invalidSequence
+        }
+        let candidate = try Candidate(
+            text: sequence.letters,
+            queryKey: queryKey,
+            source: .directInput,
+            baseRank: 0,
+            learnedScore: 0,
+            ordinal: 1
+        )
+        return try CandidatePage(items: [candidate], pageIndex: 0,
+                                 pageSize: page.pageSize, totalCount: 1)
     }
 
     private func query(sequence: CompositionKeySequence, pageIndex: Int) throws

@@ -540,3 +540,20 @@ Chrome 五类客户端共同通过物理矩阵。
   运行完整测试、Apple Development Release 构建、发布验证与隐私审计，生成并验证本地归档，
   原子升级本机输入法并核对安装版本；提交源码，以不可变 `v1.5.2` 标签和 GitHub 源码 Release 发布。
   沿用 v1.5.1 的源码分发边界，Developer ID、公证、staple 和公开分发 Gatekeeper 门禁仍独立保留。
+
+---
+
+## Phase 28: Preserve unmatched input as a candidate
+
+- [X] T112 [US3][US4] 先在 `Tests/CoreTests/InputEngineTests.swift` 覆盖五笔与有效拼音组合无本地匹配时显示可选择、
+  不学习且不触发四码唯一自动提交的原码候选，再在 `Sources/Core/InputEngine.swift` 实现兜底候选；
+  保持五码分段、有效首选、拼音前缀、取消和故障恢复语义不变，并运行目标与完整核心测试。
+
+---
+
+## Phase 29: v1.5.3 unmatched-input fallback release
+
+- [ ] T113 [US3][US4] 将无候选时保留原码候选的修复打包为 1.5.3 (15)，同步版本合同、README、官网、
+  快速验证合同和发布说明；运行完整测试、Apple Development Release 构建、发布验证、隐私审计与
+  归档回读；先原子升级本机输入法并在真实客户端验证原码候选，再提交源码，以不可变 `v1.5.3`
+  标签和 GitHub 源码 Release 发布。不得声称 Developer ID、公证、staple 或公开分发 Gatekeeper 门禁已通过。
