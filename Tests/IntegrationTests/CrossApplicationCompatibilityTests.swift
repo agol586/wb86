@@ -59,7 +59,7 @@ private final class CompatibilityClient: InputClientProxy {
     func setMarkedText(_ text: String) throws { marked.append(text) }
     func commitText(_ text: String) throws { committed.append(text) }
     func clearMarkedText() throws { clearCount += 1 }
-    func candidateAnchorTopLeft() -> NSPoint? {
-        fixture == "system-search" ? nil : NSPoint(x: 100, y: 100)
+    func candidateAnchorRect() -> NSRect? {
+        fixture == "system-search" ? nil : NSRect(x: 100, y: 100, width: 1, height: 20)
     }
 }

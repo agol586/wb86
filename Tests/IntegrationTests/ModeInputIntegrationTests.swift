@@ -148,7 +148,7 @@ private final class ModeMatrixClient: InputClientProxy {
     func setMarkedText(_ text: String) throws { actions.append(.marked(text)) }
     func commitText(_ text: String) throws { actions.append(.committed(text)) }
     func clearMarkedText() throws { actions.append(.cleared) }
-    func candidateAnchorTopLeft() -> NSPoint? { nil }
+    func candidateAnchorRect() -> NSRect? { nil }
 }
 
 private final class ModeMatrixPresenter: CandidatePresenting {
@@ -157,6 +157,6 @@ private final class ModeMatrixPresenter: CandidatePresenting {
     func update(with page: CandidatePage) { self.page = page }
     func show() { isVisible = true }
     func hide() { isVisible = false }
-    func setAnchorTopLeft(_ point: NSPoint) {}
+    func setAnchorRect(_ rect: NSRect) {}
     func setSelectionHandler(_ handler: @escaping (Int) -> Void) {}
 }

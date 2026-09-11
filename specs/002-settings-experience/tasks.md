@@ -557,3 +557,28 @@ Chrome 五类客户端共同通过物理矩阵。
   快速验证合同和发布说明；运行完整测试、Apple Development Release 构建、发布验证、隐私审计与
   归档回读；先原子升级本机输入法并在真实客户端验证原码候选，再提交源码，以不可变 `v1.5.3`
   标签和 GitHub 源码 Release 发布。不得声称 Developer ID、公证、staple 或公开分发 Gatekeeper 门禁已通过。
+
+---
+
+## Phase 30: Preserve unmatched four-code input and Return commits
+
+- [X] T114 [US3][US4] 先补充失败测试，覆盖原码候选后继续输入任意字母时保持同一完整组合且不受第五码开关影响，
+  混合拼音下 `z` 到 `zz` 失去匹配时保留并提交 `zz`，以及普通五笔/拼音组合通过 Return keyDown、
+  InputMethodKit newline command 和文本回调提交原码且不换行；
+  再修复核心状态机与适配层，运行核心和适配契约测试，并安装到本机 TextEdit 验证。
+
+---
+
+## Phase 31: Keep the candidate panel clear of marked text
+
+- [X] T115 [US4] 以屏幕底部输入行为失败夹具，覆盖候选窗口被可见区域夹取后与 marked text 相交的
+  回归；将候选锚点从单点改为完整输入行矩形，下方空间不足时翻转到上方，并在上下布局中保留至少
+  4 点间距。运行候选布局、适配契约和跨应用集成测试，再安装到本机复验用户报告场景。
+
+---
+
+## Phase 32: v1.5.4 input-preservation hotfix release
+
+- [ ] T116 [US3][US4] 将原码连续保留、普通组合回车提交和候选窗口定位修复打包为 1.5.4 (16)，同步版本合同、README、
+  官网与发布说明；运行完整测试、签名构建、发布及隐私验证，先原子升级本机并完成 TextEdit 验收，
+  再以不可变 `v1.5.4` 标签和 GitHub 源码 Release 发布，保留既有 Developer ID 分发边界。

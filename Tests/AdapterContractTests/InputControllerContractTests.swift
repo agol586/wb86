@@ -152,6 +152,55 @@ final class InputControllerContractTests: XCTestCase {
         XCTAssertFalse(route.mustPassThrough)
     }
 
+    func testSecondZFallsBackToLiteralCompositionAndReturnCommitsIt() throws {
+        let client = RecordingInputClient()
+        let presenter = RecordingCandidatePresenter()
+        let session = InputControllerSession(engine: InputEngine(sequencePolicyQuery: {
+            sequence, pageIndex, policy, _, _ in
+            let items: [Candidate]
+            if sequence.letters == "z" {
+                let queryKey = try XCTUnwrap(CandidateQueryKey(kind: .pinyin, code: "z"))
+                items = [try Candidate(text: "字", queryKey: queryKey,
+                                       source: .localPinyin, baseRank: 0,
+                                       learnedScore: 0, ordinal: 1)]
+            } else {
+                items = []
+            }
+            return SequenceQueryResult(
+                pinyinState: sequence.letters == "z" ? .viablePrefix : .noMatch,
+                page: try CandidatePage(items: items, pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: items.count)
+            )
+        }), presenter: presenter)
+        let processor = InputControllerEventProcessor()
+        let snapshot = SettingsSnapshot(generation: 1, settings: .default)
+        session.stage(settingsSnapshot: snapshot)
+
+        for timestamp in [1.0, 2.0] {
+            XCTAssertTrue(processor.handle(
+                try event(type: .keyDown, keyCode: 6, characters: "z",
+                          timestamp: timestamp),
+                session: session,
+                settingsSnapshot: snapshot,
+                resolveClient: { client }
+            ))
+        }
+
+        XCTAssertEqual(client.actions.last, .marked("zz"))
+        XCTAssertEqual(session.state.composition?.sequence.letters, "zz")
+        XCTAssertEqual(presenter.page?.items.map(\.text), ["zz"])
+
+        XCTAssertTrue(processor.handle(
+            try event(type: .keyDown, keyCode: 36, characters: "\r", timestamp: 3),
+            session: session,
+            settingsSnapshot: snapshot,
+            resolveClient: { client }
+        ))
+        XCTAssertEqual(client.actions.last, .committed("zz"))
+        XCTAssertEqual(session.state, .idle)
+        XCTAssertFalse(presenter.isVisible)
+    }
+
     func testDirectInputCompositionKeepsCandidateShortcutCharactersLiteral() throws {
         let router = InputControllerEventRouter()
         var settings = InputSettings.default
@@ -188,6 +237,79 @@ final class InputControllerContractTests: XCTestCase {
 
         XCTAssertEqual(route.coreEvent, .select(1))
         XCTAssertFalse(route.mustPassThrough)
+    }
+
+    func testOrdinaryCompositionReturnCommitsRawTextAcrossAdapterPaths() throws {
+        let router = InputControllerEventRouter()
+        var routes = [InputControllerEventRoute]()
+        for keyCode: UInt16 in [36, 76] {
+            let route = router.route(
+                try event(type: .keyDown, keyCode: keyCode, characters: "\r", timestamp: 1),
+                settingsSnapshot: SettingsSnapshot(generation: 1, settings: .default),
+                isComposing: true
+            )
+            XCTAssertEqual(route.coreEvent, .text("\r"))
+            XCTAssertFalse(route.mustPassThrough)
+            routes.append(route)
+        }
+
+        for path in ["keyDown", "command", "textCallback"] {
+            let client = RecordingInputClient()
+            let presenter = RecordingCandidatePresenter()
+            let session = InputControllerSession(engine: InputEngine(query: query),
+                                                 presenter: presenter)
+            XCTAssertTrue(session.handle(.letter("w"), client: client))
+            XCTAssertTrue(session.handle(.letter("q"), client: client))
+
+            let consumed: Bool
+            switch path {
+            case "keyDown":
+                consumed = session.handle(try XCTUnwrap(routes.first?.coreEvent), client: client)
+            case "command":
+                consumed = InputControllerCommandProcessor().handle(
+                    NSSelectorFromString("insertNewline:"), session: session,
+                    resolveClient: { client }
+                )
+            default:
+                consumed = InputControllerTextProcessor().handle(
+                    "\n", session: session, resolveClient: { client }
+                )
+            }
+
+            XCTAssertTrue(consumed, path)
+            XCTAssertEqual(client.actions.last, .committed("wq"), path)
+            XCTAssertEqual(session.state, .idle, path)
+            XCTAssertFalse(presenter.isVisible, path)
+        }
+    }
+
+    func testAdapterKeepsRawFallbackAsOneCompositionPastFifthCode() throws {
+        let engine = InputEngine(sequencePolicyQuery: { _, pageIndex, policy, _, _ in
+            SequenceQueryResult(
+                pinyinState: .unavailable,
+                page: try CandidatePage(items: [], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 0)
+            )
+        })
+        let client = RecordingInputClient()
+        let session = InputControllerSession(engine: engine,
+                                             presenter: RecordingCandidatePresenter())
+        var settings = InputSettings.default
+        settings.autoCommitFirstAtFive = false
+        settings.mixedPinyinEnabled = true
+        session.stage(settingsSnapshot: SettingsSnapshot(generation: 2, settings: settings))
+
+        for letter in ["a", "a", "a", "c", "d", "e"] {
+            XCTAssertTrue(session.handle(.letter(letter), client: client))
+        }
+
+        XCTAssertEqual(client.actions.last, .marked("aaacde"))
+        XCTAssertFalse(client.actions.contains(.committed("aaac")))
+        XCTAssertEqual(session.state.composition?.sequence.letters, "aaacde")
+
+        XCTAssertTrue(session.handle(.text("\r"), client: client))
+        XCTAssertEqual(client.actions.last, .committed("aaacde"))
+        XCTAssertEqual(session.state, .idle)
     }
 
     func testDirectInputNewlineCommandCommitsAndConsumesApplicationCommand() {
@@ -741,7 +863,7 @@ private final class RecordingInputClient: InputClientProxy {
         didPerformAction?(action)
     }
 
-    func candidateAnchorTopLeft() -> NSPoint? { NSPoint(x: 100, y: 100) }
+    func candidateAnchorRect() -> NSRect? { NSRect(x: 100, y: 100, width: 1, height: 20) }
     private enum ClientError: Error { case failed }
 }
 
@@ -753,6 +875,6 @@ private final class RecordingCandidatePresenter: CandidatePresenting {
     func update(with page: CandidatePage) { self.page = page }
     func show() { isVisible = true }
     func hide() { isVisible = false }
-    func setAnchorTopLeft(_ point: NSPoint) {}
+    func setAnchorRect(_ rect: NSRect) {}
     func setSelectionHandler(_ handler: @escaping (Int) -> Void) { selectionHandler = handler }
 }

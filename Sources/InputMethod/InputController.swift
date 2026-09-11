@@ -105,7 +105,7 @@ final class InputControllerEventProcessor {
 
 @MainActor
 final class InputControllerCommandProcessor {
-    private static let directInputCommitCommands: Set<String> = [
+    private static let newlineCommands: Set<String> = [
         "insertNewline:",
         "insertLineBreak:",
         "insertParagraphSeparator:",
@@ -114,15 +114,16 @@ final class InputControllerCommandProcessor {
 
     func handle(_ selector: Selector, session: InputControllerSession,
                 resolveClient: () -> InputClientProxy?) -> Bool {
-        guard session.state.directInput != nil,
-              Self.directInputCommitCommands.contains(NSStringFromSelector(selector)) else {
+        guard Self.newlineCommands.contains(NSStringFromSelector(selector)),
+              session.state.directInput != nil || session.state.composition != nil else {
             return false
         }
         guard let client = resolveClient() else {
             session.resetWithoutClient()
             return true
         }
-        return session.handle(.select(1), client: client)
+        let event: InputEvent = session.state.directInput != nil ? .select(1) : .text("\n")
+        return session.handle(event, client: client)
     }
 }
 
@@ -130,7 +131,10 @@ final class InputControllerCommandProcessor {
 final class InputControllerTextProcessor {
     func handle(_ text: String, session: InputControllerSession,
                 resolveClient: () -> InputClientProxy?) -> Bool {
-        guard session.state.directInput != nil else { return false }
+        let handlesDirectInput = session.state.directInput != nil
+        let handlesCompositionReturn = session.state.composition != nil
+            && (text == "\r" || text == "\n")
+        guard handlesDirectInput || handlesCompositionReturn else { return false }
         guard let client = resolveClient() else {
             session.resetWithoutClient()
             return true
@@ -376,10 +380,10 @@ private final class IMKClientProxy: InputClientProxy {
         )
     }
 
-    func candidateAnchorTopLeft() -> NSPoint? {
+    func candidateAnchorRect() -> NSRect? {
         var lineRect = NSRect.zero
         _ = input.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
         guard !lineRect.isEmpty else { return nil }
-        return NSPoint(x: lineRect.minX, y: lineRect.minY)
+        return lineRect.standardized
     }
 }

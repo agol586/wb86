@@ -223,6 +223,77 @@ final class InputEngineTests: XCTestCase {
         XCTAssertEqual(result?.state.composition?.route, .pinyinOnly)
     }
 
+    func testRawFallbackContinuesPastFifthUntilExplicitCommitWhenSettingIsOff() throws {
+        let engine = InputEngine(sequencePolicyQuery: { _, pageIndex, policy, _, _ in
+            SequenceQueryResult(
+                pinyinState: .unavailable,
+                page: try CandidatePage(items: [], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 0)
+            )
+        })
+        var settings = InputSettings.default
+        settings.autoCommitFirstAtFive = false
+        settings.mixedPinyinEnabled = true
+        engine.apply(settings: settings)
+
+        var result: InputProcessingResult?
+        for letter in ["a", "a", "a", "c", "d", "e", "f"] {
+            result = engine.process(.letter(letter))
+        }
+
+        XCTAssertEqual(result?.clientActions.actions, [.setMarkedText("aaacdef")])
+        XCTAssertEqual(result?.candidateAction.page?.items.map(\.text), ["aaacdef"])
+        XCTAssertEqual(result?.state.composition?.sequence.letters, "aaacdef")
+        XCTAssertNil(result?.learningDelta)
+
+        let committed = engine.process(.selectFirst)
+        XCTAssertEqual(committed.clientActions.actions, [.commitText("aaacdef")])
+        XCTAssertEqual(committed.state, .idle)
+        XCTAssertNil(committed.learningDelta)
+    }
+
+    func testReturnCommitsRawCompositionWithoutSelectingOrLearning() throws {
+        let engine = InputEngine(query: query)
+        _ = engine.process(.letter("w"))
+        _ = engine.process(.letter("q"))
+
+        let result = engine.process(.text("\r"))
+
+        XCTAssertEqual(result.clientActions.actions, [.commitText("wq")])
+        XCTAssertEqual(result.candidateAction, .hide)
+        XCTAssertEqual(result.state, .idle)
+        XCTAssertTrue(result.consumed)
+        XCTAssertNil(result.learningDelta)
+    }
+
+    func testSecondZBecomesRawFallbackAndReturnCommitsLiteralZZ() throws {
+        let engine = InputEngine(sequencePolicyQuery: { sequence, pageIndex, policy, _, _ in
+            SequenceQueryResult(
+                pinyinState: sequence.letters == "z" ? .viablePrefix : .noMatch,
+                page: try CandidatePage(items: [], pageIndex: pageIndex,
+                                        pageSize: policy.pageSize, totalCount: 0)
+            )
+        })
+        var settings = InputSettings.default
+        settings.mixedPinyinEnabled = true
+        engine.apply(settings: settings)
+
+        _ = engine.process(.letter("z"))
+        let secondZ = engine.process(.letter("z"))
+        XCTAssertEqual(secondZ.clientActions.actions, [.setMarkedText("zz")])
+        XCTAssertEqual(secondZ.state.composition?.sequence.letters, "zz")
+        XCTAssertEqual(secondZ.state.composition?.route, .directInput)
+        XCTAssertEqual(secondZ.candidateAction.page?.items.map(\.text), ["zz"])
+        XCTAssertEqual(secondZ.candidateAction.page?.items.first?.source, .directInput)
+
+        let result = engine.process(.text("\r"))
+        XCTAssertEqual(result.clientActions.actions, [.commitText("zz")])
+        XCTAssertEqual(result.candidateAction, .hide)
+        XCTAssertEqual(result.state, .idle)
+        XCTAssertTrue(result.consumed)
+        XCTAssertNil(result.learningDelta)
+    }
+
     func testBoundaryPagingPassesThrough() throws {
 
         let engine = InputEngine(query: query)
@@ -369,7 +440,7 @@ final class InputEngineTests: XCTestCase {
         }.count, 1)
     }
 
-    func testFifthCodeWithRawFallbackCandidateCommitsItThenStartsNewComposition() throws {
+    func testRawFallbackOverridesFifthCodeAutoCommitAndContinuesComposition() throws {
         let engine = InputEngine { code, pageIndex in
             let candidates: [Candidate]
             if code.letters == "wqvb" {
@@ -389,9 +460,9 @@ final class InputEngineTests: XCTestCase {
         for letter in ["w", "q", "v", "b"] { _ = engine.process(.letter(letter)) }
         let result = engine.process(.letter("a"))
 
-        XCTAssertEqual(result.clientActions.actions,
-                       [.commitText("wqvb"), .setMarkedText("a")])
-        XCTAssertEqual(result.state.composition?.code, InputCode("a"))
+        XCTAssertEqual(result.clientActions.actions, [.setMarkedText("wqvba")])
+        XCTAssertEqual(result.candidateAction.page?.items.map(\.text), ["wqvba"])
+        XCTAssertEqual(result.state.composition?.sequence.letters, "wqvba")
         XCTAssertNil(result.learningDelta)
     }
 

@@ -56,6 +56,9 @@ enum InputEventMapper {
         if isDirectInput, exactModeFlags.isEmpty, event.keyCode == 36 || event.keyCode == 76 {
             return .select(1)
         }
+        if isComposing, exactModeFlags.isEmpty, event.keyCode == 36 || event.keyCode == 76 {
+            return .text("\r")
+        }
 
         switch event.keyCode {
         case 53: return .cancel

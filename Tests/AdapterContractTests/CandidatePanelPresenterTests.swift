@@ -59,13 +59,50 @@ final class CandidatePanelPresenterTests: XCTestCase {
             reduceMotion: true, increaseContrast: true, backingScale: 2
         )
         let result = controller.layout(contentSize: NSSize(width: 900, height: 700),
-                                       anchorTopLeft: NSPoint(x: 1_400, y: 470),
+                                       anchorRect: NSRect(x: 1_400, y: 450,
+                                                          width: 1, height: 20),
                                        environment: environment)
 
         XCTAssertTrue(environment.visibleFrames[1].contains(result.frame))
         XCTAssertFalse(result.animates)
         XCTAssertTrue(result.usesHighContrastBorder)
         XCTAssertEqual(result.backingScale, 2)
+    }
+
+    func testCandidateFrameDoesNotOverlapLowInputLine() {
+        let controller = CandidateLayoutController()
+        let inputLine = NSRect(x: 120, y: 8, width: 20, height: 22)
+        let environment = CandidateLayoutEnvironment(
+            visibleFrames: [NSRect(x: 0, y: 0, width: 800, height: 600)],
+            reduceMotion: false, increaseContrast: false, backingScale: 2
+        )
+
+        let result = controller.layout(
+            contentSize: NSSize(width: 220, height: 120),
+            anchorRect: inputLine,
+            environment: environment
+        )
+
+        XCTAssertFalse(result.frame.intersects(inputLine))
+        XCTAssertGreaterThanOrEqual(result.frame.minY, inputLine.maxY + 4)
+    }
+
+    func testCandidateFrameUsesGapBelowInputLineWhenSpaceIsAvailable() {
+        let controller = CandidateLayoutController()
+        let inputLine = NSRect(x: 120, y: 300, width: 1, height: 22)
+        let environment = CandidateLayoutEnvironment(
+            visibleFrames: [NSRect(x: 0, y: 0, width: 800, height: 600)],
+            reduceMotion: false, increaseContrast: false, backingScale: 2
+        )
+
+        let result = controller.layout(
+            contentSize: NSSize(width: 220, height: 120),
+            anchorRect: inputLine,
+            environment: environment
+        )
+
+        XCTAssertEqual(result.frame.maxY, inputLine.minY - 4)
+        XCTAssertFalse(result.frame.intersects(inputLine))
     }
 
     func testReducedTransparencyAndHighContrastUseASolidCandidateSurface() {

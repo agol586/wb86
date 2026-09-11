@@ -4,7 +4,7 @@ protocol InputClientProxy: AnyObject {
     func setMarkedText(_ text: String) throws
     func commitText(_ text: String) throws
     func clearMarkedText() throws
-    func candidateAnchorTopLeft() -> NSPoint?
+    func candidateAnchorRect() -> NSRect?
 }
 
 @MainActor
@@ -200,8 +200,8 @@ final class InputControllerSession: PrivacySessionControlling, SettingsSessionCo
             break
         case let .show(page):
             presenter.update(with: page)
-            if let anchor = client.candidateAnchorTopLeft() {
-                presenter.setAnchorTopLeft(anchor)
+            if let anchor = client.candidateAnchorRect() {
+                presenter.setAnchorRect(anchor)
             }
             presenter.show()
         case .hide:

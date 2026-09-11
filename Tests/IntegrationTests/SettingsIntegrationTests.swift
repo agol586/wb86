@@ -358,7 +358,7 @@ private final class SettingsAppearancePresenter: CandidateAppearanceApplying {
     func update(with page: CandidatePage) {}
     func show() {}
     func hide() {}
-    func setAnchorTopLeft(_ point: NSPoint) {}
+    func setAnchorRect(_ rect: NSRect) {}
     func setSelectionHandler(_ handler: @escaping (Int) -> Void) {}
 }
 
@@ -367,7 +367,7 @@ private final class SettingsInputClient: InputClientProxy {
     func setMarkedText(_ text: String) throws {}
     func commitText(_ text: String) throws {}
     func clearMarkedText() throws { clearCount += 1 }
-    func candidateAnchorTopLeft() -> NSPoint? { nil }
+    func candidateAnchorRect() -> NSRect? { nil }
 }
 
 private final class SettingsIntegrationSession: SettingsSessionControlling {

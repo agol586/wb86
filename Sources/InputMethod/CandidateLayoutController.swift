@@ -46,16 +46,28 @@ struct CandidateLayoutController {
         return String(fullHint.dropFirst(typed.count))
     }
 
-    func layout(contentSize: NSSize, anchorTopLeft: NSPoint,
+    func layout(contentSize: NSSize, anchorRect: NSRect,
                 environment: CandidateLayoutEnvironment) -> CandidateLayoutResult {
-        let screen = environment.visibleFrames.first { $0.contains(anchorTopLeft) }
+        let normalizedAnchor = anchorRect.standardized
+        let anchorPoint = NSPoint(x: normalizedAnchor.midX, y: normalizedAnchor.midY)
+        let screen = environment.visibleFrames.first { $0.contains(anchorPoint) }
             ?? environment.visibleFrames.first
             ?? NSRect(origin: .zero, size: contentSize)
+        let spacing: CGFloat = 4
+        let availableBelow = max(0, normalizedAnchor.minY - spacing - screen.minY)
+        let availableAbove = max(0, screen.maxY - normalizedAnchor.maxY - spacing)
+        let placeBelow = contentSize.height <= availableBelow
+            || (contentSize.height > availableAbove && availableBelow >= availableAbove)
+        let availableHeight = placeBelow ? availableBelow : availableAbove
         let size = NSSize(width: min(max(1, contentSize.width), screen.width),
-                          height: min(max(1, contentSize.height), screen.height))
-        let proposed = NSPoint(x: anchorTopLeft.x, y: anchorTopLeft.y - size.height)
-        let origin = NSPoint(x: min(max(proposed.x, screen.minX), screen.maxX - size.width),
-                             y: min(max(proposed.y, screen.minY), screen.maxY - size.height))
+                          height: min(max(1, contentSize.height), max(1, availableHeight)))
+        let proposedY = placeBelow
+            ? normalizedAnchor.minY - spacing - size.height
+            : normalizedAnchor.maxY + spacing
+        let origin = NSPoint(
+            x: min(max(normalizedAnchor.minX, screen.minX), screen.maxX - size.width),
+            y: min(max(proposedY, screen.minY), screen.maxY - size.height)
+        )
         return CandidateLayoutResult(frame: NSRect(origin: origin, size: size),
                                      animates: !environment.reduceMotion,
                                      usesHighContrastBorder: environment.increaseContrast,

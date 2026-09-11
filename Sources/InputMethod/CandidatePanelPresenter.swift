@@ -29,7 +29,7 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     private var horizontalPageConstraints = [NSLayoutConstraint]()
     private var pageWidthConstraint: NSLayoutConstraint?
     private var selectionHandler: SelectionHandler
-    private var anchorTopLeft: NSPoint?
+    private var anchorRect: NSRect?
     private var candidateButtons = [Int: NSButton]()
     private var appearanceSettings = InputSettings.migrationCompatibilityDefault
     private var currentPage: CandidatePage?
@@ -185,9 +185,9 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
         panel.orderOut(nil)
     }
 
-    func setAnchorTopLeft(_ point: NSPoint) {
+    func setAnchorRect(_ rect: NSRect) {
         precondition(Thread.isMainThread)
-        anchorTopLeft = point
+        anchorRect = rect.standardized
         positionAtAnchorIfAvailable()
     }
 
@@ -325,13 +325,14 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
     }
 
     private func positionAtAnchorIfAvailable() {
-        guard let anchorTopLeft else { return }
-        let targetScreen = NSScreen.screens.first { $0.frame.contains(anchorTopLeft) } ?? NSScreen.main
+        guard let anchorRect else { return }
+        let anchorPoint = NSPoint(x: anchorRect.midX, y: anchorRect.midY)
+        let targetScreen = NSScreen.screens.first { $0.frame.contains(anchorPoint) } ?? NSScreen.main
         let visualPreferences = visualPreferencesProvider()
         refreshVisualStyle(using: visualPreferences)
         let result = layoutController.layout(
             contentSize: panel.frame.size,
-            anchorTopLeft: anchorTopLeft,
+            anchorRect: anchorRect,
             environment: CandidateLayoutEnvironment(
                 visibleFrames: NSScreen.screens.map(\.visibleFrame),
                 reduceMotion: visualPreferences.reduceMotion,
@@ -363,7 +364,7 @@ final class CandidatePanelPresenter: NSObject, CandidateAppearanceApplying {
 
     @objc private func accessibilityDisplayOptionsDidChange() {
         precondition(Thread.isMainThread)
-        if anchorTopLeft == nil {
+        if anchorRect == nil {
             refreshVisualPreferences()
         } else {
             positionAtAnchorIfAvailable()

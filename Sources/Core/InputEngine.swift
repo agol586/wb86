@@ -219,13 +219,16 @@ final class InputEngine {
               let sequence = CompositionKeySequence(existing + rawLetter) else {
             return recoverFromError()
         }
-        if existing.utf8.count == 4, autoCommitFirstAtFive {
+        if existing.utf8.count == 4 {
+            let previousIsRawFallback = state.composition?.candidates.items.first?
+                .queryKey.kind == .directInput
             if mixedPinyinEnabled, sequencePolicyQuery != nil {
                 do {
                     let response = try query(sequence: sequence, pageIndex: 0)
                     let prospectiveRoute = route(for: sequence,
                                                  pinyinState: response.pinyinState)
-                    if prospectiveRoute == .mixed || prospectiveRoute == .pinyinOnly {
+                    if prospectiveRoute == .mixed || prospectiveRoute == .pinyinOnly
+                        || previousIsRawFallback {
                         return queryAndCompose(sequence: sequence, pageIndex: 0,
                                                response: response)
                     }
@@ -233,7 +236,12 @@ final class InputEngine {
                     return recoverFromError()
                 }
             }
-            return processFifthLetter(rawLetter)
+            if previousIsRawFallback {
+                return queryAndCompose(sequence: sequence, pageIndex: 0)
+            }
+            if autoCommitFirstAtFive {
+                return processFifthLetter(rawLetter)
+            }
         }
         return queryAndCompose(sequence: sequence, pageIndex: 0)
     }
@@ -297,7 +305,14 @@ final class InputEngine {
     }
 
     private func processText(_ text: String) -> InputProcessingResult {
-        if state.kind == .composing {
+        if let composition = state.composition {
+            if text == "\r" || text == "\n" {
+                state = .idle
+                return result(state: .idle,
+                              clientAction: .commitText(composition.sequence.letters),
+                              candidateAction: .hide,
+                              consumed: true)
+            }
             return clearIfComposing(consumedWhenComposing: false)
         }
         guard let converted = punctuationConverter.convert(text, mode: mode) else {
@@ -478,12 +493,18 @@ final class InputEngine {
         -> InputProcessingResult {
         do {
             let response = try suppliedResponse ?? query(sequence: sequence, pageIndex: pageIndex)
-            let resolvedRoute = route(for: sequence, pinyinState: response.pinyinState)
-            guard resolvedRoute != .invalid else { return recoverFromError() }
             let page = try pageWithRawFallback(response.page, sequence: sequence)
+            let resolvedRoute = route(for: sequence, pinyinState: response.pinyinState)
+            let effectiveRoute: CompositionRoute
+            if resolvedRoute == .invalid, isRawFallback(page, for: sequence) {
+                effectiveRoute = .directInput
+            } else {
+                effectiveRoute = resolvedRoute
+            }
+            guard effectiveRoute != .invalid else { return recoverFromError() }
             let next = try CompositionState.composing(
                 sequence: sequence,
-                route: resolvedRoute,
+                route: effectiveRoute,
                 candidates: page,
                 pageIndex: pageIndex,
                 selectionIndex: page.items.isEmpty ? nil : 0
@@ -525,14 +546,27 @@ final class InputEngine {
                                  pageSize: page.pageSize, totalCount: 1)
     }
 
+    private func isRawFallback(_ page: CandidatePage,
+                               for sequence: CompositionKeySequence) -> Bool {
+        page.pageIndex == 0 && page.totalCount == 1 && page.items.count == 1
+            && page.items[0].queryKey.kind == .directInput
+            && page.items[0].text == sequence.letters
+    }
+
     private func query(sequence: CompositionKeySequence, pageIndex: Int) throws
         -> SequenceQueryResult {
         if let sequencePolicyQuery {
             return try sequencePolicyQuery(sequence, pageIndex, rankingPolicy, mode,
                                            mixedPinyinEnabled)
         }
-        guard let code = sequence.wubiCode, let policyQuery else {
+        guard let policyQuery else {
             throw InputEngineQueryError.invalidSequence
+        }
+        guard let code = sequence.wubiCode else {
+            guard sequence.length > 4 else { throw InputEngineQueryError.invalidSequence }
+            let emptyPage = try CandidatePage(items: [], pageIndex: pageIndex,
+                                              pageSize: rankingPolicy.pageSize, totalCount: 0)
+            return SequenceQueryResult(pinyinState: .unavailable, page: emptyPage)
         }
         let queriedPage = try policyQuery(code, pageIndex, rankingPolicy)
         let page = try scriptConverter?.convert(queriedPage, to: mode.script) ?? queriedPage

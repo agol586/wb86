@@ -5,7 +5,7 @@ protocol CandidatePresenting: AnyObject {
     func update(with page: CandidatePage)
     func show()
     func hide()
-    func setAnchorTopLeft(_ point: NSPoint)
+    func setAnchorRect(_ rect: NSRect)
     func setSelectionHandler(_ handler: @escaping (Int) -> Void)
 }
 
@@ -22,6 +22,6 @@ final class NullCandidatePresenter: CandidatePresenting {
         isVisible = false
     }
 
-    func setAnchorTopLeft(_ point: NSPoint) {}
+    func setAnchorRect(_ rect: NSRect) {}
     func setSelectionHandler(_ handler: @escaping (Int) -> Void) {}
 }
