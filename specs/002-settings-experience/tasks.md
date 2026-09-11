@@ -553,7 +553,7 @@ Chrome 五类客户端共同通过物理矩阵。
 
 ## Phase 29: v1.5.3 unmatched-input fallback release
 
-- [ ] T113 [US3][US4] 将无候选时保留原码候选的修复打包为 1.5.3 (15)，同步版本合同、README、官网、
+- [X] T113 [US3][US4] 将无候选时保留原码候选的修复打包为 1.5.3 (15)，同步版本合同、README、官网、
   快速验证合同和发布说明；运行完整测试、Apple Development Release 构建、发布验证、隐私审计与
   归档回读；先原子升级本机输入法并在真实客户端验证原码候选，再提交源码，以不可变 `v1.5.3`
   标签和 GitHub 源码 Release 发布。不得声称 Developer ID、公证、staple 或公开分发 Gatekeeper 门禁已通过。
